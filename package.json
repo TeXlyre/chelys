@@ -1,0 +1,44 @@
+{
+  "name": "chelys",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/update-version.mjs && vite",
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/update-version.mjs && npm run init:submodules && vite build",
+    "preview": "vite preview",
+    "tauri": "node scripts/update-version.mjs && tauri",
+    "init:submodules": "node scripts/init-submodules.mjs"
+  },
+  "dependencies": {
+    "@picocss/pico": "^2.1.1",
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-autostart": "^2.5.1",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "@tauri-apps/plugin-fs": "^2.5.1",
+    "@tauri-apps/plugin-opener": "^2.5.4",
+    "@tauri-apps/plugin-os": "^2.3.2",
+    "filepizza-client": "^2.1.2",
+    "hash-wasm": "^4.12.0",
+    "idb": "^8.0.3",
+    "mime": "^4.1.0",
+    "nanoid": "^5.1.11",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "y-indexeddb": "^9.0.12",
+    "y-protocols": "^1.0.7",
+    "y-webrtc": "^10.3.0",
+    "y-websocket": "^3.0.0",
+    "yjs": "^13.6.30"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "typescript": "^6.0.2",
+    "vite": "^7.3.2"
+  }
+}

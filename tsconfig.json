@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@/i18n": [
+        "./src/i18n-shim.ts"
+      ],
+      "@texlyre": [
+        "./external/texlyre/src"
+      ],
+      "@chelys": [
+        "./external/texlyre/chelys"
+      ],
+      "webrtc-adapter": [
+        "./src/webrtc-polyfill/webrtc-adapter-shim.ts"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "external",
+    "node_modules",
+    "dist"
+  ]
+}
