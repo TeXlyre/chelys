@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "productName": "Chelys",
+  "version": "0.1.0",
+  "identifier": "app.chelys.poc",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "trayIcon": {
+      "id": "main",
+      "iconPath": "icons/32x32.png",
+      "tooltip": "Chelys"
+    },
+    "windows": [
+      {
+        "label": "main",
+        "title": "Chelys",
+        "width": 720,
+        "height": 720,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
