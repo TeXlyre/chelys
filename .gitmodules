@@ -1,0 +1,3 @@
+[submodule "external/texlyre"]
+	path = external/texlyre
+	url = https://github.com/TeXlyre/texlyre.git
