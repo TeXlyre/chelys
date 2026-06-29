@@ -38,8 +38,8 @@ Requires [Node.js](https://nodejs.org/) (LTS) and the [Rust toolchain](https://w
     git clone --recursive https://github.com/TeXlyre/chelys.git
     cd chelys
     npm install
-    npm run tauri dev      # run in development
     npm run tauri build    # produce a release build
+    npm run tauri dev      # run in development
 
 ## License
 
