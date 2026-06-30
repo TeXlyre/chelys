@@ -36,14 +36,16 @@ Some system recipes install Rust-based tools with `cargo install`.
 
 ### Windows
 
-```powershell
+```cmd
 winget install --id Rustlang.Rustup -e
 winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--quiet --wait --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+rustup toolchain install 1.68.2-x86_64-pc-windows-msvc && rustup default 1.68.2-x86_64-pc-windows-msvc
+setx CARGO_REGISTRIES_CRATES_IO_PROTOCOL sparse
 ```
 
 Restart your terminal, then verify:
 
-```powershell
+```cmd
 cargo --version
 where link
 ```
