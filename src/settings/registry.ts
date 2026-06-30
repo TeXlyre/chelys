@@ -3,6 +3,7 @@ import { t } from '@/i18n';
 import type { Setting } from '../contexts/SettingsContext';
 import { getSettingDefault } from '../config';
 import { recipeRegistry } from '../plugin-host/RecipeRegistry';
+import { resetPlatformCache } from '../plugin-host/platformResolution';
 import { applyCloseBehavior, applyStartOnBoot } from '../utils/systemSettings';
 
 export const getChelysSettings = (): Setting[] => [
@@ -43,6 +44,25 @@ export const getChelysSettings = (): Setting[] => [
         description: t('Automatically reconnect to peers (applied on next login)'),
         defaultValue: getSettingDefault('collabAutoReconnect'),
         liveUpdate: false,
+    },
+    {
+        id: 'recipePlatformOverride',
+        category: t('Recipes'),
+        subcategory: t('Runtime'),
+        type: 'select',
+        label: t('Recipe operating system'),
+        description: t('Use Auto unless Chelys detects the wrong platform for system recipes.'),
+        defaultValue: getSettingDefault('recipePlatformOverride'),
+        options: [
+            { label: t('Auto-detect'), value: 'auto' },
+            { label: t('Windows'), value: 'windows' },
+            { label: t('macOS'), value: 'macos' },
+            { label: t('Linux'), value: 'linux' },
+        ],
+        onChange: () => {
+            resetPlatformCache();
+            window.dispatchEvent(new CustomEvent('chelys-platform-changed'));
+        },
     },
     {
         id: 'closeBehavior',

@@ -1,6 +1,6 @@
 // src/components/app/SettingsDataApp.tsx
 import type React from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { t } from '@/i18n';
 import { useRoom } from '../../hooks/useRoom';
@@ -10,6 +10,11 @@ import ProfileModal from '../profile/ProfileModal';
 import SettingsButton from '../settings/SettingsButton';
 import UserDropdown from '../profile/UserDropdown';
 import ThemeToggle from '../settings/ThemeToggle';
+import {
+	formatPlatform,
+	getPlatformInfo,
+	type PlatformInfo,
+} from '../../plugin-host/platformResolution';
 import { openExternalUrl } from '../../utils/platformUtils';
 import AccountCollabIndicator from '../profile/AccountCollabIndicator';
 
@@ -21,6 +26,30 @@ function handleExternalLink(event: React.MouseEvent<HTMLAnchorElement>) {
 const DashboardApp: React.FC = () => {
 	const { username, logout } = useRoom();
 	const [showProfile, setShowProfile] = useState(false);
+	const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+
+		const refreshPlatformInfo = () => {
+			void getPlatformInfo()
+				.then((info) => {
+					if (!cancelled) setPlatformInfo(info);
+				})
+				.catch((error) => {
+					console.warn('[Chelys] Failed to read platform info', error);
+				});
+		};
+
+		refreshPlatformInfo();
+
+		window.addEventListener('chelys-platform-changed', refreshPlatformInfo);
+
+		return () => {
+			cancelled = true;
+			window.removeEventListener('chelys-platform-changed', refreshPlatformInfo);
+		};
+	}, []);
 
 	return (
 		<div className='app-container'>
@@ -60,6 +89,15 @@ const DashboardApp: React.FC = () => {
 				onClose={() => setShowProfile(false)}
 			/>
 			<footer>
+				<p className='texlyre-info footer-platform'>
+					{t('OS')}:{' '}
+					{platformInfo
+						? platformInfo.override === 'auto'
+							? formatPlatform(platformInfo.detected)
+							: `${formatPlatform(platformInfo.effective)} ${t('(manual)')}`
+						: t('Detecting OS')}
+				</p>
+
 				<p className='texlyre-info'>
 					<span className='footer-links'>
 						<a href='https://texlyre.org' onClick={handleExternalLink}>

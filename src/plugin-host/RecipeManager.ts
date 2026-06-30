@@ -38,6 +38,11 @@ class RecipeManager {
 	private platform: PlatformId = 'desktop';
 	private reattached = new Set<string>();
 
+	private async resolveForCurrentPlatform(base: Recipe): Promise<Recipe> {
+		this.platform = await detectPlatform();
+		return resolveRecipe(applyPlatform(base, this.platform));
+	}
+
 	async initialize(): Promise<void> {
 		if (this.initialized) return;
 		this.initialized = true;
@@ -133,7 +138,7 @@ class RecipeManager {
 	async install(recipeId: string, mode: InstallModeKind): Promise<void> {
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
-		const recipe = resolveRecipe(applyPlatform(base, this.platform));
+		const recipe = await this.resolveForCurrentPlatform(base);
 
 		this.patch(recipeId, {
 			state: 'installing',
@@ -166,7 +171,7 @@ class RecipeManager {
 		this.reattached.delete(recipeId);
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
-		const recipe = resolveRecipe(applyPlatform(base, this.platform));
+		const recipe = await this.resolveForCurrentPlatform(base);
 		const mode = this.statuses.get(recipeId)?.mode;
 		if (!mode) {
 			this.patch(recipeId, { state: 'error', lastError: 'No install mode selected' });
@@ -270,7 +275,7 @@ class RecipeManager {
 
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
-		const recipe = resolveRecipe(applyPlatform(base, this.platform));
+		const recipe = await this.resolveForCurrentPlatform(base);
 
 		this.patch(recipeId, { state: 'installing', lastError: null });
 		try {
@@ -335,7 +340,7 @@ class RecipeManager {
 				state: 'running',
 				lastError: null,
 			});
-			this.runStartHook(resolveRecipe(applyPlatform(recipe, this.platform)));
+			this.runStartHook(await this.resolveForCurrentPlatform(recipe));
 		}
 	}
 

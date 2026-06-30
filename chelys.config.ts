@@ -22,6 +22,7 @@ const config: ChelysConfig = {
                 collabAutoReconnect: true,
                 closeBehavior: 'tray',
                 startOnBoot: false,
+                recipePlatformOverride: 'auto',
             },
         },
     },
