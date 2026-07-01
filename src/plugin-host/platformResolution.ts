@@ -32,10 +32,10 @@ export function normalizePlatform(platform: string): PlatformId {
 
 export function normalizePlatformOverride(value: unknown): RecipePlatformOverride {
 	if (
+		value === 'auto' ||
 		value === 'windows' ||
 		value === 'macos' ||
-		value === 'linux' ||
-		value === 'auto'
+		value === 'linux'
 	) {
 		return value;
 	}
@@ -102,13 +102,6 @@ export function applyPlatform(recipe: Recipe, platform: PlatformId): Recipe {
 
 		const system = mode as SystemMode;
 		const override = system.platforms?.[platformKey];
-
-		console.debug('[Chelys] Applying recipe platform override', {
-			recipeId: recipe.id,
-			detectedPlatform: platform,
-			platformKey,
-			hasOverride: Boolean(override),
-		});
 
 		if (!override) return system;
 
