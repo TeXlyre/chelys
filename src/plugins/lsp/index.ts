@@ -1,6 +1,7 @@
 // src/plugins/lsp/index.ts
 import { getStoredSetting } from '../../config';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
+import { withRouteStart, withRouteStop } from '../../plugin-host/routeHooks';
 import type { Recipe } from '../../plugin-host/types';
 import { injectLspConfig, removeLspConfig } from './injection';
 import { LSP_TYPE, parseLspImport } from './shared';
@@ -41,7 +42,7 @@ export function registerLspPlugin(): void {
 			},
 		],
 		parseImport: parseLspImport,
-		onStart: injectLspConfig,
-		onStop: removeLspConfig,
+		onStart: withRouteStart(injectLspConfig),
+		onStop: withRouteStop(removeLspConfig),
 	});
 }

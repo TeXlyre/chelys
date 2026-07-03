@@ -19,6 +19,12 @@ class PluginTypeRegistry {
 	seeds(): Recipe[] {
 		return this.list().flatMap((definition) => definition.seeds);
 	}
+
+	exclusiveTypes(): string[] {
+		return this.list()
+			.filter((definition) => definition.exclusive)
+			.map((definition) => definition.type);
+	}
 }
 
 export const pluginTypeRegistry = new PluginTypeRegistry();

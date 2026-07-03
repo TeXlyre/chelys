@@ -35,6 +35,7 @@ export interface DockerMode {
 	image: string;
 	buildSteps: InstallStep[];
 	runArgs: string[];
+	command?: string[];
 	dockerfile?: string;
 	dockerfileUrl?: string;
 }
@@ -72,6 +73,8 @@ export interface Recipe {
 	modes: InstallMode[];
 	selectedMode?: InstallModeKind;
 	typeConfig: Record<string, unknown>;
+	extraFiles?: string[];
+	sourceUrl?: string;
 	variables?: RecipeVariable[];
 	variableValues?: Record<string, string>;
 	source?: RecipeSource;
@@ -125,6 +128,7 @@ export interface FieldSchema {
 
 export interface PluginTypeDefinition {
 	type: string;
+	exclusive?: boolean;
 	label: string;
 	icon?: string;
 	seeds: Recipe[];
