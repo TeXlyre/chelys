@@ -7,6 +7,7 @@ import { deriveIdentity, fromHex, type DerivedIdentity } from '@chelys/protocol'
 import { chelysAccountSyncService } from '@texlyre/services/ChelysAccountSyncService';
 import { type RoomDefaults, getStoredSetting } from '../config';
 import { setActiveAccountId } from '../plugin-host/activeAccount';
+import { recipeManager } from '../plugin-host/RecipeManager';
 
 interface StoredCredentials {
 	username: string;
@@ -29,6 +30,26 @@ interface RoomContextType {
 	updateCredentials: (next: RoomCredentials) => Promise<void>;
 	logout: () => Promise<void>;
 }
+
+const lastRoomKey = (username: string): string => `chelys-last-room:${username}`;
+
+const migrateUserStorage = (fromId: string, toId: string): void => {
+	const fromPrefix = `texlyre-user-${fromId}-`;
+	const toPrefix = `texlyre-user-${toId}-`;
+	const keys: string[] = [];
+
+	for (let i = 0; i < localStorage.length; i++) {
+		const key = localStorage.key(i);
+		if (key?.startsWith(fromPrefix)) keys.push(key);
+	}
+
+	for (const key of keys) {
+		const target = toPrefix + key.slice(fromPrefix.length);
+		if (localStorage.getItem(target) !== null) continue;
+		const value = localStorage.getItem(key);
+		if (value !== null) localStorage.setItem(target, value);
+	}
+};
 
 export const RoomContext = createContext<RoomContextType>({
 	identity: null,
@@ -61,6 +82,7 @@ export const RoomProvider: React.FC<{
 		creds: RoomCredentials,
 	) => {
 		setActiveAccountId(derived.roomId);
+		localStorage.setItem(lastRoomKey(user), derived.roomId);
 
 		const storageKey = `texlyre-user-${derived.roomId}-settings`;
 		const existing = JSON.parse(localStorage.getItem(storageKey) || '{}');
@@ -91,6 +113,7 @@ export const RoomProvider: React.FC<{
 			derived.roomId,
 			user
 		);
+		void recipeManager.reinjectRunning();
 	};
 
 	useEffect(() => {
@@ -125,6 +148,12 @@ export const RoomProvider: React.FC<{
 			password,
 			prfOutput: fromHex(normalizedPrf),
 		});
+
+		const lastRoom = localStorage.getItem(lastRoomKey(user));
+		if (lastRoom && lastRoom !== derived.roomId) {
+			migrateUserStorage(lastRoom, derived.roomId);
+		}
+
 		await invoke('save_credentials', {
 			username: user,
 			password,
@@ -138,7 +167,6 @@ export const RoomProvider: React.FC<{
 	};
 
 	const updateCredentials = async (next: RoomCredentials) => {
-		chelysAccountSyncService.stop();
 		await login(next.username, next.password, next.prfHex);
 	};
 
