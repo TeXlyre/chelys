@@ -6,6 +6,7 @@ import { t } from '@/i18n';
 import { useRoom } from '../../hooks/useRoom';
 import { PluginHostProvider } from '../../contexts/PluginHostContext';
 import RecipeList from '../plugin-host/RecipeList';
+import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
 import ProfileModal from '../profile/ProfileModal';
 import SettingsButton from '../settings/SettingsButton';
 import UserDropdown from '../profile/UserDropdown';
@@ -26,6 +27,11 @@ function handleExternalLink(event: React.MouseEvent<HTMLAnchorElement>) {
 const DashboardApp: React.FC = () => {
 	const { username, logout } = useRoom();
 	const [showProfile, setShowProfile] = useState(false);
+	const [activeCategory, setActiveCategory] = useState<string | null>(null);
+	const exclusiveCategories = pluginTypeRegistry
+		.list()
+		.filter((definition) => definition.exclusive);
+	const [panelBusy, setPanelBusy] = useState(false);
 	const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
 
 	useEffect(() => {
@@ -78,7 +84,37 @@ const DashboardApp: React.FC = () => {
 							<h3>{t('Plugins')}</h3>
 						</div> */}
 						<PluginHostProvider>
-							<RecipeList />
+							{exclusiveCategories.length > 0 && (
+								<div className='plugin-category-nav'>
+									<button
+										className={`category-item ${activeCategory === null ? 'active' : ''}`}
+										disabled={panelBusy && activeCategory !== null}
+										onClick={() => {
+											if (!(panelBusy && activeCategory !== null)) setActiveCategory(null);
+										}}
+									>
+										{t('Plugins')}
+									</button>
+									{exclusiveCategories.map((definition) => (
+										<button
+											key={definition.type}
+											className={`category-item ${activeCategory === definition.type ? 'active' : ''}`}
+											disabled={panelBusy && activeCategory !== definition.type}
+											onClick={() => {
+												if (!(panelBusy && activeCategory !== definition.type))
+													setActiveCategory(definition.type);
+											}}
+										>
+											{t(definition.label)}
+										</button>
+									))}
+								</div>
+							)}
+							<RecipeList
+								key={activeCategory ?? 'plugins'}
+								category={activeCategory ?? undefined}
+								onBusyChange={setPanelBusy}
+							/>
 						</PluginHostProvider>
 					</div>
 				</div>
@@ -89,7 +125,7 @@ const DashboardApp: React.FC = () => {
 				onClose={() => setShowProfile(false)}
 			/>
 			<footer>
-				<p className='texlyre-info footer-platform'>
+				<p className='project-type-badge'>
 					{t('OS')}:{' '}
 					{platformInfo
 						? platformInfo.override === 'auto'
