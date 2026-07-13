@@ -12,8 +12,10 @@ import type {
 	RegistryEntry,
 } from '../plugin-host/types';
 import { registerLspPlugin } from '../plugins/lsp';
+import { registerTypesetterPlugin } from '../plugins/typesetter';
 
 registerLspPlugin();
+registerTypesetterPlugin();
 
 interface PluginHostContextType {
 	recipes: Recipe[];
