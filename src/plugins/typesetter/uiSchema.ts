@@ -25,7 +25,24 @@ export interface TypesetterUISection {
 	fields: TypesetterUIField[];
 }
 
+export interface TypesetterUIInfoRow {
+	label: TranslatableText;
+	value: TranslatableText;
+}
+
+export interface TypesetterUIInfoSection {
+	title: TranslatableText;
+	rows: TypesetterUIInfoRow[];
+}
+
+export interface TypesetterUIRenderer {
+	format: string;
+	label: TranslatableText;
+}
+
 export interface TypesetterUISchema {
 	compile?: TypesetterUISection;
 	export?: TypesetterUISection;
+	info?: TypesetterUIInfoSection;
+	renderers?: TypesetterUIRenderer[];
 }

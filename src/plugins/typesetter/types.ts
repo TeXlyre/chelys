@@ -4,6 +4,7 @@ export interface TypesetterOutputFormat {
 	id: string;
 	mimeType: string;
 	rendererPluginId?: string;
+	outputType?: string;
 }
 
 export interface TypesetterTypeConfig {
