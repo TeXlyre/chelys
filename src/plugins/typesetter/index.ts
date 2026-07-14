@@ -37,6 +37,12 @@ export function registerTypesetterPlugin(): void {
 				kind: 'textarea',
 				help: 'JSON array of { id, mimeType, rendererPluginId }',
 			},
+			{
+				key: 'ui',
+				label: 'Compile/export UI schema',
+				kind: 'textarea',
+				help: 'JSON describing compile and export option fields',
+			},
 		],
 		parseImport: parseTypesetterImport,
 		onStart: injectTypesetterConfig,

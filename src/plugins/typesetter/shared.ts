@@ -32,6 +32,7 @@ export function recipeToConfigBlock(
 			outline: config.hasOutline,
 			formatter: config.formatter,
 		},
+		ui: config.ui,
 	};
 }
 
@@ -60,6 +61,7 @@ export function parseTypesetterImport(raw: string): Recipe {
 		roomId: transport.roomId,
 		formatter: block.capabilities?.formatter,
 		hasOutline: block.capabilities?.outline,
+		ui: block.ui,
 	};
 
 	return {

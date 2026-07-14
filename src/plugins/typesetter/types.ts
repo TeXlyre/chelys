@@ -1,3 +1,5 @@
+import type { TypesetterUISchema } from './uiSchema';
+
 export interface TypesetterOutputFormat {
 	id: string;
 	mimeType: string;
@@ -15,6 +17,7 @@ export interface TypesetterTypeConfig {
 	roomId?: string;
 	formatter?: string;
 	hasOutline?: boolean;
+	ui?: TypesetterUISchema;
 }
 
 export interface TypesetterConfigBlock {
@@ -34,4 +37,5 @@ export interface TypesetterConfigBlock {
 		outline?: boolean;
 		formatter?: string;
 	};
+	ui?: TypesetterUISchema;
 }
