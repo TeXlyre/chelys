@@ -21,6 +21,7 @@ export function recipeToConfigBlock(
 		enabled,
 		projectType: config.projectType,
 		inputExtensions: config.inputExtensions,
+		inputFiles: config.inputFiles,
 		outputFormats: config.outputFormats,
 		transportConfig: {
 			type: config.transportType,
@@ -54,6 +55,7 @@ export function parseTypesetterImport(raw: string): Recipe {
 		configId: block.id || nanoid(),
 		projectType: block.projectType || 'custom',
 		inputExtensions: block.inputExtensions ?? [],
+		inputFiles: block.inputFiles ?? [],
 		outputFormats: block.outputFormats ?? [],
 		transportType: transport.type,
 		transportUrl: transport.url,

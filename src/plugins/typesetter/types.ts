@@ -1,4 +1,5 @@
-import type { TypesetterUISchema } from './uiSchema';
+// src/plugins/typesetter/types.ts
+import type { TranslatableText, TypesetterUISchema } from './uiSchema';
 
 export interface TypesetterOutputFormat {
 	id: string;
@@ -7,10 +8,17 @@ export interface TypesetterOutputFormat {
 	outputType?: string;
 }
 
+export interface TypesetterInputFile {
+	extension: string;
+	label?: TranslatableText;
+	mimeType?: string;
+}
+
 export interface TypesetterTypeConfig {
 	configId: string;
 	projectType: string;
 	inputExtensions: string[];
+	inputFiles?: TypesetterInputFile[];
 	outputFormats: TypesetterOutputFormat[];
 	transportType: 'websocket' | 'webrtc';
 	transportUrl?: string;
@@ -27,6 +35,7 @@ export interface TypesetterConfigBlock {
 	enabled: boolean;
 	projectType: string;
 	inputExtensions: string[];
+	inputFiles?: TypesetterInputFile[];
 	outputFormats: TypesetterOutputFormat[];
 	transportConfig: {
 		type: 'websocket' | 'webrtc';
