@@ -24,6 +24,7 @@ export interface TypesetterTypeConfig {
 	transportUrl?: string;
 	signalingServers?: string[];
 	roomId?: string;
+	incrementalSync?: boolean;
 	formatter?: string;
 	hasOutline?: boolean;
 	ui?: TypesetterUISchema;
@@ -33,6 +34,7 @@ export interface TypesetterConfigBlock {
 	id: string;
 	name: string;
 	enabled: boolean;
+	incrementalSync?: boolean;
 	projectType: string;
 	inputExtensions: string[];
 	inputFiles?: TypesetterInputFile[];

@@ -32,6 +32,12 @@ export function registerTypesetterPlugin(): void {
 				help: 'Comma-separated, e.g. sil, xml',
 			},
 			{
+				key: 'incrementalSync',
+				label: 'Incremental sync',
+				kind: 'boolean',
+				help: 'Send only changed files. Requires a compiler that reconciles the file manifest.',
+			},
+			{
 				key: 'outputFormats',
 				label: 'Output formats',
 				kind: 'textarea',
