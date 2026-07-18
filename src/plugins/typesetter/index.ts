@@ -10,13 +10,20 @@ export function registerTypesetterPlugin(): void {
 		icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>',
 		seeds: [],
 		formSchema: [
-			{ key: 'name', label: 'Name', kind: 'text', placeholder: 'SILE' },
+			{ key: 'name', label: 'Name', kind: 'text', placeholder: 'TeX' },
 			{
 				key: 'projectType',
 				label: 'Project type',
 				kind: 'text',
 				help: 'Identifier TeXlyre uses to select this compiler',
-				placeholder: 'sile',
+				placeholder: 'latex',
+			},
+			{
+				key: 'projectGroup',
+				label: 'Project group',
+				kind: 'text',
+				help: 'Optional compiler family shown in TeXlyre and defaults to the project type',
+				placeholder: 'tex',
 			},
 			{
 				key: 'transportUrl',

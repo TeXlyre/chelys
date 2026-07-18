@@ -21,6 +21,7 @@ export function recipeToConfigBlock(
 		enabled,
 		incrementalSync: config.incrementalSync,
 		projectType: config.projectType,
+		projectGroup: config.projectGroup,
 		inputExtensions: config.inputExtensions,
 		inputFiles: config.inputFiles,
 		outputFormats: config.outputFormats,
@@ -55,6 +56,7 @@ export function parseTypesetterImport(raw: string): Recipe {
 	const typeConfig: TypesetterTypeConfig = {
 		configId: block.id || nanoid(),
 		projectType: block.projectType || 'custom',
+		projectGroup: block.projectGroup,
 		inputExtensions: block.inputExtensions ?? [],
 		inputFiles: block.inputFiles ?? [],
 		outputFormats: block.outputFormats ?? [],

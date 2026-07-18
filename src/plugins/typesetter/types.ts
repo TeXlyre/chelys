@@ -17,6 +17,7 @@ export interface TypesetterInputFile {
 export interface TypesetterTypeConfig {
 	configId: string;
 	projectType: string;
+	projectGroup?: string;
 	inputExtensions: string[];
 	inputFiles?: TypesetterInputFile[];
 	outputFormats: TypesetterOutputFormat[];
@@ -36,6 +37,7 @@ export interface TypesetterConfigBlock {
 	enabled: boolean;
 	incrementalSync?: boolean;
 	projectType: string;
+	projectGroup?: string;
 	inputExtensions: string[];
 	inputFiles?: TypesetterInputFile[];
 	outputFormats: TypesetterOutputFormat[];
