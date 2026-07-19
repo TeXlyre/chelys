@@ -22,6 +22,9 @@
       "@/i18n": [
         "./src/i18n-shim.ts"
       ],
+      "@/logging": [
+        "./external/texlyre/src/logging.ts"
+      ],
       "@texlyre": [
         "./external/texlyre/src"
       ],

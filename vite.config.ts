@@ -24,6 +24,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@/i18n': path.resolve(__dirname, './src/i18n-shim.ts'),
+      '@/logging': path.resolve(__dirname, './external/texlyre/src/logging.ts'),
       '@texlyre': path.resolve(__dirname, './external/texlyre/src'),
       '@chelys': path.resolve(__dirname, './external/texlyre/chelys'),
       '@src': path.resolve(__dirname, './src'),
