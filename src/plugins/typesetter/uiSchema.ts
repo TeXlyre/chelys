@@ -10,6 +10,11 @@ export interface TypesetterUIFieldOption {
 	value: string;
 }
 
+export interface TypesetterUIFieldCondition {
+	field: string;
+	in: string[];
+}
+
 export interface TypesetterUIField {
 	key: string;
 	label: TranslatableText;
@@ -18,6 +23,8 @@ export interface TypesetterUIField {
 	options?: TypesetterUIFieldOption[];
 	help?: TranslatableText;
 	sendAs?: 'option' | 'format';
+	group?: string;
+	showWhen?: TypesetterUIFieldCondition;
 }
 
 export interface TypesetterUISection {
