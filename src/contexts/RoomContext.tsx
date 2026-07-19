@@ -138,7 +138,6 @@ export const RoomProvider: React.FC<{
 	};
 
 	const updateCredentials = async (next: RoomCredentials) => {
-		chelysAccountSyncService.stop();
 		await login(next.username, next.password, next.prfHex);
 	};
 
