@@ -1,6 +1,7 @@
 // src/components/profile/AccountIdentitySection.tsx
 import type React from 'react';
 import { useEffect, useState } from 'react';
+import { toHex } from '@chelys/protocol';
 
 import { t } from '@/i18n';
 import { useRoom } from '../../hooks/useRoom';
@@ -26,6 +27,7 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [prfHex, setPrfHex] = useState('');
+    const [tempLink, setTempLink] = useState('');
 
     useEffect(() => {
         setNewUsername(username);
@@ -61,6 +63,11 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
         } finally {
             setIsSubmitting(false);
         }
+    };
+
+    const generateTempLink = () => {
+        const key = crypto.getRandomValues(new Uint8Array(32));
+        setTempLink(`https://texlyre.org/texlyre/#tempPrf:${toHex(key)}`);
     };
 
     return (
@@ -120,6 +127,24 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
                 value={credentials?.prfHex ?? ''}
                 mono
             />
+            <h3>{t('Temporary TeXlyre session link')}</h3>
+            <div className='form-group'>
+                <button
+                    type='button'
+                    className='button secondary'
+                    onClick={generateTempLink}
+                    disabled={isSubmitting}
+                >
+                    {t('Generate link')}
+                </button>
+            </div>
+            {tempLink && (
+                <CopyField label={t('Session link')} id='temp-texlyre-link' value={tempLink} mono />
+            )}
+            <div className='warning-message'>
+                <p>{t('This link is temporary and not stored. Anyone who opens it and signs in with your username and password joins the same session room. Generate a new link to start a fresh room.')}</p>
+            </div>
+
             <div className='warning-message'>
                 <p>
                     {t(

@@ -1,9 +1,11 @@
 // src/components/auth/ChelysLogin.tsx
 import type React from 'react';
 import { useState } from 'react';
+import { toHex } from '@chelys/protocol';
 
 import { t } from '@/i18n';
 import { useRoom } from '../../hooks/useRoom';
+import CopyField from '../common/CopyField';
 import PasteField from '../common/PasteField';
 import ThemeToggle from '../settings/ThemeToggle';
 import { openExternalUrl } from '../../utils/platformUtils';
@@ -18,6 +20,7 @@ const ChelysLogin: React.FC = () => {
 	const [username, setUsername] = useState('');
 	const [password, setPassword] = useState('');
 	const [prfHex, setPrfHex] = useState('');
+	const [tempLink, setTempLink] = useState('');
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -36,6 +39,13 @@ const ChelysLogin: React.FC = () => {
 		} finally {
 			setIsLoading(false);
 		}
+	};
+
+	const generateNewKey = () => {
+		const key = crypto.getRandomValues(new Uint8Array(32));
+		const hex = toHex(key);
+		setPrfHex(hex);
+		setTempLink(`https://texlyre.org/texlyre/#tempPrf:${hex}`);
 	};
 
 	return (
@@ -87,6 +97,33 @@ const ChelysLogin: React.FC = () => {
 								disabled={isLoading}
 							/>
 						</div>
+						<div className='form-group'>
+							<button
+								type='button'
+								className='button secondary'
+								onClick={generateNewKey}
+								disabled={isLoading}
+							>
+								{t('Generate a new key')}
+							</button>
+						</div>
+						{tempLink && (
+							<>
+								<CopyField
+									label={t('TeXlyre session link')}
+									id='login-temp-texlyre-link'
+									value={tempLink}
+									mono
+								/>
+								<div className='warning-message'>
+									<p>
+										{t(
+											'This creates a new key and room, not linked to any existing account. Open this temporary link in TeXlyre and sign in with the same username and password to join the same room.',
+										)}
+									</p>
+								</div>
+							</>
+						)}
 						<button
 							type='submit'
 							className={`auth-button ${isLoading ? 'loading' : ''}`}
