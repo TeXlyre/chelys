@@ -9,6 +9,7 @@ import CopyField from '../common/CopyField';
 import PasteField from '../common/PasteField';
 import ThemeToggle from '../settings/ThemeToggle';
 import { openExternalUrl } from '../../utils/platformUtils';
+import { getStoredSetting } from '../../config';
 
 function handleExternalLink(event: React.MouseEvent<HTMLAnchorElement>) {
 	event.preventDefault();
@@ -45,7 +46,8 @@ const ChelysLogin: React.FC = () => {
 		const key = crypto.getRandomValues(new Uint8Array(32));
 		const hex = toHex(key);
 		setPrfHex(hex);
-		setTempLink(`https://texlyre.org/texlyre/#tempPrf:${hex}`);
+		const base = getStoredSetting<string>('texlyreBaseUrl').replace(/\/+$/, '');
+		setTempLink(`${base}/#tempPrf:${hex}`);
 	};
 
 	return (

@@ -36,18 +36,6 @@
 	font-family: var(--texlyre-font-family);
 }
 
-[data-theme-plugin="texlyre"] .texlyre-info {
-	display: inline-block;
-	padding: var(--texlyre-spacing-xs) var(--texlyre-spacing-sm);
-	border-radius: var(--texlyre-radius-md);
-	font-size: var(--space-sd);
-	background-color: var(--accent-background);
-	transition: all var(--texlyre-transition-normal);
-	color: var(--text-color);
-	margin-bottom: 0.3em;
-	line-height: 0.5;
-}
-
 [data-theme-plugin="texlyre"] .texlyre-info:hover {
 	background-color: var(--pico-primary-focus);
 	color: var(--pico-secondary);

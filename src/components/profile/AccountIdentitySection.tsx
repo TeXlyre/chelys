@@ -7,6 +7,7 @@ import { t } from '@/i18n';
 import { useRoom } from '../../hooks/useRoom';
 import CopyField from '../common/CopyField';
 import PasteField from '../common/PasteField';
+import { getStoredSetting } from '../../config';
 
 interface AccountIdentitySectionProps {
     isSubmitting: boolean;
@@ -14,6 +15,11 @@ interface AccountIdentitySectionProps {
     onError: (message: string) => void;
     onSuccess: (message: string) => void;
 }
+
+const buildTexlyreLink = (prfHex: string): string => {
+    const base = getStoredSetting<string>('texlyreBaseUrl').replace(/\/+$/, '');
+    return `${base}/#tempPrf:${prfHex}`;
+};
 
 const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
     isSubmitting,
@@ -27,11 +33,12 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [prfHex, setPrfHex] = useState('');
-    const [tempLink, setTempLink] = useState('');
+    const [rotatedKey, setRotatedKey] = useState(false);
 
     useEffect(() => {
         setNewUsername(username);
         setPrfHex(credentials?.prfHex ?? '');
+        setRotatedKey(false);
     }, [username, credentials]);
 
     const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -58,6 +65,7 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
             onSuccess(t('Account updated successfully'));
             setNewPassword('');
             setConfirmPassword('');
+            setRotatedKey(false);
         } catch (error) {
             onError(error instanceof Error ? error.message : t('An error occurred'));
         } finally {
@@ -65,10 +73,15 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
         }
     };
 
-    const generateTempLink = () => {
+    const rotateKey = () => {
         const key = crypto.getRandomValues(new Uint8Array(32));
-        setTempLink(`https://texlyre.org/texlyre/#tempPrf:${toHex(key)}`);
+        setPrfHex(toHex(key));
+        setRotatedKey(true);
     };
+
+    const savedPrfHex = credentials?.prfHex ?? '';
+    const pendingPrfHex = prfHex.trim().toLowerCase();
+    const keyChanged = pendingPrfHex !== savedPrfHex;
 
     return (
         <form onSubmit={handleSubmit} className='profile-form'>
@@ -109,49 +122,61 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
                     autoComplete='new-password'
                 />
             </div>
-            <h3>{t('Chelys Key (PRF output)')}</h3>
 
+            <h3>{t('Connect TeXlyre')}</h3>
+            <p className='field-hint'>
+                {t('Open this link in a TeXlyre browser tab and log in with the same username and password to join this room. The link should be kept secret.')}
+            </p>
+            <CopyField
+                label={t('TeXlyre session link')}
+                id='texlyre-session-link'
+                value={buildTexlyreLink(savedPrfHex)}
+                mono
+            />
+
+            <h3>{t('Chelys Key (PRF output)')}</h3>
+            <p className='field-hint'>
+                {t('Your key selects which room you sync with. Keep it to stay in the same room, paste a key to match another account, or generate new key to create a temporary session.')}
+            </p>
             <div className='form-group'>
                 <PasteField
                     label={t('Replace key')}
                     id='profile-prf'
                     value={prfHex}
-                    onChange={setPrfHex}
+                    onChange={(value) => {
+                        setPrfHex(value);
+                        setRotatedKey(false);
+                    }}
                     mono
                     disabled={isSubmitting}
                 />
             </div>
-            <CopyField
-                label={t('Current key')}
-                id='profile-current-prf'
-                value={credentials?.prfHex ?? ''}
-                mono
-            />
-            <h3>{t('Temporary TeXlyre session link')}</h3>
             <div className='form-group'>
                 <button
                     type='button'
                     className='button secondary'
-                    onClick={generateTempLink}
+                    onClick={rotateKey}
                     disabled={isSubmitting}
                 >
-                    {t('Generate link')}
+                    {t('Generate New Key')}
                 </button>
             </div>
-            {tempLink && (
-                <CopyField label={t('Session link')} id='temp-texlyre-link' value={tempLink} mono />
-            )}
-            <div className='warning-message'>
-                <p>{t('This link is temporary and not stored. Anyone who opens it and signs in with your username and password joins the same session room. Generate a new link to start a fresh room.')}</p>
-            </div>
 
-            <div className='warning-message'>
-                <p>
-                    {t(
-                        'Changing your username, password, or Chelys key re-derives your room. Synced data is tied to the derived room, so the new identity will start from the data stored under that room.',
-                    )}
-                </p>
-            </div>
+            {keyChanged && (
+                <div className='warning-message'>
+                    <p>
+                        {rotatedKey
+                            ? t('A new key was generated but not saved yet. Saving switches you to an empty new room and leaves your current room the same.')
+                            : t('This key differs from your current one. Saving re-derives your room, so synced data will start from whatever is stored under the new room.')}
+                    </p>
+                    <CopyField
+                        label={t('New TeXlyre link (after saving)')}
+                        id='texlyre-session-link-pending'
+                        value={buildTexlyreLink(pendingPrfHex)}
+                        mono
+                    />
+                </div>
+            )}
 
             <div className='modal-actions'>
                 <button

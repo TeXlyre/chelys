@@ -89,7 +89,7 @@ const DashboardApp: React.FC = () => {
 				onClose={() => setShowProfile(false)}
 			/>
 			<footer>
-				<p className='texlyre-info footer-platform'>
+				<p className='project-type-badge'>
 					{t('OS')}:{' '}
 					{platformInfo
 						? platformInfo.override === 'auto'

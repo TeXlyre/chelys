@@ -46,6 +46,15 @@ export const getChelysSettings = (): Setting[] => [
         liveUpdate: false,
     },
     {
+        id: 'texlyreBaseUrl',
+        category: t('Collaboration'),
+        subcategory: t('Connection'),
+        type: 'text',
+        label: t('TeXlyre base URL'),
+        description: t('Base URL used when generating temporary TeXlyre session links'),
+        defaultValue: getSettingDefault('texlyreBaseUrl'),
+    },
+    {
         id: 'recipePlatformOverride',
         category: t('Recipes'),
         subcategory: t('Runtime'),
