@@ -1,5 +1,6 @@
 // src/plugins/typesetter/index.ts
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
+import { withRouteStart, withRouteStop } from '../../plugin-host/routeHooks';
 import { injectTypesetterConfig, removeTypesetterConfig } from './injection';
 import { TYPESETTER_TYPE, parseTypesetterImport } from './shared';
 
@@ -58,7 +59,7 @@ export function registerTypesetterPlugin(): void {
 			},
 		],
 		parseImport: parseTypesetterImport,
-		onStart: injectTypesetterConfig,
-		onStop: removeTypesetterConfig,
+		onStart: withRouteStart(injectTypesetterConfig),
+		onStop: withRouteStop(removeTypesetterConfig),
 	});
 }

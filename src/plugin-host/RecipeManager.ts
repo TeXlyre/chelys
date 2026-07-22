@@ -7,6 +7,9 @@ import { processSupervisorService } from './ProcessSupervisorService';
 import { recipeRegistry } from './RecipeRegistry';
 import { recipeStore } from './RecipeStore';
 import { resolveRecipe } from './variableResolution';
+import { appDataDir } from '@tauri-apps/api/path';
+import { routesDir } from './traefikRoutes';
+import { materializeRecipeFiles } from './recipeWorkdir';
 import {
 	findMode,
 	type InstallModeKind,
@@ -37,10 +40,55 @@ class RecipeManager {
 	private initialized = false;
 	private platform: PlatformId = 'desktop';
 	private reattached = new Set<string>();
+	private cancelling = new Set<string>();
+
+	async reinjectRunning(): Promise<void> {
+		if (!this.initialized) return;
+
+		for (const [id, status] of this.statuses) {
+			if (status.state !== 'running') continue;
+
+			const base = this.recipes.get(id);
+			if (!base) continue;
+
+			this.runStartHook(await this.resolveForCurrentPlatform(base));
+		}
+	}
 
 	private async resolveForCurrentPlatform(base: Recipe): Promise<Recipe> {
 		this.platform = await detectPlatform();
-		return resolveRecipe(applyPlatform(base, this.platform));
+		const resolved = resolveRecipe(applyPlatform(base, this.platform));
+		return this.expandRuntimeTokens(resolved);
+	}
+
+	private async expandRuntimeTokens(recipe: Recipe): Promise<Recipe> {
+		const tokens: Record<string, string> = {
+			'${CHELYS_DATA}': await appDataDir(),
+			'${CHELYS_TRAEFIK_ROUTES}': await routesDir(),
+		};
+
+		const expand = <T>(value: T): T => {
+			if (typeof value === 'string') {
+				let out: string = value;
+				for (const [token, replacement] of Object.entries(tokens)) {
+					out = out.split(token).join(replacement);
+				}
+				return out as unknown as T;
+			}
+			if (Array.isArray(value)) {
+				return value.map(expand) as unknown as T;
+			}
+			if (value && typeof value === 'object') {
+				const result: Record<string, unknown> = {};
+				for (const [key, inner] of Object.entries(value)) {
+					result[key] = expand(inner);
+				}
+				return result as T;
+			}
+			return value;
+		};
+
+		return expand(recipe);
 	}
 
 	async initialize(): Promise<void> {
@@ -151,6 +199,11 @@ class RecipeManager {
 		this.emit();
 	}
 
+	async cancelInstall(recipeId: string): Promise<void> {
+		this.cancelling.add(recipeId);
+		await processSupervisorService.stop(recipeId);
+	}
+
 	async install(recipeId: string, mode: InstallModeKind): Promise<void> {
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
@@ -165,16 +218,18 @@ class RecipeManager {
 		});
 
 		try {
+			const workdir = (await materializeRecipeFiles(recipe)) ?? undefined;
+
 			if (mode === 'system') {
 				const system = findMode(recipe, 'system');
 				if (!system) throw new Error('System mode not supported');
 
-				await this.runSteps(recipe, system.installSteps);
+				await this.runSteps(recipe, system.installSteps, workdir);
 			} else if (mode === 'docker') {
 				const docker = findMode(recipe, 'docker');
 				if (!docker) throw new Error('Docker mode not supported');
 
-				await this.runSteps(recipe, docker.buildSteps);
+				await this.runSteps(recipe, docker.buildSteps, workdir);
 			} else if (mode === 'connect') {
 				// Nothing to install for connect mode.
 			}
@@ -189,6 +244,8 @@ class RecipeManager {
 			const message = error instanceof Error ? error.message : 'install failed';
 			this.appendLog(recipeId, `Install failed: ${message}`);
 			this.patch(recipeId, { state: 'error', lastError: message });
+		} finally {
+			this.cancelling.delete(recipeId);
 		}
 	}
 
@@ -212,6 +269,8 @@ class RecipeManager {
 		this.patch(recipeId, { state: 'starting', lastError: null });
 
 		try {
+			const workdir = (await materializeRecipeFiles(recipe)) ?? undefined;
+
 			if (mode === 'connect') {
 				this.patch(recipeId, { state: 'running', lastError: null });
 				this.runStartHook(recipe);
@@ -226,7 +285,7 @@ class RecipeManager {
 					command: system.runCommand.command,
 					args: system.runCommand.args,
 					env: recipe.env,
-					cwd: recipe.cwd,
+					cwd: recipe.cwd ?? workdir,
 				});
 			} else if (mode === 'docker') {
 				const docker = findMode(recipe, 'docker');
@@ -241,6 +300,7 @@ class RecipeManager {
 						containerName(recipeId),
 						...docker.runArgs,
 						docker.image,
+						...(docker.command ?? []),
 					],
 					env: recipe.env,
 					cwd: recipe.cwd,
@@ -438,16 +498,28 @@ class RecipeManager {
 		}
 	}
 
-	private async runSteps(recipe: Recipe, steps: InstallStep[]): Promise<void> {
+	private async runSteps(
+		recipe: Recipe,
+		steps: InstallStep[],
+		cwd?: string,
+	): Promise<void> {
 		for (const step of steps) {
+			if (this.cancelling.has(recipe.id)) {
+				throw new Error('Install cancelled');
+			}
+
 			this.appendLog(recipe.id, `$ ${step.command} ${step.args.join(' ')}`);
 
 			const code = await processSupervisorService.runCommand(recipe.id, {
 				command: step.command,
 				args: step.args,
 				env: recipe.env,
-				cwd: recipe.cwd,
+				cwd: recipe.cwd ?? cwd,
 			});
+
+			if (this.cancelling.has(recipe.id)) {
+				throw new Error('Install cancelled');
+			}
 
 			if (code !== 0) {
 				throw new Error(`"${step.label}" exited with code ${code}`);

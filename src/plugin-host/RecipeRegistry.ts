@@ -85,18 +85,26 @@ class RecipeRegistry {
             version: manifest.version ?? entry.version,
             source: 'registry',
         };
+        recipe.sourceUrl = manifestUrl.replace(/[^/]*$/, '');
         await this.inlineIcon(recipe);
         await this.inlineDockerfiles(recipe);
         return recipe;
     }
 
+    private resolveSource(recipe: Recipe, value: string): string {
+        if (/^https?:\/\//i.test(value)) return value;
+        const base = (recipe.sourceUrl ?? '').replace(/\/?$/, '/');
+        return base + value.replace(/^\.\//, '');
+    }
+
     private async inlineIcon(recipe: Recipe): Promise<void> {
         if (recipe.icon || !recipe.iconUrl) return;
         try {
-            const response = await fetch(recipe.iconUrl, { cache: 'no-cache' });
+            const iconUrl = this.resolveSource(recipe, recipe.iconUrl);
+            const response = await fetch(iconUrl, { cache: 'no-cache' });
             if (!response.ok) return;
             const type = response.headers.get('content-type') ?? '';
-            if (type.includes('svg') || recipe.iconUrl.endsWith('.svg')) {
+            if (type.includes('svg') || iconUrl.endsWith('.svg')) {
                 recipe.icon = await response.text();
             } else {
                 const buffer = await response.arrayBuffer();
@@ -115,7 +123,8 @@ class RecipeRegistry {
             if (mode.kind !== 'docker') continue;
             const docker = mode as DockerMode;
             if (docker.dockerfile || !docker.dockerfileUrl) continue;
-            const response = await fetch(docker.dockerfileUrl, { cache: 'no-cache' });
+            const dockerfileUrl = this.resolveSource(recipe, docker.dockerfileUrl);
+            const response = await fetch(dockerfileUrl, { cache: 'no-cache' });
             if (!response.ok) {
                 throw new Error(`Could not fetch Dockerfile (${response.status})`);
             }

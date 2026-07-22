@@ -5,6 +5,7 @@ import { type ReactNode, createContext, useEffect, useState } from 'react';
 import { recipeManager } from '../plugin-host/RecipeManager';
 import { recipeRegistry } from '../plugin-host/RecipeRegistry';
 import { pluginTypeRegistry } from '../plugin-host/PluginTypeRegistry';
+import { reconcileRoutes } from '../plugin-host/traefikRoutes';
 import type {
 	InstallModeKind,
 	Recipe,
@@ -13,15 +14,18 @@ import type {
 } from '../plugin-host/types';
 import { registerLspPlugin } from '../plugins/lsp';
 import { registerTypesetterPlugin } from '../plugins/typesetter';
+import { registerInfrastructurePlugin } from '../plugins/infrastructure';
 
 registerLspPlugin();
 registerTypesetterPlugin();
+registerInfrastructurePlugin();
 
 interface PluginHostContextType {
 	recipes: Recipe[];
 	statuses: Map<string, RecipeStatus>;
 	isReady: boolean;
 	install: (recipeId: string, mode: InstallModeKind) => Promise<void>;
+	cancelInstall: (recipeId: string) => Promise<void>;
 	run: (recipeId: string) => Promise<void>;
 	stop: (recipeId: string) => Promise<void>;
 	save: (recipe: Recipe) => Promise<Recipe>;
@@ -46,6 +50,7 @@ export const PluginHostContext = createContext<PluginHostContextType>({
 	statuses: new Map(),
 	isReady: false,
 	install: async (_recipeId: string, _mode: InstallModeKind) => { },
+	cancelInstall: async () => { },
 	run: async () => { },
 	stop: async () => { },
 	save: async () => {
@@ -80,9 +85,21 @@ export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 		let unsubscribe: (() => void) | undefined;
 		(async () => {
 			await recipeManager.initialize();
-			setRecipes(recipeManager.listRecipes());
+			const loaded = recipeManager.listRecipes();
+			setRecipes(loaded);
 			unsubscribe = recipeManager.subscribe((next) => setStatuses(new Map(next)));
 			setIsReady(true);
+			void recipeManager.reinjectRunning();
+
+			void reconcileRoutes(
+				loaded
+					.filter((r) => recipeManager.getStatus(r.id)?.state === 'running')
+					.map(
+						(r) =>
+							(r.typeConfig as { configId?: string }).configId ?? r.id,
+					),
+			);
+
 			try {
 				const entries = await recipeRegistry.list(false);
 				setRegistry(entries);
@@ -146,6 +163,7 @@ export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 				statuses,
 				isReady,
 				install: recipeManager.install.bind(recipeManager),
+				cancelInstall: recipeManager.cancelInstall.bind(recipeManager),
 				run: recipeManager.run.bind(recipeManager),
 				stop: recipeManager.stop.bind(recipeManager),
 				save,

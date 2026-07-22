@@ -3,6 +3,7 @@ import { t } from '@/i18n';
 import type { Setting } from '../contexts/SettingsContext';
 import { getSettingDefault } from '../config';
 import { recipeRegistry } from '../plugin-host/RecipeRegistry';
+import { recipeManager } from '../plugin-host/RecipeManager';
 import { resetPlatformCache } from '../plugin-host/platformResolution';
 import { applyCloseBehavior, applyStartOnBoot } from '../utils/systemSettings';
 
@@ -53,6 +54,42 @@ export const getChelysSettings = (): Setting[] => [
         label: t('TeXlyre base URL'),
         description: t('Base URL used when generating temporary TeXlyre session links'),
         defaultValue: getSettingDefault('texlyreBaseUrl'),
+    },
+    {
+        id: 'traefikEnabled',
+        category: t('Collaboration'),
+        subcategory: t('Traefik'),
+        type: 'checkbox',
+        label: t('Route services through Traefik'),
+        description: t('Rewrite service URLs to a single Traefik entrypoint using the recipe identifier as a path, instead of per-recipe ports (applied on next start).'),
+        defaultValue: getSettingDefault('traefikEnabled'),
+        onChange: () => {
+            void recipeManager.reinjectRunning();
+        },
+    },
+    {
+        id: 'traefikBaseUrl',
+        category: t('Collaboration'),
+        subcategory: t('Traefik'),
+        type: 'text',
+        label: t('Traefik base URL'),
+        description: t('Scheme and host of the Traefik entrypoint, port optional, e.g. wss://chelys.traefik-host:8443. http/https are treated as ws/wss. Used when Traefik routing is on (applied on next start).'),
+        defaultValue: getSettingDefault('traefikBaseUrl'),
+        onChange: () => {
+            void recipeManager.reinjectRunning();
+        },
+    },
+    {
+        id: 'serviceHost',
+        category: t('Collaboration'),
+        subcategory: t('Traefik'),
+        type: 'text',
+        label: t('Service host'),
+        description: t('Host used with recipe ports when Traefik routing is off (applied on next start).'),
+        defaultValue: getSettingDefault('serviceHost'),
+        onChange: () => {
+            void recipeManager.reinjectRunning();
+        },
     },
     {
         id: 'recipePlatformOverride',

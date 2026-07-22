@@ -1,4 +1,5 @@
 // src/plugin-host/variableResolution.ts
+import { rewriteTransportUrl } from './traefikRouting';
 import type {
     CommandSpec,
     DockerMode,
@@ -56,6 +57,12 @@ const dockerBuildStep = (docker: DockerMode) => ({
     args: ['build', '-f', DOCKERFILE_NAME, '-t', docker.image, '.'],
 });
 
+const dockerPullStep = (docker: DockerMode) => ({
+    label: 'Pull image',
+    command: 'docker',
+    args: ['pull', docker.image],
+});
+
 export function resolveRecipe(recipe: Recipe): Recipe {
     const values = effectiveValues(recipe);
     const resolved = mapStrings(recipe, values) as Recipe;
@@ -64,14 +71,22 @@ export function resolveRecipe(recipe: Recipe): Recipe {
         if (mode.kind !== 'docker') continue;
 
         const docker = mode as DockerMode;
+        const hasDockerfile = !!docker.dockerfileUrl || !!docker.dockerfile;
 
         docker.buildSteps = [
             ...docker.buildSteps,
-            ...(docker.dockerfileUrl
+            ...(docker.dockerfileUrl && /^https?:\/\//i.test(docker.dockerfileUrl)
                 ? [dockerfileDownloadStep(docker.dockerfileUrl)]
                 : []),
-            dockerBuildStep(docker),
+            ...(hasDockerfile ? [dockerBuildStep(docker)] : [dockerPullStep(docker)]),
         ];
+    }
+
+    const rewritten = rewriteTransportUrl(
+        resolved.typeConfig as { transportUrl?: unknown; configId?: unknown },
+    );
+    if (rewritten !== undefined) {
+        resolved.typeConfig = { ...resolved.typeConfig, transportUrl: rewritten };
     }
 
     return resolved;

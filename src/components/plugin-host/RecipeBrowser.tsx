@@ -5,17 +5,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { t } from '@/i18n';
 import { usePluginHost } from '../../hooks/usePluginHost';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
-import type { RegistryEntry } from '../../plugin-host/types';
+import type { RegistryEntry, RecipeVersion } from '../../plugin-host/types';
 import { SearchIcon } from '../common/Icons';
 
 interface RecipeBrowserProps {
+	category?: string;
 	onDone: () => void;
 }
 
 const RECIPES_PER_PAGE = 12;
 
-const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ onDone }) => {
-	const { registry, refreshRegistry, installFromRegistry } = usePluginHost();
+const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ category: fixedCategory, onDone }) => {
+	const { registry, refreshRegistry, installFromRegistry, recipes } = usePluginHost();
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [installError, setInstallError] = useState<string | null>(null);
 	const [installing, setInstalling] = useState<string | null>(null);
@@ -31,23 +32,50 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ onDone }) => {
 		);
 	}, []);
 
+	const entries = useMemo(() => {
+		const registryIds = new Set(registry.map((entry) => entry.id));
+		const local = recipes
+			.filter((recipe) => !registryIds.has(recipe.id))
+			.map((recipe) => ({
+				id: recipe.id,
+				type: recipe.type,
+				name: recipe.name,
+				description: recipe.notes,
+				version: recipe.version,
+				icon: recipe.icon,
+				iconUrl: recipe.iconUrl,
+				manifestUrl: '',
+				tags: [] as string[],
+				versions: undefined as RecipeVersion[] | undefined,
+				local: true,
+			}));
+		return [
+			...registry.map((entry) => ({ ...entry, local: false })),
+			...local,
+		];
+	}, [registry, recipes]);
+
 	const categories = useMemo(
-		() => Array.from(new Set(registry.map((entry) => entry.type))),
-		[registry],
+		() => Array.from(new Set(entries.map((entry) => entry.type))),
+		[entries],
 	);
 
 	const filtered = useMemo(() => {
 		const q = query.toLowerCase().trim();
-		return registry.filter((entry) => {
+		const exclusiveTypes = new Set(pluginTypeRegistry.exclusiveTypes());
+		return entries.filter((entry) => {
+			const matchesScope = fixedCategory
+				? entry.type === fixedCategory
+				: !exclusiveTypes.has(entry.type);
 			const matchesQuery =
 				!q ||
 				entry.name.toLowerCase().includes(q) ||
 				(entry.description ?? '').toLowerCase().includes(q) ||
 				(entry.tags ?? []).some((tag) => tag.toLowerCase().includes(q));
 			const matchesCategory = !category || entry.type === category;
-			return matchesQuery && matchesCategory;
+			return matchesScope && matchesQuery && matchesCategory;
 		});
-	}, [registry, query, category]);
+	}, [entries, query, category, fixedCategory]);
 
 	const totalPages = Math.max(1, Math.ceil(filtered.length / RECIPES_PER_PAGE));
 
@@ -64,7 +92,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ onDone }) => {
 		let cancelled = false;
 		(async () => {
 			for (const entry of paginated) {
-				if (entry.icon || entry.iconUrl || icons[entry.id]) continue;
+				if (!entry.manifestUrl || entry.icon || entry.iconUrl || icons[entry.id]) continue;
 				try {
 					const res = await fetch(entry.manifestUrl, { cache: 'force-cache' });
 					if (!res.ok) continue;
@@ -86,7 +114,8 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ onDone }) => {
 		};
 	}, [paginated]);
 
-	const handleInstall = async (entry: RegistryEntry) => {
+	const handleInstall = async (entry: RegistryEntry & { local?: boolean }) => {
+		if (entry.local) return;
 		setInstallError(null);
 		setInstalling(entry.id);
 		try {
@@ -135,7 +164,13 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ onDone }) => {
 	return (
 		<div className='recipe-browser'>
 			<div className='recipe-browser-header'>
-				<h3>{t('Browse recipes')}</h3>
+				<h3>
+					{fixedCategory
+						? t('Browse {category} recipes', {
+							category: typeLabel(fixedCategory),
+						})
+						: t('Browse recipes')}
+				</h3>
 				<button className='action-button' onClick={onDone}>
 					{t('Back')}
 				</button>
@@ -151,7 +186,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ onDone }) => {
 						placeholder={t('Search recipes…')}
 					/>
 				</div>
-				{categories.length > 1 && (
+				{!fixedCategory && categories.length > 1 && (
 					<select
 						value={category}
 						onChange={(e) => handleCategoryChange(e.target.value)}
@@ -207,6 +242,9 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ onDone }) => {
 									<span className='recipe-version-badge'>latest: v{entry.version}</span>
 								)}
 								<span className='recipe-type-badge'>{typeLabel(entry.type)}</span>
+								{entry.local && (
+									<span className='recipe-version-badge'>{t('Local')}</span>
+								)}
 							</div>
 						</div>
 
@@ -227,7 +265,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ onDone }) => {
 						<div className='recipe-actions'>
 							<button
 								className='action-button primary'
-								disabled={installing === entry.id}
+								disabled={entry.local || installing === entry.id}
 								onClick={() => handleInstall(entry)}
 							>
 								{installing === entry.id ? (
@@ -235,6 +273,8 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ onDone }) => {
 										<span className='loading-spinner inline' />
 										{t('Adding…')}
 									</>
+								) : entry.local ? (
+									t('Available locally')
 								) : (
 									t('Add recipe')
 								)}

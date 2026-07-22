@@ -1,12 +1,15 @@
 use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::Arc;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
+
+pub const CANCELLED_EXIT_CODE: i32 = 130;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -108,22 +111,53 @@ fn stream_output(app: AppHandle, handle_id: String, child: &mut Child) {
 #[tauri::command]
 pub async fn process_run_command(
     app: AppHandle,
+    supervisor: State<'_, ProcessSupervisor>,
     handle_id: String,
     spec: CommandSpec,
 ) -> Result<i32, String> {
     let mut child = build_command(&spec).spawn().map_err(|e| e.to_string())?;
     stream_output(app.clone(), handle_id.clone(), &mut child);
-    let status = child.wait().await.map_err(|e| e.to_string())?;
-    let code = status.code().unwrap_or(-1);
-    let _ = app.emit(
-        "process-status",
-        StatusEvent {
-            handle_id,
-            status: if status.success() { "exited".into() } else { "failed".into() },
-            exit_code: Some(code),
-        },
-    );
-    Ok(code)
+
+    {
+        let mut servers = supervisor.inner.servers.lock().await;
+        servers.insert(handle_id.clone(), child);
+    }
+
+    let status = loop {
+        {
+            let mut servers = supervisor.inner.servers.lock().await;
+            match servers.get_mut(&handle_id) {
+                Some(child) => {
+                    if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+                        servers.remove(&handle_id);
+                        break Some(status);
+                    }
+                }
+                None => break None,
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    };
+
+    match status {
+        Some(status) => {
+            let code = status.code().unwrap_or(-1);
+            let _ = app.emit(
+                "process-status",
+                StatusEvent {
+                    handle_id,
+                    status: if status.success() {
+                        "exited".into()
+                    } else {
+                        "failed".into()
+                    },
+                    exit_code: Some(code),
+                },
+            );
+            Ok(code)
+        }
+        None => Ok(CANCELLED_EXIT_CODE),
+    }
 }
 
 #[tauri::command]
