@@ -24,9 +24,9 @@ target/
 Cargo.lock
 
 # Tauri build artifacts
-chelys-app/src-tauri/gen/
-chelys-app/src-tauri/WixTools/
-chelys-app/src-tauri/icons/source.png
+src-tauri/gen/
+src-tauri/WixTools/
+src-tauri/icons/source.png
 
 # Environment
 .env
