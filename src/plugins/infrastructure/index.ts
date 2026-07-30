@@ -12,8 +12,15 @@ const traefikArgs = [
     '--entrypoints.traefik.address=:${dashboardPort}',
     '--api.dashboard=true',
     '--api.insecure=true',
-    '--providers.file.directory=${CHELYS_TRAEFIK_ROUTES}',
-    '--providers.file.watch=true',
+    '--providers.http.endpoint=${CHELYS_ROUTE_ENDPOINT}',
+    '--providers.http.pollInterval=2s',
+];
+
+const publishedPorts = [
+    '-p',
+    '${httpPort}:${httpPort}',
+    '-p',
+    '${dashboardPort}:${dashboardPort}',
 ];
 
 const unixInstall = (asset: string) => [
@@ -43,7 +50,7 @@ const traefikRecipe: Recipe = {
     name: 'Traefik',
     version: TRAEFIK_VERSION.replace(/^v/, ''),
     notes:
-        'Reverse proxy that routes TeXlyre services through a single entrypoint. While "Route services through Traefik" is enabled in settings, Chelys writes a route file per running service, which Traefik watches. System mode downloads the Traefik binary into the Chelys data directory. Docker mode uses host networking to reach services running on this machine.',
+        'Reverse proxy that routes TeXlyre services through a single entrypoint. While "Route services through Traefik" is enabled in settings, Chelys serves the routing table to Traefik over HTTP and Traefik polls it. System mode downloads the Traefik binary into the Chelys data directory. Docker mode uses host networking on Linux and published ports on Windows and macOS, where the Traefik backend host must be set to host.docker.internal; note that services installed in system mode listen on loopback and stay unreachable from a containerised Traefik.',
     env: {},
     variables: [
         {
@@ -110,20 +117,12 @@ const traefikRecipe: Recipe = {
             kind: 'docker',
             image: `traefik:${TRAEFIK_VERSION.replace(/^v/, '')}`,
             buildSteps: [],
-            runArgs: [
-                '--network',
-                'host',
-                '-v',
-                '${CHELYS_TRAEFIK_ROUTES}:/etc/traefik/routes:ro',
-            ],
-            command: [
-                '--entrypoints.web.address=:${httpPort}',
-                '--entrypoints.traefik.address=:${dashboardPort}',
-                '--api.dashboard=true',
-                '--api.insecure=true',
-                '--providers.file.directory=/etc/traefik/routes',
-                '--providers.file.watch=true',
-            ],
+            runArgs: ['--network', 'host'],
+            command: traefikArgs,
+            platforms: {
+                windows: { runArgs: publishedPorts },
+                macos: { runArgs: publishedPorts },
+            },
         },
         { kind: 'connect' },
     ],

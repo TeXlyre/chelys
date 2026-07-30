@@ -26,7 +26,7 @@ export default defineConfig({
       '@/i18n': path.resolve(__dirname, './src/i18n-shim.ts'),
       '@/logging': path.resolve(__dirname, './external/texlyre/src/logging.ts'),
       '@texlyre': path.resolve(__dirname, './external/texlyre/src'),
-      '@chelys': path.resolve(__dirname, './external/texlyre/chelys'),
+      '@chelys': path.resolve(__dirname, './external/texlyre/src/chelys'),
       '@src': path.resolve(__dirname, './src'),
       '@': path.resolve(__dirname, './src'),
       'webrtc-adapter': path.resolve(__dirname, './src/webrtc-polyfill/webrtc-adapter-shim.ts'),

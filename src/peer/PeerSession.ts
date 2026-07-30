@@ -101,13 +101,6 @@ export class PeerSession {
     this.emit({ connected: false, peers: 0 });
   }
 
-  async reattachCollab(): Promise<void> {
-    console.warn("[PeerSession] Reattaching file_sync collab");
-    this.detachCollab();
-    await new Promise((r) => setTimeout(r, 300));
-    await this.attachCollab();
-  }
-
   requestSyncSoon(): void {
     if (this.syncThrottleHandle) clearTimeout(this.syncThrottleHandle);
     this.syncThrottleHandle = setTimeout(() => {
@@ -123,8 +116,7 @@ export class PeerSession {
     const { doc, provider } = collabService.connect(this.projectId, "file_sync", {
       signalingServers: cfg.signalingServers,
       websocketServer: cfg.websocketServer,
-      autoReconnect: true,
-      awarenessTimeout: cfg.awarenessTimeout,
+      awarenessTimeout: false,
     });
 
     this.doc = doc;

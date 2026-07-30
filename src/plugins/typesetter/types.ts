@@ -1,4 +1,5 @@
 // src/plugins/typesetter/types.ts
+import type { TransportType } from '@chelys/types/transport';
 import type { TranslatableText, TypesetterUISchema } from './uiSchema';
 
 export interface TypesetterOutputFormat {
@@ -21,10 +22,10 @@ export interface TypesetterTypeConfig {
 	inputExtensions: string[];
 	inputFiles?: TypesetterInputFile[];
 	outputFormats: TypesetterOutputFormat[];
-	transportType: 'websocket' | 'webrtc';
+	transportType?: TransportType;
 	transportUrl?: string;
+	transportRoomId?: string;
 	signalingServers?: string[];
-	roomId?: string;
 	incrementalSync?: boolean;
 	formatter?: string;
 	hasOutline?: boolean;
@@ -35,6 +36,7 @@ export interface TypesetterConfigBlock {
 	id: string;
 	name: string;
 	enabled: boolean;
+	icon?: string;
 	incrementalSync?: boolean;
 	projectType: string;
 	projectGroup?: string;
@@ -42,7 +44,7 @@ export interface TypesetterConfigBlock {
 	inputFiles?: TypesetterInputFile[];
 	outputFormats: TypesetterOutputFormat[];
 	transportConfig: {
-		type: 'websocket' | 'webrtc';
+		type: TransportType;
 		url?: string;
 		signaling?: string[];
 		roomId?: string;

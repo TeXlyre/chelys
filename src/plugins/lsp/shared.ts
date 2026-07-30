@@ -1,6 +1,7 @@
 // src/plugins/lsp/shared.ts
 import { nanoid } from 'nanoid';
 
+import type { TransportBinding } from '../../plugin-host/bridgeHooks';
 import type { Recipe } from '../../plugin-host/types';
 import type { LspConfigBlock, LspTypeConfig } from './types';
 
@@ -8,6 +9,29 @@ export const LSP_TYPE = 'lsp';
 
 export interface LspRecipeModule {
     recipe: Recipe;
+}
+
+function toBlockTransport(
+    config: LspTypeConfig,
+): LspConfigBlock['transportConfig'] {
+    const type = config.transportType ?? 'websocket';
+
+    if (type === 'webrtc') {
+        return {
+            type,
+            ...(config.transportRoomId ? { roomId: config.transportRoomId } : {}),
+            ...(config.signalingServers?.length
+                ? { signaling: config.signalingServers }
+                : {}),
+            contentLength: config.contentLength,
+        };
+    }
+
+    return {
+        type,
+        url: config.transportUrl,
+        contentLength: config.contentLength,
+    };
 }
 
 export function recipeToConfigBlock(
@@ -19,14 +43,27 @@ export function recipeToConfigBlock(
         id: config.configId,
         name: recipe.name,
         enabled,
+        ...(recipe.icon ? { icon: recipe.icon } : {}),
         fileExtensions: config.fileExtensions,
         languageIdMap: config.languageIdMap,
-        transportConfig: {
-            type: 'websocket',
+        transportConfig: toBlockTransport(config),
+        clientConfig: config.clientConfig,
+    };
+}
+
+export function readLspTransport(recipe: Recipe): TransportBinding | null {
+    const config = recipe.typeConfig as unknown as LspTypeConfig;
+    if (!config) return null;
+
+    return {
+        configId: config.configId,
+        transport: {
+            type: config.transportType ?? 'websocket',
             url: config.transportUrl,
+            roomId: config.transportRoomId,
+            signaling: config.signalingServers,
             contentLength: config.contentLength,
         },
-        clientConfig: config.clientConfig,
     };
 }
 
@@ -47,7 +84,10 @@ export function parseLspImport(raw: string): Recipe {
         configId: block.id || nanoid(),
         fileExtensions: block.fileExtensions ?? [],
         languageIdMap: block.languageIdMap ?? {},
-        transportUrl: transport.url,
+        transportType: transport.type ?? 'websocket',
+        transportUrl: transport.url ?? 'ws://localhost:7020',
+        transportRoomId: transport.roomId,
+        signalingServers: transport.signaling,
         contentLength: transport.contentLength ?? false,
         clientConfig: block.clientConfig ?? '{}',
     };

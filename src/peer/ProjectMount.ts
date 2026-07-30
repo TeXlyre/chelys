@@ -22,9 +22,6 @@ export interface DocumentEntry {
 type PresenceListener = (peers: PeerPresence[]) => void;
 type DocumentsListener = (docs: DocumentEntry[]) => void;
 
-const HEALTH_CHECK_INTERVAL_MS = 5000;
-const STUCK_THRESHOLD_MS = 15000;
-
 export class ProjectMount {
   private projectId = "";
   private metadataDoc: Y.Doc | null = null;
@@ -32,11 +29,7 @@ export class ProjectMount {
   private awarenessChangeHandler: (() => void) | null = null;
   private dataMapObserver: ((event: Y.YMapEvent<unknown>) => void) | null = null;
   private storageUnsubscribe: (() => void) | null = null;
-  private healthCheckHandle: ReturnType<typeof setInterval> | null = null;
-  private metadataStuckSince: number | null = null;
-  private fileSyncStuckSince: number | null = null;
   private trackingUnregister: (() => void) | null = null;
-  private remounting = false;
 
   private presenceListeners: PresenceListener[] = [];
   private documentsListeners: DocumentsListener[] = [];
@@ -55,15 +48,9 @@ export class ProjectMount {
 
     await this.session.start(docUrl);
 
-    this.healthCheckHandle = setInterval(() => this.checkHealth(), HEALTH_CHECK_INTERVAL_MS);
   }
 
   async unmount(): Promise<void> {
-    if (this.healthCheckHandle) {
-      clearInterval(this.healthCheckHandle);
-      this.healthCheckHandle = null;
-    }
-
     await this.detachCollab();
     this.session.stop();
     this.storageUnsubscribe?.();
@@ -108,8 +95,7 @@ export class ProjectMount {
     const { doc, provider } = collabService.connect(this.projectId, "yjs_metadata", {
       signalingServers: cfg.signalingServers,
       websocketServer: cfg.websocketServer,
-      autoReconnect: true,
-      awarenessTimeout: cfg.awarenessTimeout,
+      awarenessTimeout: false,
     });
     this.metadataDoc = doc;
     this.metadataAwareness = provider?.awareness ?? null;
@@ -136,8 +122,7 @@ export class ProjectMount {
         {
           signalingServers: cfg.signalingServers,
           websocketServer: cfg.websocketServer,
-          autoReconnect: true,
-          awarenessTimeout: cfg.awarenessTimeout,
+          awarenessTimeout: false,
         },
       );
     }
@@ -173,65 +158,6 @@ export class ProjectMount {
       this.metadataDoc = null;
     }
     this.metadataAwareness = null;
-  }
-
-  private async remountMetadata(): Promise<void> {
-    if (this.remounting) return;
-    this.remounting = true;
-    console.warn("[ProjectMount] Stuck metadata detected, remounting");
-    try {
-      await this.detachCollab();
-      await new Promise((r) => setTimeout(r, 300));
-      await this.attachCollab();
-    } catch (error) {
-      console.error("[ProjectMount] Remount failed:", error);
-    } finally {
-      this.remounting = false;
-    }
-  }
-
-  private checkHealth(): void {
-    if (this.remounting || !this.metadataDoc) return;
-    this.evaluateRoom("yjs_metadata", "metadataStuckSince", () => this.remountMetadata());
-    this.evaluateRoom("file_sync", "fileSyncStuckSince", () => this.session.reattachCollab());
-  }
-
-  private evaluateRoom(
-    collectionName: string,
-    sinceField: "metadataStuckSince" | "fileSyncStuckSince",
-    onStuck: () => void | Promise<void>,
-  ): void {
-    if (!this.isRoomStuck(collectionName)) {
-      this[sinceField] = null;
-      return;
-    }
-    if (this[sinceField] === null) {
-      this[sinceField] = Date.now();
-      return;
-    }
-    if (Date.now() - (this[sinceField] as number) >= STUCK_THRESHOLD_MS) {
-      this[sinceField] = null;
-      void onStuck();
-    }
-  }
-
-  private isRoomStuck(collectionName: string): boolean {
-    const container = collabService.getDocContainer(this.projectId, collectionName);
-    const provider = container && "provider" in container ? container.provider : null;
-    if (!provider) return false;
-    const p = provider as unknown as {
-      signalingConns?: Array<{ connected: boolean }>;
-      room?: { webrtcConns?: Map<string, { connected: boolean }> };
-    };
-    const sig = p.signalingConns?.[0];
-    if (!sig?.connected) return false;
-    const conns = p.room?.webrtcConns;
-    if (!conns || conns.size === 0) return false;
-    let anyConnected = false;
-    conns.forEach((conn) => {
-      if (conn.connected) anyConnected = true;
-    });
-    return !anyConnected;
   }
 
   private snapshotDocuments(): DocumentEntry[] {

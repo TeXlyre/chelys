@@ -25,11 +25,11 @@
       "@/logging": [
         "./external/texlyre/src/logging.ts"
       ],
-      "@texlyre": [
-        "./external/texlyre/src"
+      "@texlyre/*": [
+        "./external/texlyre/src/*"
       ],
-      "@chelys": [
-        "./external/texlyre/chelys"
+      "@chelys/*": [
+        "./external/texlyre/src/chelys/*"
       ],
       "webrtc-adapter": [
         "./src/webrtc-polyfill/webrtc-adapter-shim.ts"

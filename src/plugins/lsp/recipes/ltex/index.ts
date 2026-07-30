@@ -40,7 +40,7 @@ const platformPipeline = (os: string) => ({
         command: 'lsp-ws-proxy',
         args: [
             '-l',
-            '127.0.0.1:7020',
+            '127.0.0.1:${wsPort}',
             '--',
             os === 'windows'
                 ? `./${DIR}/bin/ltex-ls-plus.bat`
@@ -79,7 +79,7 @@ const typeConfig: LspTypeConfig = {
         md: 'markdown',
         markdown: 'markdown',
     },
-    transportUrl: 'ws://localhost:7020',
+    transportUrl: 'ws://localhost:${wsPort}',
     contentLength: false,
     clientConfig,
 };
@@ -101,6 +101,15 @@ const recipe: Recipe = {
     notes:
         'Grammar and spell checker for LaTeX, Markdown, and BibTeX. System mode requires Java 21; set JAVA_HOME below if your default java is older. Docker mode bundles its own Java 21.',
     env: {},
+    variables: [
+        {
+            key: 'wsPort',
+            label: 'WebSocket port',
+            kind: 'number',
+            default: '7020',
+            help: 'Port the WebSocket proxy listens on.',
+        },
+    ],
     modes: [
         {
             kind: 'system',
@@ -139,7 +148,7 @@ const recipe: Recipe = {
                     args: ['build', '-f', 'Dockerfile.chelys-ltex', '-t', IMAGE, '.'],
                 },
             ],
-            runArgs: ['-p', '7020:7020'],
+            runArgs: ['-p', '${wsPort}:7020'],
         },
         { kind: 'connect' },
     ],

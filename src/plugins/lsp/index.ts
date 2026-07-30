@@ -1,10 +1,16 @@
 // src/plugins/lsp/index.ts
 import { getStoredSetting } from '../../config';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
+import { withBridgeStart, withBridgeStop } from '../../plugin-host/bridgeHooks';
 import { withRouteStart, withRouteStop } from '../../plugin-host/routeHooks';
 import type { Recipe } from '../../plugin-host/types';
 import { injectLspConfig, removeLspConfig } from './injection';
-import { LSP_TYPE, parseLspImport } from './shared';
+import {
+	LSP_TYPE,
+	parseLspImport,
+	readLspTransport,
+	recipeToConfigBlock,
+} from './shared';
 import { ltexModule } from './recipes/ltex';
 
 const recipeModules = [ltexModule];
@@ -22,11 +28,24 @@ export function registerLspPlugin(): void {
 		formSchema: [
 			{ key: 'name', label: 'Name', kind: 'text', placeholder: 'LTeX LS Plus' },
 			{
+				key: 'transportType',
+				label: 'Transport',
+				kind: 'text',
+				help: 'websocket, or webrtc to reach this over a peer connection',
+				placeholder: 'websocket',
+			},
+			{
 				key: 'transportUrl',
 				label: 'WebSocket URL',
 				kind: 'text',
-				help: 'Where TeXlyre connects to this server',
+				help: 'Where the server listens locally',
 				placeholder: 'ws://localhost:7020',
+			},
+			{
+				key: 'transportRoomId',
+				label: 'Room override',
+				kind: 'text',
+				help: 'Optional. Defaults to a room derived from your Chelys account.',
 			},
 			{
 				key: 'fileExtensions',
@@ -42,7 +61,8 @@ export function registerLspPlugin(): void {
 			},
 		],
 		parseImport: parseLspImport,
-		onStart: withRouteStart(injectLspConfig),
-		onStop: withRouteStop(removeLspConfig),
+		toConfigBlock: (recipe) => recipeToConfigBlock(recipe, true),
+		onStart: withRouteStart(withBridgeStart(readLspTransport)(injectLspConfig)),
+		onStop: withRouteStop(withBridgeStop(readLspTransport)(removeLspConfig)),
 	});
 }
