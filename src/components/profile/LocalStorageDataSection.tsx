@@ -9,7 +9,7 @@ import {
     clearUserData,
     importFromFile,
 } from '@texlyre/utils/userDataUtils';
-import Modal from '../common/Modal';
+import IconButton from '../common/IconButton';
 import {
     TrashIcon,
     DownloadIcon,
@@ -18,7 +18,6 @@ import {
 } from '../common/Icons';
 import JsonEditorModal from './JsonEditorModal';
 
-type ClearType = 'settings' | 'properties' | 'secrets' | 'records' | 'all';
 type EditableType = Exclude<UserDataType, 'all'>;
 
 interface LocalStorageDataSectionProps {
@@ -63,8 +62,6 @@ const LocalStorageDataSection: React.FC<LocalStorageDataSectionProps> = ({
     onError,
     onSuccess,
 }) => {
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [deleteType, setDeleteType] = useState<ClearType | null>(null);
     const [editType, setEditType] = useState<EditableType | null>(null);
     const [fileInputRef, setFileInputRef] = useState<HTMLInputElement | null>(
         null,
@@ -86,19 +83,15 @@ const LocalStorageDataSection: React.FC<LocalStorageDataSectionProps> = ({
         }
     };
 
-    const handleConfirmDelete = async () => {
-        if (!deleteType) return;
+    const handleClearData = (type: UserDataType) => {
         try {
             setIsSubmitting(true);
-            clearUserData(userId, deleteType);
+            clearUserData(userId, type);
             onSuccess(
-                deleteType === 'all'
+                type === 'all'
                     ? t('Successfully cleared all data')
-                    : t('Successfully cleared {type}', { type: deleteType }),
+                    : t('Successfully cleared {type}', { type }),
             );
-            setShowDeleteModal(false);
-            setDeleteType(null);
-            // setTimeout(() => window.location.reload(), 1500);
         } catch (error) {
             onError(
                 error instanceof Error ? error.message : t('Failed to clear data'),
@@ -119,7 +112,6 @@ const LocalStorageDataSection: React.FC<LocalStorageDataSectionProps> = ({
             setIsSubmitting(true);
             await importFromFile(userId, file);
             onSuccess(t('Successfully imported user data'));
-            // setTimeout(() => window.location.reload(), 1500);
         } catch (error) {
             onError(
                 error instanceof Error ? error.message : t('Failed to import data'),
@@ -151,36 +143,30 @@ const LocalStorageDataSection: React.FC<LocalStorageDataSectionProps> = ({
                             <p>{description}</p>
                         </div>
                         <div className='storage-action-buttons'>
-                            <button
-                                type='button'
-                                className='button secondary smaller icon-only'
+                            <IconButton
+                                icon={<EditIcon />}
+                                label={t('Preview and edit {type}', { type })}
+                                disabled={isSubmitting}
                                 onClick={() => setEditType(type)}
+                            />
+                            <IconButton
+                                icon={<DownloadIcon />}
+                                label={t('Download {type} data', { type })}
                                 disabled={isSubmitting}
-                                title={t('Preview and edit {type}', { type })}
-                            >
-                                <EditIcon />
-                            </button>
-                            <button
-                                type='button'
-                                className='button secondary smaller icon-only'
-                                onClick={() => handleDownloadData(type)}
+                                onClick={() => void handleDownloadData(type)}
+                            />
+                            <IconButton
+                                icon={<TrashIcon />}
+                                label={t('Clear {type}', { type })}
+                                variant='danger'
                                 disabled={isSubmitting}
-                                title={t('Download {type} data', { type })}
-                            >
-                                <DownloadIcon />
-                            </button>
-                            <button
-                                type='button'
-                                className='button danger smaller icon-only'
-                                onClick={() => {
-                                    setDeleteType(type);
-                                    setShowDeleteModal(true);
+                                confirm={{
+                                    title: t('Clear {type}?', { type }),
+                                    message: description,
+                                    confirmLabel: t('Clear'),
                                 }}
-                                disabled={isSubmitting}
-                                title={t('Clear {type}', { type })}
-                            >
-                                <TrashIcon />
-                            </button>
+                                onClick={() => handleClearData(type)}
+                            />
                         </div>
                     </div>
                 ))}
@@ -193,15 +179,13 @@ const LocalStorageDataSection: React.FC<LocalStorageDataSectionProps> = ({
                         </p>
                     </div>
                     <div className='storage-action-buttons'>
-                        <button
-                            type='button'
-                            className='button primary smaller icon-only'
-                            onClick={() => fileInputRef?.click()}
+                        <IconButton
+                            icon={<ImportIcon />}
+                            label={t('Import all data')}
+                            variant='primary'
                             disabled={isSubmitting}
-                            title={t('Import all data')}
-                        >
-                            <ImportIcon />
-                        </button>
+                            onClick={() => fileInputRef?.click()}
+                        />
                         <input
                             ref={setFileInputRef}
                             type='file'
@@ -210,70 +194,27 @@ const LocalStorageDataSection: React.FC<LocalStorageDataSectionProps> = ({
                             style={{ display: 'none' }}
                             disabled={isSubmitting}
                         />
-                        <button
-                            type='button'
-                            className='button secondary smaller icon-only'
-                            onClick={() => handleDownloadData('all')}
+                        <IconButton
+                            icon={<DownloadIcon />}
+                            label={t('Download all data')}
                             disabled={isSubmitting}
-                            title={t('Download all data')}
-                        >
-                            <DownloadIcon />
-                        </button>
-                        <button
-                            type='button'
-                            className='button danger icon-only'
-                            onClick={() => {
-                                setDeleteType('all');
-                                setShowDeleteModal(true);
+                            onClick={() => void handleDownloadData('all')}
+                        />
+                        <IconButton
+                            icon={<TrashIcon />}
+                            label={t('Clear all data')}
+                            variant='danger'
+                            disabled={isSubmitting}
+                            confirm={{
+                                title: t('Clear all local storage?'),
+                                items: STORES.map((store) => store.description),
+                                confirmLabel: t('Clear all'),
                             }}
-                            disabled={isSubmitting}
-                            title={t('Clear all data')}
-                        >
-                            <TrashIcon />
-                        </button>
+                            onClick={() => handleClearData('all')}
+                        />
                     </div>
                 </div>
             </div>
-
-            <Modal
-                isOpen={showDeleteModal}
-                onClose={() => {
-                    setShowDeleteModal(false);
-                    setDeleteType(null);
-                }}
-                title={t('Clear {data}', {
-                    data: deleteType === 'all' ? t('All Data') : t(deleteType ?? ''),
-                })}
-                icon={TrashIcon}
-                size='medium'
-            >
-                <div className='clear-storage-modal'>
-                    <div className='warning-message'>
-                        <p>{t('This action cannot be undone.')}</p>
-                    </div>
-                    <div className='modal-actions'>
-                        <button
-                            type='button'
-                            className='button secondary'
-                            onClick={() => {
-                                setShowDeleteModal(false);
-                                setDeleteType(null);
-                            }}
-                            disabled={isSubmitting}
-                        >
-                            {t('Cancel')}
-                        </button>
-                        <button
-                            type='button'
-                            className='button danger'
-                            onClick={handleConfirmDelete}
-                            disabled={isSubmitting}
-                        >
-                            {isSubmitting ? t('Clearing...') : t('Clear')}
-                        </button>
-                    </div>
-                </div>
-            </Modal>
 
             <JsonEditorModal
                 isOpen={editType !== null}

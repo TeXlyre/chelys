@@ -8,7 +8,6 @@ import {
     getUserData,
     setUserData,
 } from '@texlyre/utils/userDataUtils';
-import { chelysAccountSyncService } from '@texlyre/services/ChelysAccountSyncService';
 import Modal from '../common/Modal';
 import { EditIcon } from '../common/Icons';
 
@@ -87,7 +86,6 @@ const JsonEditorModal: React.FC<JsonEditorModalProps> = ({
                 : parsed;
             setUserData(userId, type, payload);
             dirtyRef.current = false;
-            void chelysAccountSyncService.reconnect();
             onSaved(t('Saved {type}', { type }));
             onClose();
         } catch (error) {
