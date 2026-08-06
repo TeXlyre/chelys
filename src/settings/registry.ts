@@ -80,6 +80,29 @@ export const getChelysSettings = (): Setting[] => [
         },
     },
     {
+        id: 'traefikBackendHost',
+        category: t('Collaboration'),
+        subcategory: t('Traefik'),
+        type: 'text',
+        label: t('Traefik backend host'),
+        description: t('Host Traefik uses to reach services on this machine. Use 127.0.0.1 when Traefik runs as a system process, and host.docker.internal when it runs in Docker on Windows or macOS.'),
+        defaultValue: getSettingDefault('traefikBackendHost'),
+        onChange: () => {
+            void recipeManager.reinjectRunning();
+        },
+    },
+    {
+        id: 'traefikRouteServerPort',
+        category: t('Collaboration'),
+        subcategory: t('Traefik'),
+        type: 'number',
+        label: t('Route table port'),
+        description: t('Port Chelys serves the Traefik routing table on. Chelys picks a free port automatically if this one is unavailable. Applied on restart; Traefik must be restarted afterwards.'),
+        defaultValue: getSettingDefault('traefikRouteServerPort'),
+        min: 1024,
+        max: 65535,
+    },
+    {
         id: 'serviceHost',
         category: t('Collaboration'),
         subcategory: t('Traefik'),
@@ -90,6 +113,15 @@ export const getChelysSettings = (): Setting[] => [
         onChange: () => {
             void recipeManager.reinjectRunning();
         },
+    },
+    {
+        id: 'dynamicPortFallback',
+        category: t('Recipes'),
+        subcategory: t('Runtime'),
+        type: 'checkbox',
+        label: t('Fall back to a free port'),
+        description: t('When a configured port is already taken or reserved by the system, pick a free one instead of failing. Applies to recipe ports and to the Traefik route table port, and takes effect the next time each service starts.'),
+        defaultValue: getSettingDefault('dynamicPortFallback'),
     },
     {
         id: 'recipePlatformOverride',

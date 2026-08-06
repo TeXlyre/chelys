@@ -98,6 +98,18 @@ export function applyPlatform(recipe: Recipe, platform: PlatformId): Recipe {
 	const platformKey = normalizePlatform(platform);
 
 	const modes = recipe.modes.map((mode) => {
+		if (mode.kind === 'docker') {
+			const override = mode.platforms?.[platformKey];
+
+			if (!override) return mode;
+
+			return {
+				...mode,
+				runArgs: override.runArgs ?? mode.runArgs,
+				command: override.command ?? mode.command,
+			};
+		}
+
 		if (mode.kind !== 'system') return mode;
 
 		const system = mode as SystemMode;

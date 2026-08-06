@@ -6,9 +6,11 @@ import { pluginTypeRegistry } from './PluginTypeRegistry';
 import { processSupervisorService } from './ProcessSupervisorService';
 import { recipeRegistry } from './RecipeRegistry';
 import { recipeStore } from './RecipeStore';
-import { resolveRecipe } from './variableResolution';
+import { effectiveValues, resolveRecipe } from './variableResolution';
+import { invoke } from '@tauri-apps/api/core';
+import { getStoredSetting } from '../config';
 import { appDataDir } from '@tauri-apps/api/path';
-import { routesDir } from './traefikRoutes';
+import { routeEndpoint } from './traefikRoutes';
 import { materializeRecipeFiles } from './recipeWorkdir';
 import {
 	findMode,
@@ -41,6 +43,7 @@ class RecipeManager {
 	private platform: PlatformId = 'desktop';
 	private reattached = new Set<string>();
 	private cancelling = new Set<string>();
+	private ports = new Map<string, Record<string, string>>();
 
 	async reinjectRunning(): Promise<void> {
 		if (!this.initialized) return;
@@ -57,14 +60,78 @@ class RecipeManager {
 
 	private async resolveForCurrentPlatform(base: Recipe): Promise<Recipe> {
 		this.platform = await detectPlatform();
-		const resolved = resolveRecipe(applyPlatform(base, this.platform));
+
+		const pinned = this.ports.get(base.id);
+		const source = pinned ? { ...base, variableValues: pinned } : base;
+
+		const resolved = resolveRecipe(applyPlatform(source, this.platform));
 		return this.expandRuntimeTokens(resolved);
+	}
+
+	private async allocatePorts(base: Recipe): Promise<void> {
+		if (this.ports.has(base.id)) return;
+
+		const fallback = getStoredSetting<boolean>('dynamicPortFallback');
+		const values = effectiveValues(base);
+		const assigned: Record<string, string> = {};
+
+		for (const [key, value] of Object.entries(values)) {
+			if (!/port$/i.test(key) || !/^\d+$/.test(value)) continue;
+
+			const free = await invoke<number>('find_free_port', {
+				preferred: Number(value),
+				fallback,
+			}).catch(() => Number(value));
+
+			if (free === 0) {
+				this.appendLog(base.id, `Port ${value} is unavailable`);
+				continue;
+			}
+
+			if (String(free) === value) continue;
+
+			assigned[key] = String(free);
+			this.appendLog(base.id, `Port ${value} unavailable, using ${free}`);
+		}
+
+		this.ports.set(base.id, { ...(base.variableValues ?? {}), ...assigned });
+	}
+
+	private async adoptContainerPort(recipe: Recipe): Promise<void> {
+		const values = effectiveValues(recipe);
+		const portKey = Object.keys(values).find((key) => /port$/i.test(key));
+		if (!portKey) return;
+
+		const out: string[] = [];
+
+		const unsubscribe = processSupervisorService.onOutput(({ handleId, line }) => {
+			if (handleId === `${recipe.id}-port`) out.push(line);
+		});
+
+		const code = await processSupervisorService
+			.runCommand(`${recipe.id}-port`, {
+				command: 'docker',
+				args: ['port', containerName(recipe.id)],
+				env: {},
+			})
+			.catch(() => 1);
+
+		unsubscribe();
+		if (code !== 0) return;
+
+		const match = out.join('\n').match(/:(\d+)\s*$/m);
+		if (!match) return;
+
+		this.ports.set(recipe.id, {
+			...(recipe.variableValues ?? {}),
+			[portKey]: match[1],
+		});
 	}
 
 	private async expandRuntimeTokens(recipe: Recipe): Promise<Recipe> {
 		const tokens: Record<string, string> = {
 			'${CHELYS_DATA}': await appDataDir(),
-			'${CHELYS_TRAEFIK_ROUTES}': await routesDir(),
+			'${CHELYS_ROUTE_ENDPOINT}': await routeEndpoint(),
 		};
 
 		const expand = <T>(value: T): T => {
@@ -255,7 +322,6 @@ class RecipeManager {
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
 
-		const recipe = await this.resolveForCurrentPlatform(base);
 		const mode = this.statuses.get(recipeId)?.mode;
 
 		if (!mode) {
@@ -265,6 +331,10 @@ class RecipeManager {
 			});
 			return;
 		}
+
+		if (mode !== 'connect') await this.allocatePorts(base);
+
+		const recipe = await this.resolveForCurrentPlatform(base);
 
 		this.patch(recipeId, { state: 'starting', lastError: null });
 
@@ -338,6 +408,8 @@ class RecipeManager {
 		this.patch(recipeId, { state: 'stopped' });
 
 		if (recipe) this.runStopHook(recipe);
+
+		this.ports.delete(recipeId);
 	}
 
 	async setVariables(
@@ -454,6 +526,7 @@ class RecipeManager {
 			if (!alive) continue;
 
 			this.reattached.add(recipe.id);
+			await this.adoptContainerPort(recipe);
 
 			this.statuses.set(recipe.id, {
 				...status,
