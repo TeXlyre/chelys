@@ -3,6 +3,7 @@ import { getStoredSetting } from '../config';
 
 interface TransportConfig {
     transportUrl?: unknown;
+    transportType?: unknown;
     configId?: unknown;
 }
 
@@ -12,6 +13,9 @@ interface ParsedUrl {
     port: string;
     path: string;
 }
+
+export const safeName = (configId: string): string =>
+    configId.replace(/[^a-zA-Z0-9_.-]/g, '-');
 
 const parseUrl = (value: string): ParsedUrl => {
     const schemeMatch = value.match(/^([a-z]+):\/\//i);
@@ -39,6 +43,8 @@ export function rewriteTransportUrl(config: TransportConfig): string | undefined
     const url = typeof config.transportUrl === 'string' ? config.transportUrl : undefined;
     if (!url) return url;
 
+    if (config.transportType === 'webrtc') return url;
+
     const original = parseUrl(url);
 
     if (getStoredSetting<boolean>('traefikEnabled')) {
@@ -47,7 +53,8 @@ export function rewriteTransportUrl(config: TransportConfig): string | undefined
 
         const scheme = toTransportScheme(base.scheme, toTransportScheme(original.scheme, 'ws'));
         const authority = base.port ? `${base.host}:${base.port}` : base.host;
-        const id = typeof config.configId === 'string' ? config.configId : '';
+        const id =
+            typeof config.configId === 'string' ? safeName(config.configId) : '';
         const suffix = id ? `/${id}` : original.path;
 
         return `${scheme}://${authority}${suffix}`;

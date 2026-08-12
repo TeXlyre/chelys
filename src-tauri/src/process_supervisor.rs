@@ -224,3 +224,23 @@ pub async fn process_list_running(
     let servers = supervisor.inner.servers.lock().await;
     Ok(servers.keys().cloned().collect())
 }
+
+#[tauri::command]
+pub fn find_free_port(preferred: u16, fallback: bool) -> Result<u16, String> {
+    use std::net::{SocketAddr, TcpListener};
+
+    let bind = |port: u16| TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], port)));
+
+    if preferred > 0 && bind(preferred).is_ok() {
+        return Ok(preferred);
+    }
+
+    if !fallback {
+        return Ok(0);
+    }
+
+    bind(0)
+        .and_then(|listener| listener.local_addr())
+        .map(|addr| addr.port())
+        .map_err(|error| error.to_string())
+}

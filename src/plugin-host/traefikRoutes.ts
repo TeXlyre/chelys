@@ -1,29 +1,29 @@
 // src/plugin-host/traefikRoutes.ts
-import { appDataDir, join } from '@tauri-apps/api/path';
-import {
-    BaseDirectory,
-    mkdir,
-    readDir,
-    remove,
-    writeTextFile,
-} from '@tauri-apps/plugin-fs';
+import { invoke } from '@tauri-apps/api/core';
 
 import { getStoredSetting } from '../config';
+import { safeName } from './traefikRouting';
 import { effectiveValues } from './variableResolution';
 import type { Recipe } from './types';
 
-const ROUTES_DIR = 'traefik/routes';
+const DEFAULT_ROUTE_SERVER_PORT = 8099;
+const NOOP_SERVICE = 'chelys-placeholder';
 
 interface RouteInfo {
     configId: string;
     port: string;
 }
 
-const safeName = (configId: string): string =>
-    configId.replace(/[^a-zA-Z0-9_.-]/g, '-');
+interface RouteServerHandle {
+    token: string;
+    port: number;
+}
 
-const routeFile = (configId: string): string =>
-    `${ROUTES_DIR}/${safeName(configId)}.yml`;
+const routes = new Map<string, RouteInfo>();
+let server: RouteServerHandle | null = null;
+
+const backendHost = (): string =>
+    getStoredSetting<string>('traefikBackendHost').trim() || '127.0.0.1';
 
 const configIdOf = (recipe: Recipe): string => {
     const typeConfig = recipe.typeConfig as { configId?: unknown };
@@ -36,6 +36,9 @@ const routeInfo = (recipe: Recipe): RouteInfo | null => {
     const configId = configIdOf(recipe);
     if (!configId) return null;
 
+    const { transportType } = recipe.typeConfig as { transportType?: unknown };
+    if (transportType === 'webrtc') return null;
+
     const values = effectiveValues(recipe);
     const portKey = Object.keys(values).find((key) => /port$/i.test(key));
     const port = portKey ? values[portKey] : '';
@@ -44,37 +47,76 @@ const routeInfo = (recipe: Recipe): RouteInfo | null => {
     return { configId, port };
 };
 
-const routeYaml = (info: RouteInfo): string => {
-    const id = safeName(info.configId);
-    return [
-        'http:',
-        '  routers:',
-        `    ${id}:`,
-        `      rule: "PathPrefix(\`/${id}\`)"`,
-        `      service: ${id}`,
-        '      middlewares:',
-        `        - ${id}-strip`,
-        '  middlewares:',
-        `    ${id}-strip:`,
-        '      stripPrefix:',
-        '        prefixes:',
-        `          - "/${id}"`,
-        '  services:',
-        `    ${id}:`,
-        '      loadBalancer:',
-        '        servers:',
-        `          - url: "http://127.0.0.1:${info.port}"`,
-        '',
-    ].join('\n');
+
+const dynamicConfig = () => {
+    const routers: Record<string, unknown> = {};
+    const middlewares: Record<string, unknown> = {};
+    const services: Record<string, unknown> = {
+        [NOOP_SERVICE]: {
+            loadBalancer: { servers: [{ url: 'http://127.0.0.1:1' }] },
+        },
+    };
+
+    for (const info of routes.values()) {
+        const id = safeName(info.configId);
+
+        routers[id] = {
+            entryPoints: ['web'],
+            rule: `PathPrefix(\`/${id}\`)`,
+            service: id,
+            middlewares: [`${id}-strip`],
+        };
+        middlewares[`${id}-strip`] = { stripPrefix: { prefixes: [`/${id}`] } };
+        services[id] = {
+            loadBalancer: {
+                servers: [{ url: `http://${backendHost()}:${info.port}` }],
+            },
+        };
+    }
+
+    return {
+        http: {
+            ...(Object.keys(routers).length > 0 ? { routers } : {}),
+            ...(Object.keys(middlewares).length > 0 ? { middlewares } : {}),
+            services,
+        },
+    };
 };
 
-export async function routesDir(): Promise<string> {
-    return join(await appDataDir(), ROUTES_DIR);
+const ensureServer = async (): Promise<RouteServerHandle> => {
+    if (!server) {
+        const preferred = Number(getStoredSetting('traefikRouteServerPort'));
+
+        server = await invoke<RouteServerHandle>('traefik_start_route_server', {
+            port:
+                Number.isInteger(preferred) && preferred > 0 && preferred < 65536
+                    ? preferred
+                    : DEFAULT_ROUTE_SERVER_PORT,
+            fallback: getStoredSetting<boolean>('dynamicPortFallback'),
+        });
+    }
+
+    return server;
+};
+
+const publish = async (): Promise<void> => {
+    try {
+        await ensureServer();
+        await invoke('traefik_set_routes', { config: dynamicConfig() });
+    } catch (error) {
+        console.error('[traefik] failed to publish routes', error);
+    }
+};
+
+export async function routeEndpoint(): Promise<string> {
+    try {
+        const { token, port } = await ensureServer();
+        return `http://${backendHost()}:${port}/${token}`;
+    } catch (error) {
+        console.error('[traefik] route table server unavailable', error);
+        return '';
+    }
 }
-
-const ensureDir = async (): Promise<void> => {
-    await mkdir(ROUTES_DIR, { baseDir: BaseDirectory.AppData, recursive: true });
-};
 
 export async function writeRoute(recipe: Recipe): Promise<void> {
     if (!getStoredSetting<boolean>('traefikEnabled')) {
@@ -85,44 +127,27 @@ export async function writeRoute(recipe: Recipe): Promise<void> {
     const info = routeInfo(recipe);
     if (!info) return;
 
-    try {
-        await ensureDir();
-        await writeTextFile(routeFile(info.configId), routeYaml(info), {
-            baseDir: BaseDirectory.AppData,
-        });
-    } catch (error) {
-        console.error('[traefik] failed to write route', error);
-    }
+    routes.set(info.configId, info);
+    await publish();
 }
 
 export async function removeRoute(recipe: Recipe): Promise<void> {
     const configId = configIdOf(recipe);
-    if (!configId) return;
+    if (!configId || !routes.delete(configId)) return;
 
-    try {
-        await remove(routeFile(configId), { baseDir: BaseDirectory.AppData });
-    } catch {
-        /* file may not exist */
-    }
+    await publish();
 }
 
 export async function reconcileRoutes(runningConfigIds: string[]): Promise<void> {
-    const keep = new Set(runningConfigIds.map(safeName));
+    const keep = new Set(runningConfigIds);
+    let changed = false;
 
-    try {
-        const entries = await readDir(ROUTES_DIR, { baseDir: BaseDirectory.AppData });
+    for (const configId of [...routes.keys()]) {
+        if (keep.has(configId)) continue;
 
-        for (const entry of entries) {
-            if (!entry.isFile || !entry.name.endsWith('.yml')) continue;
-
-            const id = entry.name.replace(/\.yml$/, '');
-            if (keep.has(id)) continue;
-
-            await remove(`${ROUTES_DIR}/${entry.name}`, {
-                baseDir: BaseDirectory.AppData,
-            }).catch(() => undefined);
-        }
-    } catch {
-        /* directory may not exist yet */
+        routes.delete(configId);
+        changed = true;
     }
+
+    if (changed) await publish();
 }
