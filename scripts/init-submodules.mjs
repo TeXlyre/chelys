@@ -8,7 +8,7 @@ const SPARSE_PATHS = [
     "src/types",
     "src/extensions/yjs",
     "src/styles/shared",
-    "chelys",
+    "src/chelys",
 ];
 
 const SUBMODULE_DIR = "external/texlyre";
