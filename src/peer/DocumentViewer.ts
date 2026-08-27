@@ -1,27 +1,27 @@
 // src/peer/DocumentViewer.ts
-import { collabService } from "@texlyre/services/CollabService";
+import { collabService } from '@texlyre/services/CollabService';
 
 export interface DocumentViewerHandle {
-    destroy: () => void;
+	destroy: () => void;
 }
 
 export const openDocumentViewer = (
-    projectId: string,
-    documentId: string,
-    onContent: (content: string) => void,
+	projectId: string,
+	documentId: string,
+	onContent: (content: string) => void,
 ): DocumentViewerHandle => {
-    const collectionName = `yjs_${documentId}`;
-    const { doc } = collabService.connect(projectId, collectionName);
-    const ytext = doc.getText("codemirror");
+	const collectionName = `yjs_${documentId}`;
+	const { doc } = collabService.connect(projectId, collectionName);
+	const ytext = doc.getText('codemirror');
 
-    const emit = () => onContent(ytext.toString());
-    ytext.observe(emit);
-    emit();
+	const emit = () => onContent(ytext.toString());
+	ytext.observe(emit);
+	emit();
 
-    return {
-        destroy: () => {
-            ytext.unobserve(emit);
-            collabService.disconnect(projectId, collectionName);
-        },
-    };
+	return {
+		destroy: () => {
+			ytext.unobserve(emit);
+			collabService.disconnect(projectId, collectionName);
+		},
+	};
 };

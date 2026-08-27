@@ -1,24 +1,24 @@
 // src/components/plugin-host/RecipeForm.tsx
 import type React from 'react';
-import { useState } from 'react';
-import { join } from '@tauri-apps/api/path';
+import { useEffect, useState } from 'react';
 import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import {
-	BaseDirectory,
-	mkdir,
-	readDir,
-	readFile,
-	readTextFile,
-	writeTextFile,
-} from '@tauri-apps/plugin-fs';
 
 import { t } from '@/i18n';
-import { recipeDirName } from '../../plugin-host/recipeWorkdir';
 import { usePluginHost } from '../../hooks/usePluginHost';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
 import {
+	dockerOf,
+	isLocalDir,
+	isRelative,
+	rel,
+	writeBackRelativeDockerfile,
+	writeRecipeToDirectory,
+} from '../../plugin-host/recipeDirectory';
+import {
 	findMode,
 	type DockerMode,
+	type FieldKind,
+	type FieldSchema,
 	type InstallMode,
 	type InstallStep,
 	type Recipe,
@@ -26,6 +26,7 @@ import {
 
 interface RecipeFormProps {
 	recipe: Recipe | null;
+	initialView?: 'guided' | 'files';
 	onDone: () => void;
 }
 
@@ -41,12 +42,7 @@ interface RecipePart {
 	note?: string;
 }
 
-const isUrl = (value?: string): boolean => !!value && /^https?:\/\//i.test(value);
-const isRelative = (value?: string): value is string => !!value && !isUrl(value);
-const rel = (path: string): string => path.replace(/^\.\//, '');
-const isLocalDir = (source?: string): boolean => !!source && !isUrl(source);
-const dockerOf = (recipe: Recipe): DockerMode | undefined =>
-	findMode(recipe, 'docker') as DockerMode | undefined;
+const NAME_FIELD = 'name';
 
 const splitArgs = (value: string): string[] =>
 	value.trim() ? value.trim().split(/\s+/) : [];
@@ -65,15 +61,65 @@ const parseSteps = (text: string): InstallStep[] =>
 			const [labelPart, commandPart] = line.split('::');
 			const tokens = splitArgs(commandPart ?? labelPart);
 			return {
-				label: commandPart ? labelPart.trim() : tokens[0] ?? 'step',
+				label: commandPart ? labelPart.trim() : (tokens[0] ?? 'step'),
 				command: tokens[0] ?? '',
 				args: tokens.slice(1),
 			};
 		});
 
+const fieldToText = (kind: FieldKind, value: unknown): string => {
+	if (value === undefined || value === null) return '';
+	if (kind === 'list') {
+		return Array.isArray(value) ? value.join(', ') : String(value);
+	}
+	if (kind === 'boolean') return value === true ? 'true' : 'false';
+	if (kind === 'textarea' && typeof value !== 'string') {
+		return JSON.stringify(value, null, 2);
+	}
+	return String(value);
+};
+
+const textToField = (
+	kind: FieldKind,
+	text: string,
+	previous: unknown,
+): unknown => {
+	if (kind === 'list') {
+		return text
+			.split(/[\s,]+/)
+			.map((entry) => entry.trim())
+			.filter(Boolean);
+	}
+	if (kind === 'boolean') return text === 'true';
+	if (kind === 'number') return text.trim() ? Number(text) : undefined;
+	if (kind === 'textarea' && typeof previous !== 'string') {
+		try {
+			return JSON.parse(text);
+		} catch {
+			return text;
+		}
+	}
+	return text.trim() ? text : undefined;
+};
+
+const typeConfigValues = (
+	schema: FieldSchema[],
+	typeConfig: Record<string, unknown> | undefined,
+): Record<string, string> =>
+	Object.fromEntries(
+		schema
+			.filter((field) => field.key !== NAME_FIELD)
+			.map((field) => [
+				field.key,
+				fieldToText(field.kind, typeConfig?.[field.key]),
+			]),
+	);
+
 const recipeToParts = (recipe: Recipe | null): RecipePart[] => {
 	if (!recipe) {
-		return [{ name: 'recipe.json', kind: 'file', content: '{}', editable: true }];
+		return [
+			{ name: 'recipe.json', kind: 'file', content: '{}', editable: true },
+		];
 	}
 
 	const { extraFiles, sourceUrl, icon, typeConfig, ...rest } = recipe;
@@ -112,7 +158,9 @@ const recipeToParts = (recipe: Recipe | null): RecipePart[] => {
 				? isRelative(url)
 					? t('Edits are written back to {path} on save.', { path: rel(url) })
 					: undefined
-				: t('Read-only: dockerfileUrl points to a remote URL. Use a relative path or remove it to manage the Dockerfile in the recipe folder.'),
+				: t(
+						'Read-only: dockerfileUrl points to a remote URL. Use a relative path or remove it to manage the Dockerfile in the recipe folder.',
+					),
 		});
 	}
 
@@ -123,12 +171,19 @@ const recipeToParts = (recipe: Recipe | null): RecipePart[] => {
 			content: icon,
 			editable: false,
 			image: true,
-			note: t('Read-only: iconUrl points to a remote URL. Use a relative path or remove it to manage the icon in the recipe folder.'),
+			note: t(
+				'Read-only: iconUrl points to a remote URL. Use a relative path or remove it to manage the icon in the recipe folder.',
+			),
 		});
 	}
 
 	for (const path of extraFiles ?? []) {
-		parts.push({ name: path, kind: 'reference', content: null, editable: false });
+		parts.push({
+			name: path,
+			kind: 'reference',
+			content: null,
+			editable: false,
+		});
 	}
 
 	return parts;
@@ -164,40 +219,59 @@ const partsToRecipe = (parts: RecipePart[], fallbackId: string): Recipe => {
 	return recipe;
 };
 
-const inlineIconFromDir = async (dir: string, path: string): Promise<string> => {
-	if (/\.svg$/i.test(path)) return readTextFile(await join(dir, path));
-	const bytes = await readFile(await join(dir, path));
-	let binary = '';
-	for (const b of bytes) binary += String.fromCharCode(b);
-	return `<img src="data:image/png;base64,${btoa(binary)}" alt="" />`;
-};
-
-const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
-	const { save, importRecipe } = usePluginHost();
+const RecipeForm: React.FC<RecipeFormProps> = ({
+	recipe,
+	initialView = 'guided',
+	onDone,
+}) => {
+	const { save } = usePluginHost();
 	const types = pluginTypeRegistry.list();
 	const systemMode = recipe ? findMode(recipe, 'system') : undefined;
 	const dockerMode = recipe ? dockerOf(recipe) : undefined;
 
-	const [mode, setMode] = useState<'guided' | 'files' | 'import'>('guided');
+	const [mode, setMode] = useState<'guided' | 'files'>(initialView);
 	const [type, setType] = useState(recipe?.type ?? types[0]?.type ?? 'lsp');
 	const [name, setName] = useState(recipe?.name ?? '');
-	const [runCommand, setRunCommand] = useState(systemMode?.runCommand.command ?? '');
-	const [runArgs, setRunArgs] = useState(systemMode?.runCommand.args.join(' ') ?? '');
-	const [installText, setInstallText] = useState(stepsToText(systemMode?.installSteps));
-	const [uninstallText, setUninstallText] = useState(stepsToText(systemMode?.uninstallSteps));
+	const [runCommand, setRunCommand] = useState(
+		systemMode?.runCommand.command ?? '',
+	);
+	const [runArgs, setRunArgs] = useState(
+		systemMode?.runCommand.args.join(' ') ?? '',
+	);
+	const [installText, setInstallText] = useState(
+		stepsToText(systemMode?.installSteps),
+	);
+	const [uninstallText, setUninstallText] = useState(
+		stepsToText(systemMode?.uninstallSteps),
+	);
 	const [dockerImage, setDockerImage] = useState(dockerMode?.image ?? '');
 	const [envText, setEnvText] = useState(
 		Object.entries(recipe?.env ?? {})
 			.map(([key, value]) => `${key}=${value}`)
 			.join('\n'),
 	);
+	const [typeValues, setTypeValues] = useState<Record<string, string>>(() =>
+		typeConfigValues(
+			pluginTypeRegistry.get(recipe?.type ?? type)?.formSchema ?? [],
+			recipe?.typeConfig,
+		),
+	);
 	const [parts, setParts] = useState<RecipePart[]>(() => recipeToParts(recipe));
-	const [sourceUrl, setSourceUrl] = useState(recipe?.sourceUrl ?? '');
+	const [sourceUrl] = useState(recipe?.sourceUrl ?? '');
 	const [selectedPart, setSelectedPart] = useState('recipe.json');
-	const [importText, setImportText] = useState('');
 	const [error, setError] = useState<string | null>(null);
 
+	const schema = pluginTypeRegistry.get(type)?.formSchema ?? [];
 	const selected = parts.find((p) => p.name === selectedPart);
+
+	useEffect(() => {
+		setTypeValues(
+			typeConfigValues(
+				pluginTypeRegistry.get(type)?.formSchema ?? [],
+				recipe?.typeConfig,
+			),
+		);
+	}, [type, recipe]);
 
 	const parseEnv = (): Record<string, string> => {
 		const env: Record<string, string> = {};
@@ -206,6 +280,25 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 			if (eq > 0) env[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
 		}
 		return env;
+	};
+
+	const buildTypeConfig = (): Record<string, unknown> => {
+		const next: Record<string, unknown> = { ...(recipe?.typeConfig ?? {}) };
+
+		for (const field of schema) {
+			if (field.key === NAME_FIELD) continue;
+
+			const value = textToField(
+				field.kind,
+				typeValues[field.key] ?? '',
+				recipe?.typeConfig?.[field.key],
+			);
+
+			if (value === undefined) delete next[field.key];
+			else next[field.key] = value;
+		}
+
+		return next;
 	};
 
 	const buildModes = (): InstallMode[] => {
@@ -219,10 +312,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 		const image = dockerImage.trim();
 		const docker: DockerMode | null = image
 			? {
-				...(dockerMode ?? { kind: 'docker' as const, buildSteps: [], runArgs: [] }),
-				kind: 'docker',
-				image,
-			}
+					...(dockerMode ?? {
+						kind: 'docker' as const,
+						buildSteps: [],
+						runArgs: [],
+					}),
+					kind: 'docker',
+					image,
+				}
 			: null;
 		const preserved = (recipe?.modes ?? []).filter(
 			(m) => m.kind !== 'system' && m.kind !== 'docker',
@@ -247,46 +344,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 			...recipe,
 			id: recipe?.id ?? '',
 			type,
-			name: name || 'Untitled plugin',
+			name: name || 'Untitled recipe',
 			env: parseEnv(),
 			modes: buildModes(),
-			typeConfig: recipe?.typeConfig ?? {},
+			typeConfig: buildTypeConfig(),
 			sourceUrl: sourceUrl || recipe?.sourceUrl,
 		};
-	};
-
-	const writeBackRelativeDockerfile = async (built: Recipe): Promise<void> => {
-		const docker = dockerOf(built);
-		if (!docker?.dockerfile || !isRelative(docker.dockerfileUrl)) return;
-
-		const path = rel(docker.dockerfileUrl);
-		if (isLocalDir(built.sourceUrl)) {
-			try {
-				await writeTextFile(
-					await join(built.sourceUrl!, path),
-					docker.dockerfile,
-				);
-				return;
-			} catch (error) {
-				console.warn('[RecipeForm] Source directory not writable:', error);
-			}
-		}
-
-		try {
-			const target = `${recipeDirName(built.id)}/${path}`;
-			const slash = target.lastIndexOf('/');
-			if (slash !== -1) {
-				await mkdir(target.slice(0, slash), {
-					baseDir: BaseDirectory.AppData,
-					recursive: true,
-				});
-			}
-			await writeTextFile(target, docker.dockerfile, {
-				baseDir: BaseDirectory.AppData,
-			});
-		} catch (error) {
-			console.warn('[RecipeForm] Could not write Dockerfile back:', error);
-		}
 	};
 
 	const updateSelectedPart = (content: string) => {
@@ -298,78 +361,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 	const handleSave = async () => {
 		setError(null);
 		try {
-			if (mode === 'import') {
-				await importRecipe(type, importText);
-			} else {
-				const built = buildRecipe();
-				await save(built);
-				await writeBackRelativeDockerfile(built);
-			}
+			const built = buildRecipe();
+			await save(built);
+			await writeBackRelativeDockerfile(built);
 			onDone();
 		} catch (e) {
-			setError(e instanceof Error ? e.message : t('Could not save plugin'));
-		}
-	};
-
-	const handleLoadFromDisk = async () => {
-		setError(null);
-		try {
-			const dir = await openDialog({ directory: true });
-			if (typeof dir !== 'string') return;
-
-			let recipeJson: string | null = null;
-			let dockerfileText: string | null = null;
-			const others: string[] = [];
-
-			const walk = async (base: string, prefix: string): Promise<void> => {
-				for (const entry of await readDir(base)) {
-					const relPath = prefix ? `${prefix}/${entry.name}` : entry.name;
-					const abs = await join(base, entry.name);
-					if (entry.isDirectory) await walk(abs, relPath);
-					else if (relPath === 'recipe.json') recipeJson = await readTextFile(abs);
-					else if (relPath.toLowerCase() === 'dockerfile')
-						dockerfileText = await readTextFile(abs);
-					else if (entry.isFile) others.push(relPath);
-				}
-			};
-			await walk(dir, '');
-
-			if (!recipeJson) throw new Error(t('The selected directory has no recipe.json'));
-
-			const parsed = JSON.parse(recipeJson) as Recipe;
-			parsed.id = parsed.id || recipe?.id || '';
-			parsed.sourceUrl = dir;
-
-			const docker = dockerOf(parsed);
-			console.log('[load] dockerfileUrl =', docker?.dockerfileUrl,
-				'| isRelative =', isRelative(docker?.dockerfileUrl));
-			if (docker) {
-				if (isRelative(docker.dockerfileUrl)) {
-					const p = await join(dir, rel(docker.dockerfileUrl));
-					docker.dockerfile = await readTextFile(p);
-				} else if (!docker.dockerfile && dockerfileText) {
-					docker.dockerfile = dockerfileText;
-				}
-			}
-			if (!parsed.icon && isRelative(parsed.iconUrl)) {
-				parsed.icon = await inlineIconFromDir(dir, rel(parsed.iconUrl));
-			}
-
-			const reserved = new Set(
-				[docker?.dockerfileUrl, parsed.iconUrl].filter(isRelative).map(rel),
-			);
-			const extras = others.filter((r) => !reserved.has(r));
-			parsed.extraFiles = extras.length > 0 ? extras : undefined;
-
-			if (parsed.type) setType(parsed.type);
-			setSourceUrl(dir);
-			setParts(recipeToParts(parsed));
-			setSelectedPart('recipe.json');
-			setMode('files');
-			const built = recipeToParts(parsed);
-			setParts(built);
-		} catch (e) {
-			setError(e instanceof Error ? e.message : t('Could not load recipe'));
+			setError(e instanceof Error ? e.message : t('Could not save recipe'));
 		}
 	};
 
@@ -383,33 +380,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 			});
 			if (typeof dir !== 'string') return;
 
-			const { icon: _icon, sourceUrl: _s, ...rest } = built;
-			const docker = dockerOf(built);
-			await writeTextFile(
-				await join(dir, 'recipe.json'),
-				JSON.stringify(
-					{
-						...rest,
-						modes: rest.modes.map((m) =>
-							m.kind === 'docker' ? { ...m, dockerfile: docker?.dockerfile } : m,
-						),
-					},
-					null,
-					2,
-				),
-			);
-			if (docker?.dockerfile) {
-				const target = isRelative(docker.dockerfileUrl) ? rel(docker.dockerfileUrl) : 'Dockerfile';
-				const slash = target.lastIndexOf('/');
-				if (slash !== -1) {
-					try {
-						await mkdir(await join(dir, target.slice(0, slash)), { recursive: true });
-					} catch (e) {
-						throw new Error(`mkdir failed: ${e instanceof Error ? e.message : String(e)}`);
-					}
-				}
-				await writeTextFile(await join(dir, target), docker.dockerfile);
-			}
+			await writeRecipeToDirectory(built, dir);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
 		}
@@ -424,51 +395,82 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 		</button>
 	);
 
+	const renderSchemaField = (field: FieldSchema) => {
+		const value = typeValues[field.key] ?? '';
+		const id = `recipe-type-${field.key}`;
+
+		return (
+			<div key={field.key} className='form-group'>
+				<label htmlFor={id}>{t(field.label)}</label>
+				{field.kind === 'boolean' ? (
+					<input
+						id={id}
+						type='checkbox'
+						checked={value === 'true'}
+						onChange={(e) =>
+							setTypeValues((prev) => ({
+								...prev,
+								[field.key]: e.target.checked ? 'true' : 'false',
+							}))
+						}
+					/>
+				) : field.kind === 'textarea' ? (
+					<textarea
+						id={id}
+						rows={6}
+						spellCheck={false}
+						dir='ltr'
+						value={value}
+						onChange={(e) =>
+							setTypeValues((prev) => ({
+								...prev,
+								[field.key]: e.target.value,
+							}))
+						}
+					/>
+				) : (
+					<input
+						id={id}
+						type={field.kind === 'number' ? 'number' : 'text'}
+						dir='ltr'
+						value={value}
+						placeholder={field.placeholder}
+						onChange={(e) =>
+							setTypeValues((prev) => ({
+								...prev,
+								[field.key]: e.target.value,
+							}))
+						}
+					/>
+				)}
+				{field.help && <small>{t(field.help)}</small>}
+			</div>
+		);
+	};
+
 	return (
 		<div className='recipe-form'>
 			<div className='recipe-form-header'>
-				<h3>{recipe ? t('Edit plugin') : t('Add plugin')}</h3>
+				<h3>{recipe ? t('Edit recipe') : t('Add recipe')}</h3>
 				<div className='view-tabs'>
 					{modeTab('guided', t('Guided'))}
 					{modeTab('files', t('Files'))}
-					{modeTab('import', t('Paste config'))}
 				</div>
 			</div>
 
 			{error && <div className='error-message'>{error}</div>}
 			{recipe?.notes && <div className='info-message'>{recipe.notes}</div>}
 
-			<div className='form-group'>
-				<label>{t('Plugin type')}</label>
-				<select value={type} onChange={(e) => setType(e.target.value)}>
-					{types.map((definition) => (
-						<option key={definition.type} value={definition.type}>
-							{definition.label}
-						</option>
-					))}
-				</select>
-			</div>
-
-			{mode === 'import' ? (
-				<div className='form-group'>
-					<label>{t('Configuration')}</label>
-					<textarea
-						rows={10}
-						spellCheck={false}
-						value={importText}
-						onChange={(e) => setImportText(e.target.value)}
-						placeholder={t('Paste a TeXlyre LSP recipe (typeConfig) block or recipe JSON')}
-					/>
-				</div>
-			) : mode === 'files' ? (
+			{mode === 'files' ? (
 				<>
 					<div className='form-group'>
 						<div className='view-tabs recipe-parts'>
 							{parts.map((part) => (
 								<button
 									key={part.name}
-									className={`tab-button ${!part.editable ? 'part-readonly ' : ''}${part.name === selectedPart ? 'active' : ''
-										}`}
+									className={`tab-button ${!part.editable ? 'part-readonly ' : ''}${
+										part.name === selectedPart ? 'active' : ''
+									}`}
 									onClick={() => setSelectedPart(part.name)}
 								>
 									{part.name}
@@ -483,7 +485,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 					{selected?.kind === 'reference' ? (
 						<div className='form-group'>
 							<div className='info-message'>
-								{t('Fetched from the recipe source into the working directory on install.')}
+								{t(
+									'Fetched from the recipe source into the working directory on install.',
+								)}
 							</div>
 						</div>
 					) : selected?.image ? (
@@ -495,7 +499,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 							)}
 							<div
 								className='recipe-icon-preview'
-								// eslint-disable-next-line react/no-danger
 								dangerouslySetInnerHTML={{ __html: selected.content ?? '' }}
 							/>
 						</div>
@@ -512,50 +515,87 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 							<textarea
 								rows={16}
 								spellCheck={false}
+								dir='ltr'
 								value={selected.content ?? ''}
 								readOnly={!selected.editable}
 								onChange={(e) => updateSelectedPart(e.target.value)}
 							/>
-
 						</div>
 					) : null}
 				</>
 			) : (
 				<>
 					<div className='form-group'>
-						<label>{t('Name')}</label>
-						<input value={name} onChange={(e) => setName(e.target.value)} />
+						<label htmlFor='recipe-type'>{t('Recipe type')}</label>
+						<select
+							id='recipe-type'
+							value={type}
+							onChange={(e) => setType(e.target.value)}
+						>
+							{types.map((definition) => (
+								<option key={definition.type} value={definition.type}>
+									{definition.label}
+								</option>
+							))}
+						</select>
 					</div>
 					<div className='form-group'>
-						<label>{t('Run command')}</label>
+						<label htmlFor='recipe-name'>{t('Name')}</label>
 						<input
+							id='recipe-name'
+							value={name}
+							onChange={(e) => setName(e.target.value)}
+						/>
+					</div>
+
+					{schema.length > 0 && (
+						<>
+							<h4 className='recipe-form-section'>{t('Configuration')}</h4>
+							{schema
+								.filter((field) => field.key !== NAME_FIELD)
+								.map(renderSchemaField)}
+						</>
+					)}
+
+					<h4 className='recipe-form-section'>{t('Runtime')}</h4>
+					<div className='form-group'>
+						<label htmlFor='recipe-run-command'>{t('Run command')}</label>
+						<input
+							id='recipe-run-command'
 							value={runCommand}
 							onChange={(e) => setRunCommand(e.target.value)}
 							placeholder='lsp-ws-proxy'
 						/>
 					</div>
 					<div className='form-group'>
-						<label>{t('Run arguments')}</label>
+						<label htmlFor='recipe-run-args'>{t('Run arguments')}</label>
 						<input
+							id='recipe-run-args'
 							value={runArgs}
 							onChange={(e) => setRunArgs(e.target.value)}
 							placeholder='-l 127.0.0.1:7020 -- ./bin/server'
 						/>
 					</div>
 					<div className='form-group'>
-						<label>{t('Install steps')}</label>
+						<label htmlFor='recipe-install-steps'>{t('Install steps')}</label>
 						<textarea
+							id='recipe-install-steps'
 							rows={5}
 							spellCheck={false}
 							value={installText}
 							onChange={(e) => setInstallText(e.target.value)}
 							placeholder={t('One per line: Label :: command arg1 arg2')}
 						/>
-						<small>{t('Each step runs in order. Review commands before installing.')}</small>
+						<small>
+							{t('Each step runs in order. Review commands before installing.')}
+						</small>
 					</div>
 					<div className='form-group'>
-						<label>{t('Uninstall steps')}</label>
+						<label htmlFor='recipe-uninstall-steps'>
+							{t('Uninstall steps')}
+						</label>
 						<textarea
+							id='recipe-uninstall-steps'
 							rows={3}
 							spellCheck={false}
 							value={uninstallText}
@@ -564,42 +604,47 @@ const RecipeForm: React.FC<RecipeFormProps> = ({ recipe, onDone }) => {
 						/>
 					</div>
 					<div className='form-group'>
-						<label>{t('Docker image')}</label>
+						<label htmlFor='recipe-docker-image'>{t('Docker image')}</label>
 						<input
+							id='recipe-docker-image'
 							value={dockerImage}
 							onChange={(e) => setDockerImage(e.target.value)}
 							placeholder='traefik:3.7.8'
 						/>
-						<small>{t('Container image used in Docker mode. Leave empty to remove Docker mode.')}</small>
+						<small>
+							{t(
+								'Container image used in Docker mode. Leave empty to remove Docker mode.',
+							)}
+						</small>
 					</div>
 					<div className='form-group'>
-						<label>{t('Environment variables')}</label>
+						<label htmlFor='recipe-env'>{t('Environment variables')}</label>
 						<textarea
+							id='recipe-env'
 							rows={3}
 							spellCheck={false}
 							value={envText}
 							onChange={(e) => setEnvText(e.target.value)}
 							placeholder='JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64'
 						/>
-						<small>{t('One per line as KEY=value. Passed to install and run commands.')}</small>
+						<small>
+							{t(
+								'One per line as KEY=value. Passed to install and run commands.',
+							)}
+						</small>
 					</div>
 				</>
 			)}
 
 			<div className='form-actions'>
-				<button className='button' onClick={handleLoadFromDisk}>
-					{t('Load directory')}
+				<button className='button' onClick={handleSaveToDisk}>
+					{t('Save to directory')}
 				</button>
-				{mode !== 'import' && (
-					<button className='button' onClick={handleSaveToDisk}>
-						{t('Save to directory')}
-					</button>
-				)}
-				<button className='button' onClick={onDone}>
+				<button className='button secondary' onClick={onDone}>
 					{t('Cancel')}
 				</button>
 				<button className='button primary' onClick={handleSave}>
-					{t('Save plugin')}
+					{t('Save recipe')}
 				</button>
 			</div>
 		</div>

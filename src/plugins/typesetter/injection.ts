@@ -1,5 +1,4 @@
 // src/plugins/typesetter/injection.ts
-import { chelysAccountSyncService } from '@texlyre/services/ChelysAccountSyncService';
 import { getUserData, setUserData } from '@texlyre/utils/userDataUtils';
 import { getActiveAccountId } from '../../plugin-host/activeAccount';
 import type { Recipe } from '../../plugin-host/types';
@@ -44,7 +43,6 @@ const writeBlocks = (
 	};
 
 	setUserData(userId, 'settings', nextSettings);
-	void chelysAccountSyncService.reconnect();
 };
 
 export function injectTypesetterConfig(recipe: Recipe): void {

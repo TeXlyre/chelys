@@ -30,6 +30,11 @@ export interface SystemMode {
 	platforms?: Record<PlatformId, PlatformPipeline>;
 }
 
+export interface DockerPlatformOverride {
+	runArgs?: string[];
+	command?: string[];
+}
+
 export interface DockerMode {
 	kind: 'docker';
 	image: string;
@@ -38,6 +43,7 @@ export interface DockerMode {
 	command?: string[];
 	dockerfile?: string;
 	dockerfileUrl?: string;
+	platforms?: Record<PlatformId, DockerPlatformOverride>;
 }
 
 export interface ConnectMode {
@@ -134,6 +140,7 @@ export interface PluginTypeDefinition {
 	seeds: Recipe[];
 	formSchema: FieldSchema[];
 	parseImport?: (raw: string) => Recipe;
+	toConfigBlock?: (recipe: Recipe) => Record<string, unknown>;
 	onStart?: (recipe: Recipe) => void;
 	onStop?: (recipe: Recipe) => void;
 }
@@ -150,5 +157,5 @@ export const findMode = <K extends InstallModeKind>(
 	kind: K,
 ): Extract<InstallMode, { kind: K }> | undefined =>
 	recipe.modes.find((m) => m.kind === kind) as
-	| Extract<InstallMode, { kind: K }>
-	| undefined;
+		| Extract<InstallMode, { kind: K }>
+		| undefined;

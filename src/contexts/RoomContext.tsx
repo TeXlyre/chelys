@@ -3,7 +3,11 @@ import type React from 'react';
 import { type ReactNode, createContext, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
-import { deriveIdentity, fromHex, type DerivedIdentity } from '@chelys/protocol';
+import {
+	deriveIdentity,
+	fromHex,
+	type DerivedIdentity,
+} from '@chelys/protocol';
 import { chelysAccountSyncService } from '@texlyre/services/ChelysAccountSyncService';
 import { type RoomDefaults, getStoredSetting } from '../config';
 import { setActiveAccountId } from '../plugin-host/activeAccount';
@@ -31,7 +35,8 @@ interface RoomContextType {
 	logout: () => Promise<void>;
 }
 
-const lastRoomKey = (username: string): string => `chelys-last-room:${username}`;
+const lastRoomKey = (username: string): string =>
+	`chelys-last-room:${username}`;
 
 const migrateUserStorage = (fromId: string, toId: string): void => {
 	const fromPrefix = `texlyre-user-${fromId}-`;
@@ -111,7 +116,7 @@ export const RoomProvider: React.FC<{
 			derived.roomId,
 			derived.roomKey,
 			derived.roomId,
-			user
+			user,
 		);
 		void recipeManager.reinjectRunning();
 	};
@@ -119,8 +124,13 @@ export const RoomProvider: React.FC<{
 	useEffect(() => {
 		(async () => {
 			try {
-				const creds = await invoke<StoredCredentials | null>('load_credentials');
-				console.log('restore: load_credentials ->', creds ? 'got creds' : 'null');
+				const creds = await invoke<StoredCredentials | null>(
+					'load_credentials',
+				);
+				console.log(
+					'restore: load_credentials ->',
+					creds ? 'got creds' : 'null',
+				);
 				if (creds) {
 					const derived = await deriveIdentity({
 						username: creds.username,

@@ -1,556 +1,573 @@
 // src/webrtc-polyfill/RTCPeerConnection.ts
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from '@tauri-apps/api/core';
 
-import { collabService } from "@texlyre/services/CollabService";
-import { TauriRTCDataChannel } from "./RTCDataChannel";
+import { TauriRTCDataChannel } from './RTCDataChannel';
+
+interface QueuedEvent {
+	type: string;
+	payload: unknown;
+}
+
+interface DataChannelPayload {
+	channelId: string;
+	label: string;
+	ordered: boolean;
+	protocol: string;
+}
+
+interface ScopedRtcConfiguration extends RTCConfiguration {
+	__chelysRuntimeScope?: string;
+}
+
+type ScopeListener = (connectedPeers: number) => void;
 
 const peerByHandle = new Map<string, TauriRTCPeerConnection>();
+const knownPeerHandles = new Set<string>();
+const pendingPeerEvents = new Map<string, QueuedEvent[]>();
 const channelByHandle = new Map<string, TauriRTCDataChannel>();
-const pendingChannelEvents = new Map<string, Array<{ type: string; payload: unknown }>>();
+const pendingChannelEvents = new Map<string, QueuedEvent[]>();
 
-const PEER_RESET_COOLDOWN_MS = 3_000;
-const SIGNALING_DRAIN_MS = 300;
-const AWARENESS_TIMEOUT_MS = 30_000;
-const RECONNECT_DELAY_MS = 2_000;
+const peersByScope = new Map<string, Set<TauriRTCPeerConnection>>();
+const connectedPeersByScope = new Map<string, Set<TauriRTCPeerConnection>>();
+const scopeListeners = new Map<string, Set<ScopeListener>>();
+const lastNotifiedScopeCount = new Map<string, number>();
 
-interface RoomSnapshot {
-    roomName: string;
-    doc: any;
-    signaling?: string[];
+const toError = (error: unknown): Error =>
+	error instanceof Error ? error : new Error(String(error));
+
+const stateName = (value: unknown): string => String(value ?? '').toLowerCase();
+
+const notifyScope = (scopeId: string): void => {
+	const connected = connectedPeersByScope.get(scopeId)?.size ?? 0;
+	if (lastNotifiedScopeCount.get(scopeId) === connected) return;
+	lastNotifiedScopeCount.set(scopeId, connected);
+	for (const listener of scopeListeners.get(scopeId) ?? []) {
+		listener(connected);
+	}
+};
+
+const registerScopedPeer = (peer: TauriRTCPeerConnection): void => {
+	const scopeId = peer.nativeScopeId;
+	if (!scopeId) return;
+	const peers = peersByScope.get(scopeId) ?? new Set<TauriRTCPeerConnection>();
+	peers.add(peer);
+	peersByScope.set(scopeId, peers);
+	notifyScope(scopeId);
+};
+
+const setScopedPeerConnected = (
+	peer: TauriRTCPeerConnection,
+	connected: boolean,
+): void => {
+	const scopeId = peer.nativeScopeId;
+	if (!scopeId) return;
+	const peers =
+		connectedPeersByScope.get(scopeId) ?? new Set<TauriRTCPeerConnection>();
+	const changed = connected ? !peers.has(peer) : peers.has(peer);
+	if (connected) peers.add(peer);
+	else peers.delete(peer);
+	if (peers.size > 0) connectedPeersByScope.set(scopeId, peers);
+	else connectedPeersByScope.delete(scopeId);
+	if (changed) notifyScope(scopeId);
+};
+
+const unregisterScopedPeer = (peer: TauriRTCPeerConnection): void => {
+	const scopeId = peer.nativeScopeId;
+	if (!scopeId) return;
+
+	setScopedPeerConnected(peer, false);
+	const peers = peersByScope.get(scopeId);
+	peers?.delete(peer);
+	if (peers?.size === 0) peersByScope.delete(scopeId);
+	notifyScope(scopeId);
+};
+
+export function getConnectedPeerCount(scopeId: string): number {
+	return connectedPeersByScope.get(scopeId)?.size ?? 0;
 }
 
-let peerLayerResetInFlight = false;
-let lastPeerLayerResetAt = 0;
-
-function containers(): Map<string, any> | undefined {
-    return (collabService as unknown as { docContainers?: Map<string, any> }).docContainers;
+export function subscribePeerScope(
+	scopeId: string,
+	listener: ScopeListener,
+): () => void {
+	const listeners = scopeListeners.get(scopeId) ?? new Set<ScopeListener>();
+	listeners.add(listener);
+	scopeListeners.set(scopeId, listeners);
+	const connected = getConnectedPeerCount(scopeId);
+	if (!lastNotifiedScopeCount.has(scopeId)) {
+		lastNotifiedScopeCount.set(scopeId, connected);
+	}
+	listener(connected);
+	return () => {
+		listeners.delete(listener);
+		if (listeners.size === 0) scopeListeners.delete(scopeId);
+	};
 }
 
-function snapshotWebrtcRooms(): RoomSnapshot[] {
-    const out: RoomSnapshot[] = [];
-    const map = containers();
-    if (!map) return out;
+export async function resetPeerScope(scopeId: string): Promise<void> {
+	const peers = [...(peersByScope.get(scopeId) ?? [])];
+	await Promise.allSettled(peers.map((peer) => peer.close()));
 
-    for (const [roomName, container] of map) {
-        if (!container?.provider) continue;
-        if (container.providerType !== "webrtc") continue;
-        out.push({
-            roomName,
-            doc: container.doc,
-            signaling: container.provider.signalingUrls,
-        });
-    }
-    return out;
+	try {
+		await invoke('rtc_reset_peer_scope', { scopeId });
+	} catch (error) {
+		console.warn(`[rtc] failed to reset native scope ${scopeId}:`, error);
+	}
+
+	for (const peer of peers) peer.retireAfterScopeReset();
+	peersByScope.delete(scopeId);
+	connectedPeersByScope.delete(scopeId);
+	notifyScope(scopeId);
 }
 
-function resetPeerLayerAfterDisconnect(): void {
-    if (peerLayerResetInFlight) return;
-    if (Date.now() - lastPeerLayerResetAt < PEER_RESET_COOLDOWN_MS) return;
+export function dispatchChannelEvent(
+	channelId: string,
+	type: string,
+	payload: unknown,
+): void {
+	const channel = channelByHandle.get(channelId);
+	if (channel) {
+		channel.emit(type, payload);
+		if (type === 'close') channelByHandle.delete(channelId);
+		return;
+	}
 
-    lastPeerLayerResetAt = Date.now();
-    peerLayerResetInFlight = true;
-
-    const rooms = snapshotWebrtcRooms();
-    const peers = Array.from(peerByHandle.values());
-
-    void Promise.allSettled(peers.map((peer) => peer.close()))
-        .catch(() => { })
-        .finally(() => {
-            void rebuildProviders(rooms).finally(() => {
-                peerLayerResetInFlight = false;
-                lastPeerLayerResetAt = Date.now() - (PEER_RESET_COOLDOWN_MS - 1_000);
-            });
-        });
+	const queued = pendingChannelEvents.get(channelId) ?? [];
+	queued.push({ type, payload });
+	pendingChannelEvents.set(channelId, queued);
 }
 
-async function rebuildProviders(rooms: RoomSnapshot[]): Promise<void> {
-    if (rooms.length === 0) return;
+export function registerChannel(
+	channelId: string,
+	channel: TauriRTCDataChannel,
+): void {
+	channelByHandle.set(channelId, channel);
 
-    let YWebrtc: any;
-    let YAwareness: any;
-    try {
-        YWebrtc = await import("y-webrtc");
-        YAwareness = await import("y-protocols/awareness");
-    } catch (error) {
-        console.warn("[peer] failed to load y-webrtc for rebuild:", error);
-        return;
-    }
+	const queued = pendingChannelEvents.get(channelId);
+	if (!queued) return;
 
-    const map = containers();
-    if (!map) return;
-
-    for (const room of rooms) {
-        const container = map.get(room.roomName);
-        if (!container?.provider) continue;
-
-        const userState = container.provider.awareness?.getLocalState?.() ?? null;
-
-        try {
-            container.provider.disconnect?.();
-            container.provider.destroy?.();
-        } catch (error) {
-            console.warn("[peer] error destroying provider for", room.roomName, error);
-        }
-
-        await new Promise((r) => setTimeout(r, SIGNALING_DRAIN_MS));
-
-        const provider = await createProvider(YWebrtc, room);
-        if (!provider) {
-            console.warn("[peer] gave up rebuilding provider for", room.roomName);
-            continue;
-        }
-
-        container.provider = provider;
-        restoreUserState(provider, userState);
-        attachAwarenessTimeout(provider, YAwareness);
-        attachAutoReconnect(provider, map, room.roomName);
-    }
+	pendingChannelEvents.delete(channelId);
+	for (const event of queued) channel.emit(event.type, event.payload);
+	if (channel.readyState === 'closed') channelByHandle.delete(channelId);
 }
 
-async function createProvider(YWebrtc: any, room: RoomSnapshot): Promise<any> {
-    for (let attempt = 0; attempt < 40; attempt++) {
-        try {
-            return new YWebrtc.WebrtcProvider(room.roomName, room.doc, {
-                signaling: room.signaling ?? [],
-            });
-        } catch (error) {
-            const msg = error instanceof Error ? error.message : String(error);
-            if (msg.includes("already exists")) {
-                await new Promise((r) => setTimeout(r, 50));
-                continue;
-            }
-            console.warn("[peer] error rebuilding provider for", room.roomName, error);
-            return null;
-        }
-    }
-    return null;
-}
+export function dispatchPeerEvent(
+	peerId: string,
+	type: string,
+	payload: unknown,
+): void {
+	const peer = peerByHandle.get(peerId);
+	if (peer) {
+		peer.emit(type, payload);
+		if (type === 'connectionstatechange' && stateName(payload) === 'closed') {
+			peerByHandle.delete(peerId);
+		}
+		return;
+	}
 
-function restoreUserState(provider: any, userState: any): void {
-    if (!provider.awareness || !userState?.user) return;
-    for (const [field, value] of Object.entries(userState)) {
-        provider.awareness.setLocalStateField(field, value);
-    }
-}
+	// The native side may emit the first event before rtc_create_peer resolves.
+	// Events from a known but already retired handle are intentionally ignored.
+	if (knownPeerHandles.has(peerId)) return;
 
-function attachAwarenessTimeout(provider: any, YAwareness: any): void {
-    if (!provider.awareness || !YAwareness?.removeAwarenessStates) return;
-
-    provider.awareness.on("update", () => {
-        const now = Date.now();
-        provider.awareness.getStates().forEach((state: any, clientId: number) => {
-            if (
-                clientId !== provider.awareness.clientID &&
-                state.lastSeen &&
-                now - state.lastSeen > AWARENESS_TIMEOUT_MS
-            ) {
-                YAwareness.removeAwarenessStates(provider.awareness, [clientId], "timeout");
-            }
-        });
-    });
-}
-
-function attachAutoReconnect(provider: any, map: Map<string, any>, roomName: string): void {
-    provider.on?.("status", (event: { connected?: boolean; status?: string }) => {
-        const isDisconnected = event.connected === false || event.status === "disconnected";
-        if (!isDisconnected || map.get(roomName)?.provider !== provider) return;
-
-        setTimeout(() => {
-            if (map.get(roomName)?.provider === provider) {
-                provider.connect?.();
-            }
-        }, RECONNECT_DELAY_MS);
-    });
-}
-
-export function dispatchChannelEvent(channelId: string, type: string, payload: unknown): void {
-    const ch = channelByHandle.get(channelId);
-    if (ch) {
-        ch.emit(type, payload);
-        return;
-    }
-
-    const queued = pendingChannelEvents.get(channelId) ?? [];
-    queued.push({ type, payload });
-    pendingChannelEvents.set(channelId, queued);
-}
-
-export function registerChannel(channelId: string, ch: TauriRTCDataChannel): void {
-    channelByHandle.set(channelId, ch);
-
-    const queued = pendingChannelEvents.get(channelId);
-    if (queued) {
-        pendingChannelEvents.delete(channelId);
-
-        for (const e of queued) {
-            ch.emit(e.type, e.payload);
-        }
-    }
-}
-
-export function dispatchPeerEvent(peerId: string, type: string, payload: unknown): void {
-    peerByHandle.get(peerId)?.emit(type, payload);
+	const queued = pendingPeerEvents.get(peerId) ?? [];
+	queued.push({ type, payload });
+	pendingPeerEvents.set(peerId, queued);
 }
 
 class TauriRTCSessionDescription {
-    constructor(public type: string, public sdp: string) { }
+	constructor(
+		public type: string,
+		public sdp: string,
+	) {}
 
-    toJSON() {
-        return {
-            type: this.type,
-            sdp: this.sdp,
-        };
-    }
+	toJSON(): { type: string; sdp: string } {
+		return { type: this.type, sdp: this.sdp };
+	}
 }
 
 class TauriRTCIceCandidate {
-    candidate: string;
-    sdpMid: string | null;
-    sdpMLineIndex: number | null;
-    usernameFragment: string | null;
+	readonly candidate: string;
+	readonly sdpMid: string | null;
+	readonly sdpMLineIndex: number | null;
+	readonly usernameFragment: string | null;
 
-    constructor(init: any) {
-        this.candidate = init.candidate ?? "";
-        this.sdpMid = init.sdpMid ?? null;
-        this.sdpMLineIndex = init.sdpMLineIndex ?? null;
-        this.usernameFragment = init.usernameFragment ?? null;
-    }
+	constructor(init: Partial<RTCIceCandidateInit>) {
+		this.candidate = init.candidate ?? '';
+		this.sdpMid = init.sdpMid ?? null;
+		this.sdpMLineIndex = init.sdpMLineIndex ?? null;
+		this.usernameFragment = init.usernameFragment ?? null;
+	}
 
-    toJSON() {
-        return {
-            candidate: this.candidate,
-            sdpMid: this.sdpMid,
-            sdpMLineIndex: this.sdpMLineIndex,
-            usernameFragment: this.usernameFragment,
-        };
-    }
+	toJSON(): RTCIceCandidateInit {
+		return {
+			candidate: this.candidate,
+			sdpMid: this.sdpMid,
+			sdpMLineIndex: this.sdpMLineIndex,
+			usernameFragment: this.usernameFragment,
+		};
+	}
 }
 
+type PeerEventHandler<TEvent extends Event = Event> =
+	| ((this: TauriRTCPeerConnection, event: TEvent) => unknown)
+	| null;
+
 export class TauriRTCPeerConnection extends EventTarget {
-    private peerId: string | null = null;
-    private peerIdPromise: Promise<string>;
-    private pendingChannelOps: Promise<unknown> = Promise.resolve();
+	readonly nativeScopeId: string | null;
 
-    iceConnectionState = "new";
-    connectionState = "new";
-    signalingState = "stable";
-    iceGatheringState = "new";
-    localDescription: TauriRTCSessionDescription | null = null;
-    remoteDescription: TauriRTCSessionDescription | null = null;
+	private peerId: string | null = null;
+	private readonly peerIdPromise: Promise<string>;
+	private pendingChannelOps: Promise<unknown> = Promise.resolve();
+	private closePromise: Promise<void> | null = null;
+	private readonly channelIds = new Set<string>();
+	private retired = false;
 
-    onicecandidate: ((this: TauriRTCPeerConnection, ev: any) => any) | null = null;
-    ondatachannel: ((this: TauriRTCPeerConnection, ev: any) => any) | null = null;
-    oniceconnectionstatechange: ((this: TauriRTCPeerConnection, ev: Event) => any) | null = null;
-    onconnectionstatechange: ((this: TauriRTCPeerConnection, ev: Event) => any) | null = null;
-    onsignalingstatechange: ((this: TauriRTCPeerConnection, ev: Event) => any) | null = null;
-    onicegatheringstatechange: ((this: TauriRTCPeerConnection, ev: Event) => any) | null = null;
-    onnegotiationneeded: ((this: TauriRTCPeerConnection, ev: Event) => any) | null = null;
+	iceConnectionState: RTCIceConnectionState = 'new';
+	connectionState: RTCPeerConnectionState = 'new';
+	signalingState: RTCSignalingState = 'stable';
+	iceGatheringState: RTCIceGatheringState = 'new';
+	localDescription: TauriRTCSessionDescription | null = null;
+	remoteDescription: TauriRTCSessionDescription | null = null;
 
-    constructor(config: RTCConfiguration = {}) {
-        super();
+	onicecandidate: PeerEventHandler<RTCPeerConnectionIceEvent> = null;
+	ondatachannel: PeerEventHandler<RTCDataChannelEvent> = null;
+	oniceconnectionstatechange: PeerEventHandler = null;
+	onconnectionstatechange: PeerEventHandler = null;
+	onsignalingstatechange: PeerEventHandler = null;
+	onicegatheringstatechange: PeerEventHandler = null;
+	onnegotiationneeded: PeerEventHandler = null;
 
-        const iceServers = (config.iceServers ?? []).map((s: any) => ({
-            urls: Array.isArray(s.urls) ? s.urls : [s.urls],
-            username: s.username,
-            credential: s.credential,
-        }));
+	constructor(config: RTCConfiguration = {}) {
+		super();
 
-        this.peerIdPromise = invoke<string>("rtc_create_peer", {
-            config: {
-                ice_servers: iceServers,
-            },
-        }).then((id) => {
-            this.peerId = id;
-            peerByHandle.set(id, this);
-            return id;
-        });
-    }
+		const scopedConfig = config as ScopedRtcConfiguration;
+		this.nativeScopeId =
+			typeof scopedConfig.__chelysRuntimeScope === 'string'
+				? scopedConfig.__chelysRuntimeScope
+				: null;
+		registerScopedPeer(this);
 
-    emit(type: string, payload: unknown): void {
-        if (type === "icecandidate") {
-            const candidate = payload ? new TauriRTCIceCandidate(payload) : null;
-            const ev: any = new Event("icecandidate");
-            ev.candidate = candidate;
+		const iceServers = (config.iceServers ?? []).map((server) => ({
+			urls: Array.isArray(server.urls) ? server.urls : [server.urls],
+			username: server.username,
+			credential: server.credential,
+		}));
 
-            this.onicecandidate?.(ev);
-            this.dispatchEvent(ev);
-        } else if (type === "iceconnectionstatechange") {
-            this.iceConnectionState = payload as string;
+		this.peerIdPromise = invoke<string>('rtc_create_peer', {
+			config: {
+				ice_servers: iceServers,
+				scope_id: this.nativeScopeId,
+			},
+		})
+			.then((id: string) => {
+				if (this.retired) {
+					knownPeerHandles.add(id);
+					void invoke('rtc_close_peer', { peerId: id }).catch(() => undefined);
+					return id;
+				}
 
-            if (
-                this.iceConnectionState === "disconnected" ||
-                this.iceConnectionState === "failed"
-            ) {
-                resetPeerLayerAfterDisconnect();
-            }
+				this.peerId = id;
+				knownPeerHandles.add(id);
+				peerByHandle.set(id, this);
 
-            const ev = new Event("iceconnectionstatechange");
-            this.oniceconnectionstatechange?.(ev);
-            this.dispatchEvent(ev);
-        } else if (type === "connectionstatechange") {
-            this.connectionState = payload as string;
+				const queued = pendingPeerEvents.get(id);
+				if (queued) {
+					pendingPeerEvents.delete(id);
+					for (const event of queued) this.emit(event.type, event.payload);
+				}
+				return id;
+			})
+			.catch((error: unknown) => {
+				unregisterScopedPeer(this);
+				throw error;
+			});
+	}
 
-            if (this.connectionState === "failed" && this.peerId) {
-                peerByHandle.delete(this.peerId);
-            }
+	emit(type: string, payload: unknown): void {
+		if (this.retired) return;
+		switch (type) {
+			case 'icecandidate':
+				this.emitIceCandidate(payload);
+				break;
+			case 'iceconnectionstatechange': {
+				const state = stateName(payload) as RTCIceConnectionState;
+				this.iceConnectionState = state;
+				if (state === 'connected' || state === 'completed') {
+					setScopedPeerConnected(this, true);
+				} else if (
+					state === 'disconnected' ||
+					state === 'failed' ||
+					state === 'closed'
+				) {
+					setScopedPeerConnected(this, false);
+				}
+				this.emitEvent(
+					'iceconnectionstatechange',
+					this.oniceconnectionstatechange,
+				);
+				break;
+			}
+			case 'connectionstatechange': {
+				const state = stateName(payload) as RTCPeerConnectionState;
+				this.connectionState = state;
+				setScopedPeerConnected(this, state === 'connected');
+				this.emitEvent('connectionstatechange', this.onconnectionstatechange);
+				break;
+			}
+			case 'signalingstatechange':
+				this.signalingState = stateName(payload) as RTCSignalingState;
+				this.emitEvent('signalingstatechange', this.onsignalingstatechange);
+				break;
+			case 'datachannel':
+				this.emitDataChannel(payload as DataChannelPayload);
+				break;
+		}
+	}
 
-            if (
-                this.connectionState === "disconnected" ||
-                this.connectionState === "failed"
-            ) {
-                resetPeerLayerAfterDisconnect();
-            }
+	retireAfterScopeReset(): void {
+		this.retired = true;
+		setScopedPeerConnected(this, false);
+		this.retireChannels();
+		if (this.peerId) {
+			peerByHandle.delete(this.peerId);
+			pendingPeerEvents.delete(this.peerId);
+			knownPeerHandles.add(this.peerId);
+		}
+		unregisterScopedPeer(this);
+	}
 
-            const ev = new Event("connectionstatechange");
-            this.onconnectionstatechange?.(ev);
-            this.dispatchEvent(ev);
-        } else if (type === "signalingstatechange") {
-            this.signalingState = payload as string;
+	private emitIceCandidate(payload: unknown): void {
+		const candidate = payload
+			? new TauriRTCIceCandidate(payload as Partial<RTCIceCandidateInit>)
+			: null;
+		const event = new Event('icecandidate') as RTCPeerConnectionIceEvent;
+		Object.defineProperty(event, 'candidate', { value: candidate });
+		this.onicecandidate?.call(this, event);
+		this.dispatchEvent(event);
+	}
 
-            const ev = new Event("signalingstatechange");
-            this.onsignalingstatechange?.(ev);
-            this.dispatchEvent(ev);
-        } else if (type === "datachannel") {
-            const p = payload as {
-                channelId: string;
-                label: string;
-                ordered: boolean;
-                protocol: string;
-            };
+	private emitDataChannel(payload: DataChannelPayload): void {
+		this.channelIds.add(payload.channelId);
+		const channel = new TauriRTCDataChannel(
+			payload.channelId,
+			payload.label,
+			payload.ordered,
+			payload.protocol,
+		);
+		registerChannel(payload.channelId, channel);
 
-            const channel = new TauriRTCDataChannel(
-                p.channelId,
-                p.label,
-                p.ordered,
-                p.protocol,
-            );
+		const event = new Event('datachannel') as RTCDataChannelEvent;
+		Object.defineProperty(event, 'channel', { value: channel });
+		this.ondatachannel?.call(this, event);
+		this.dispatchEvent(event);
+	}
 
-            registerChannel(p.channelId, channel);
+	private emitEvent(type: string, handler: PeerEventHandler): void {
+		const event = new Event(type);
+		handler?.call(this, event);
+		this.dispatchEvent(event);
+	}
 
-            const ev: any = new Event("datachannel");
-            ev.channel = channel;
+	private async pid(): Promise<string> {
+		return this.peerId ?? this.peerIdPromise;
+	}
 
-            this.ondatachannel?.(ev);
-            this.dispatchEvent(ev);
-        }
-    }
+	private async invokePeer<TResult = void>(
+		command: string,
+		args: Record<string, unknown> = {},
+	): Promise<TResult> {
+		const peerId = await this.pid();
+		try {
+			return await invoke<TResult>(command, { peerId, ...args });
+		} catch (error) {
+			throw new Error(`${command} failed: ${toError(error).message}`);
+		}
+	}
 
-    private async pid(): Promise<string> {
-        return this.peerId ?? (await this.peerIdPromise);
-    }
+	private fireNegotiationNeeded(): void {
+		this.emitEvent('negotiationneeded', this.onnegotiationneeded);
+	}
 
-    private fireNegotiationNeeded(): void {
-        const ev = new Event("negotiationneeded");
-        this.onnegotiationneeded?.(ev);
-        this.dispatchEvent(ev);
-    }
+	async createOffer(
+		_options?: RTCOfferOptions,
+	): Promise<TauriRTCSessionDescription> {
+		await this.pendingChannelOps;
+		const result = await this.invokePeer<{ type: string; sdp: string }>(
+			'rtc_create_offer',
+		);
+		return new TauriRTCSessionDescription(result.type, result.sdp);
+	}
 
-    async createOffer(_opts?: RTCOfferOptions): Promise<TauriRTCSessionDescription> {
-        const peerId = await this.pid();
-        await this.pendingChannelOps;
+	async createAnswer(
+		_options?: RTCAnswerOptions,
+	): Promise<TauriRTCSessionDescription> {
+		await this.pendingChannelOps;
+		const result = await this.invokePeer<{ type: string; sdp: string }>(
+			'rtc_create_answer',
+		);
+		return new TauriRTCSessionDescription(result.type, result.sdp);
+	}
 
-        try {
-            const r = await invoke<{ type: string; sdp: string }>("rtc_create_offer", {
-                peerId,
-            });
+	async setLocalDescription(
+		description: RTCSessionDescriptionInit,
+	): Promise<void> {
+		const dto = { type: description.type, sdp: description.sdp ?? '' };
+		await this.invokePeer('rtc_set_local_description', { sdp: dto });
+		this.localDescription = new TauriRTCSessionDescription(dto.type, dto.sdp);
+	}
 
-            return new TauriRTCSessionDescription(r.type, r.sdp);
-        } catch (e) {
-            throw new Error(
-                `createOffer failed: ${typeof e === "string" ? e : String(e)}`,
-            );
-        }
-    }
+	async setRemoteDescription(
+		description: RTCSessionDescriptionInit,
+	): Promise<void> {
+		const dto = { type: description.type, sdp: description.sdp ?? '' };
+		await this.invokePeer('rtc_set_remote_description', { sdp: dto });
+		this.remoteDescription = new TauriRTCSessionDescription(dto.type, dto.sdp);
+	}
 
-    async createAnswer(_opts?: RTCAnswerOptions): Promise<TauriRTCSessionDescription> {
-        const peerId = await this.pid();
+	async addIceCandidate(candidate?: RTCIceCandidateInit | null): Promise<void> {
+		if (!candidate?.candidate || /\.local\b/i.test(candidate.candidate)) return;
 
-        try {
-            const r = await invoke<{ type: string; sdp: string }>("rtc_create_answer", {
-                peerId,
-            });
+		await this.invokePeer('rtc_add_ice_candidate', {
+			candidate: {
+				candidate: candidate.candidate,
+				sdpMid: candidate.sdpMid ?? null,
+				sdpMLineIndex: candidate.sdpMLineIndex ?? null,
+				usernameFragment: candidate.usernameFragment ?? null,
+			},
+		});
+	}
 
-            return new TauriRTCSessionDescription(r.type, r.sdp);
-        } catch (e) {
-            throw new Error(
-                `createAnswer failed: ${typeof e === "string" ? e : String(e)}`,
-            );
-        }
-    }
+	createDataChannel(
+		label: string,
+		init?: RTCDataChannelInit,
+	): TauriRTCDataChannel {
+		const channelId = crypto.randomUUID();
+		this.channelIds.add(channelId);
+		const channel = new TauriRTCDataChannel(
+			channelId,
+			label,
+			init?.ordered ?? true,
+			init?.protocol ?? '',
+		);
+		registerChannel(channelId, channel);
 
-    async setLocalDescription(sdp: any): Promise<void> {
-        const peerId = await this.pid();
-        const dto = {
-            type: sdp.type,
-            sdp: sdp.sdp,
-        };
+		const operation = this.pendingChannelOps.then(() =>
+			this.invokePeer('rtc_create_data_channel', {
+				channelId,
+				label,
+				init: init
+					? {
+							ordered: init.ordered,
+							max_packet_life_time: init.maxPacketLifeTime,
+							max_retransmits: init.maxRetransmits,
+							protocol: init.protocol,
+							negotiated: init.negotiated,
+							id: init.id,
+						}
+					: null,
+			}),
+		);
+		this.pendingChannelOps = operation.catch(() => undefined);
 
-        try {
-            await invoke("rtc_set_local_description", {
-                peerId,
-                sdp: dto,
-            });
+		void operation.then(
+			() => {
+				if (init?.negotiated) return;
+				setTimeout(() => this.fireNegotiationNeeded(), 0);
+			},
+			(error) => {
+				console.warn(`[peer] failed to create data channel ${label}:`, error);
+				channel.fail(error);
+				channelByHandle.delete(channelId);
+				this.channelIds.delete(channelId);
+			},
+		);
 
-            this.localDescription = new TauriRTCSessionDescription(
-                dto.type,
-                dto.sdp,
-            );
-        } catch (e) {
-            throw new Error(
-                `setLocalDescription failed: ${typeof e === "string" ? e : String(e)}`,
-            );
-        }
-    }
+		return channel;
+	}
 
-    async setRemoteDescription(sdp: any): Promise<void> {
-        const peerId = await this.pid();
-        const dto = {
-            type: sdp.type,
-            sdp: sdp.sdp,
-        };
+	close(): Promise<void> {
+		if (this.closePromise) return this.closePromise;
 
-        try {
-            await invoke("rtc_set_remote_description", {
-                peerId,
-                sdp: dto,
-            });
+		this.closePromise = this.closePeer().finally(() => {
+			this.connectionState = 'closed';
+			this.signalingState = 'closed';
+			setScopedPeerConnected(this, false);
+			this.emitEvent('connectionstatechange', this.onconnectionstatechange);
+			unregisterScopedPeer(this);
+		});
+		return this.closePromise;
+	}
 
-            this.remoteDescription = new TauriRTCSessionDescription(
-                dto.type,
-                dto.sdp,
-            );
-        } catch (e) {
-            throw new Error(
-                `setRemoteDescription failed: ${typeof e === "string" ? e : String(e)}`,
-            );
-        }
-    }
+	private async closePeer(): Promise<void> {
+		let peerId: string;
+		try {
+			peerId = await this.pid();
+		} catch {
+			this.retireChannels();
+			return;
+		}
 
-    async addIceCandidate(candidate: any): Promise<void> {
-        if (!candidate || !candidate.candidate) return;
-        if (/\.local\b/i.test(candidate.candidate)) return;
+		peerByHandle.delete(peerId);
+		pendingPeerEvents.delete(peerId);
+		knownPeerHandles.add(peerId);
+		try {
+			await invoke('rtc_close_peer', { peerId });
+		} catch (error) {
+			console.warn(`[rtc] failed to close peer ${peerId}:`, error);
+		} finally {
+			this.retireChannels();
+		}
+	}
 
-        const peerId = await this.pid();
+	private retireChannels(): void {
+		for (const channelId of this.channelIds) {
+			const channel = channelByHandle.get(channelId);
+			if (channel && channel.readyState !== 'closed') {
+				channel.emit('close', null);
+			}
+			channelByHandle.delete(channelId);
+			pendingChannelEvents.delete(channelId);
+		}
+		this.channelIds.clear();
+	}
 
-        try {
-            await invoke("rtc_add_ice_candidate", {
-                peerId,
-                candidate: {
-                    candidate: candidate.candidate,
-                    sdpMid: candidate.sdpMid ?? null,
-                    sdpMLineIndex: candidate.sdpMLineIndex ?? null,
-                    usernameFragment: candidate.usernameFragment ?? null,
-                },
-            });
-        } catch (e) {
-            const msg = typeof e === "string" ? e : String(e);
-            throw new Error(`addIceCandidate failed: ${msg}`);
-        }
-    }
+	async getStats(): Promise<Map<string, unknown>> {
+		const stats = new Map<string, unknown>();
+		if (this.connectionState !== 'connected') return stats;
 
-    createDataChannel(label: string, init?: RTCDataChannelInit): TauriRTCDataChannel {
-        const channelId = crypto.randomUUID();
+		stats.set('cp', {
+			id: 'cp',
+			type: 'candidate-pair',
+			state: 'succeeded',
+			selected: true,
+			nominated: true,
+			localCandidateId: 'lc',
+			remoteCandidateId: 'rc',
+		});
+		stats.set('lc', {
+			id: 'lc',
+			type: 'local-candidate',
+			address: '127.0.0.1',
+			port: 0,
+			protocol: 'udp',
+			candidateType: 'host',
+		});
+		stats.set('rc', {
+			id: 'rc',
+			type: 'remote-candidate',
+			address: '127.0.0.1',
+			port: 0,
+			protocol: 'udp',
+			candidateType: 'host',
+		});
+		return stats;
+	}
 
-        const channel = new TauriRTCDataChannel(
-            channelId,
-            label,
-            init?.ordered ?? true,
-            init?.protocol ?? "",
-        );
+	addTransceiver(): never {
+		throw new Error('addTransceiver not supported');
+	}
 
-        registerChannel(channelId, channel);
-
-        const op = this.pid().then((peerId) =>
-            invoke("rtc_create_data_channel", {
-                peerId,
-                channelId,
-                label,
-                init: init
-                    ? {
-                        ordered: init.ordered,
-                        max_packet_life_time: init.maxPacketLifeTime,
-                        max_retransmits: init.maxRetransmits,
-                        protocol: init.protocol,
-                        negotiated: init.negotiated,
-                        id: init.id,
-                    }
-                    : null,
-            }),
-        );
-
-        this.pendingChannelOps = this.pendingChannelOps
-            .then(() => op)
-            .catch(() => { });
-
-        op.then(() => setTimeout(() => this.fireNegotiationNeeded(), 0));
-
-        return channel;
-    }
-
-    async close(): Promise<void> {
-        const peerId = this.peerId;
-
-        if (!peerId) return;
-
-        peerByHandle.delete(peerId);
-
-        try {
-            await invoke("rtc_close_peer", {
-                peerId,
-            });
-        } catch (error) {
-            console.warn("[rtc] close failed:", peerId, error);
-        }
-
-        this.connectionState = "closed";
-        this.signalingState = "closed";
-
-        const ev = new Event("connectionstatechange");
-        this.onconnectionstatechange?.(ev);
-        this.dispatchEvent(ev);
-    }
-
-    async getStats(): Promise<Map<string, unknown>> {
-        const map = new Map<string, unknown>();
-
-        if (this.connectionState === "connected") {
-            map.set("cp", {
-                id: "cp",
-                type: "candidate-pair",
-                state: "succeeded",
-                selected: true,
-                nominated: true,
-                localCandidateId: "lc",
-                remoteCandidateId: "rc",
-            });
-
-            map.set("lc", {
-                id: "lc",
-                type: "local-candidate",
-                address: "127.0.0.1",
-                port: 0,
-                protocol: "udp",
-                candidateType: "host",
-            });
-
-            map.set("rc", {
-                id: "rc",
-                type: "remote-candidate",
-                address: "127.0.0.1",
-                port: 0,
-                protocol: "udp",
-                candidateType: "host",
-            });
-        }
-
-        return map;
-    }
-
-    addTransceiver(): never {
-        throw new Error("addTransceiver not supported");
-    }
-
-    addTrack(): never {
-        throw new Error("addTrack not supported");
-    }
+	addTrack(): never {
+		throw new Error('addTrack not supported');
+	}
 }

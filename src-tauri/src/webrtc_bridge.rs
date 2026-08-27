@@ -4,6 +4,7 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
+use webrtc::api::setting_engine::{SctpMaxMessageSize, SettingEngine};
 use webrtc::api::APIBuilder;
 use webrtc::data_channel::data_channel_init::RTCDataChannelInit;
 use webrtc::data_channel::data_channel_message::DataChannelMessage;
@@ -19,6 +20,7 @@ struct RegistryInner {
     peers: DashMap<String, Arc<RTCPeerConnection>>,
     channels: DashMap<String, Arc<RTCDataChannel>>,
     peer_channels: DashMap<String, Vec<String>>,
+    peer_scopes: DashMap<String, String>,
 }
 
 #[derive(Clone, Default)]
@@ -36,6 +38,7 @@ pub struct IceServerCfg {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PeerConfigCfg {
     pub ice_servers: Vec<IceServerCfg>,
+    pub scope_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -91,24 +94,17 @@ pub async fn rtc_create_peer(
     registry: State<'_, WebRtcRegistry>,
     config: PeerConfigCfg,
 ) -> Result<String, String> {
-    // let ice_servers: Vec<RTCIceServer> = config
-    //     .ice_servers
-    //     .into_iter()
-    //     .map(|s| RTCIceServer {
-    //         urls: s.urls,
-    //         username: s.username.unwrap_or_default(),
-    //         credential: s.credential.unwrap_or_default(),
-    //         ..Default::default()
+    // To filter out TURN:
+    //
+    // into_inter()
+    // .filter(|s| {
+    //         !s.urls
+    //             .iter()
+    //             .any(|u| u.starts_with("turn:") || u.starts_with("turns:"))
     //     })
-    //     .collect();
     let ice_servers: Vec<RTCIceServer> = config
         .ice_servers
         .into_iter()
-        .filter(|s| {
-            !s.urls
-                .iter()
-                .any(|u| u.starts_with("turn:") || u.starts_with("turns:"))
-        })
         .map(|s| RTCIceServer {
             urls: s.urls,
             username: s.username.unwrap_or_default(),
@@ -117,7 +113,12 @@ pub async fn rtc_create_peer(
         })
         .collect();
 
-    let api = APIBuilder::new().build();
+    let mut setting_engine = SettingEngine::default();
+    setting_engine.set_sctp_max_message_size_can_send(SctpMaxMessageSize::Unbounded);
+
+    let api = APIBuilder::new()
+        .with_setting_engine(setting_engine)
+        .build();
     let pc = api
         .new_peer_connection(RTCConfiguration {
             ice_servers,
@@ -249,6 +250,9 @@ pub async fn rtc_create_peer(
     }));
 
     registry.inner.peers.insert(peer_id.clone(), pc);
+    if let Some(scope_id) = config.scope_id {
+        registry.inner.peer_scopes.insert(peer_id.clone(), scope_id);
+    }
     Ok(peer_id)
 }
 
@@ -482,22 +486,60 @@ pub async fn rtc_add_ice_candidate(
     .map_err(err)
 }
 
+async fn close_peer_inner(registry: &RegistryInner, peer_id: &str) -> Result<(), String> {
+    registry.peer_scopes.remove(peer_id);
+    if let Some((_, channel_ids)) = registry.peer_channels.remove(peer_id) {
+        for cid in channel_ids {
+            if let Some((_, dc)) = registry.channels.remove(&cid) {
+                let _ = dc.close().await;
+            }
+        }
+    }
+    if let Some((_, pc)) = registry.peers.remove(peer_id) {
+        pc.close().await.map_err(err)?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn rtc_close_peer(
     registry: State<'_, WebRtcRegistry>,
     peer_id: String,
 ) -> Result<(), String> {
-    if let Some((_, channel_ids)) = registry.inner.peer_channels.remove(&peer_id) {
-        for cid in channel_ids {
-            if let Some((_, dc)) = registry.inner.channels.remove(&cid) {
-                let _ = dc.close().await;
+    close_peer_inner(&registry.inner, &peer_id).await
+}
+
+#[tauri::command]
+pub async fn rtc_reset_peer_scope(
+    registry: State<'_, WebRtcRegistry>,
+    scope_id: String,
+) -> Result<(), String> {
+    let peer_ids: Vec<String> = registry
+        .inner
+        .peer_scopes
+        .iter()
+        .filter_map(|entry| {
+            if entry.value() == &scope_id {
+                Some(entry.key().clone())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    let mut first_error: Option<String> = None;
+    for peer_id in peer_ids {
+        if let Err(error) = close_peer_inner(&registry.inner, &peer_id).await {
+            if first_error.is_none() {
+                first_error = Some(error);
             }
         }
     }
-    if let Some((_, pc)) = registry.inner.peers.remove(&peer_id) {
-        pc.close().await.map_err(err)?;
+
+    match first_error {
+        Some(error) => Err(error),
+        None => Ok(()),
     }
-    Ok(())
 }
 
 #[tauri::command]

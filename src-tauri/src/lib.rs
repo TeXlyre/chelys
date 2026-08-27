@@ -9,6 +9,8 @@ use webrtc_bridge::WebRtcRegistry;
 mod process_supervisor;
 use process_supervisor::ProcessSupervisor;
 mod tray;
+mod route_server;
+use route_server::RouteServerState;
 
 const SERVICE: &str = "app.chelys.poc";
 const USER: &str = "default";
@@ -178,6 +180,7 @@ pub fn run() {
         .manage(WebRtcRegistry::default())
         .manage(supervisor)
         .manage(CloseBehaviorState::default())
+        .manage(RouteServerState::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
@@ -192,7 +195,7 @@ pub fn run() {
             tray::build(app.handle())?;
             if std::env::args().any(|arg| arg == "--hidden") {
                 if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.hide();
+                    let _ = window.minimize();
                 }
             }
             Ok(())
@@ -202,7 +205,7 @@ pub fn run() {
                 let state = window.state::<CloseBehaviorState>();
                 let behavior = state.0.lock().unwrap().unwrap_or(CloseBehavior::Tray);
                 if behavior == CloseBehavior::Tray {
-                    let _ = window.hide();
+                    let _ = window.minimize();
                     api.prevent_close();
                 }
             }
@@ -229,6 +232,7 @@ pub fn run() {
             webrtc_bridge::rtc_set_remote_description,
             webrtc_bridge::rtc_add_ice_candidate,
             webrtc_bridge::rtc_close_peer,
+            webrtc_bridge::rtc_reset_peer_scope,
             webrtc_bridge::rtc_channel_send_string,
             webrtc_bridge::rtc_channel_send_binary,
             webrtc_bridge::rtc_channel_close,
@@ -237,6 +241,9 @@ pub fn run() {
             process_supervisor::process_stop,
             process_supervisor::process_is_running,
             process_supervisor::process_list_running,
+            process_supervisor::find_free_port,
+            route_server::traefik_start_route_server,
+            route_server::traefik_set_routes,
         ])
         .build(tauri::generate_context!())
         .expect("...")

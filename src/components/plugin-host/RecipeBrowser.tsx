@@ -15,8 +15,12 @@ interface RecipeBrowserProps {
 
 const RECIPES_PER_PAGE = 12;
 
-const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ category: fixedCategory, onDone }) => {
-	const { registry, refreshRegistry, installFromRegistry, recipes } = usePluginHost();
+const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
+	category: fixedCategory,
+	onDone,
+}) => {
+	const { registry, refreshRegistry, installFromRegistry, recipes } =
+		usePluginHost();
 	const [loadError, setLoadError] = useState<string | null>(null);
 	const [installError, setInstallError] = useState<string | null>(null);
 	const [installing, setInstalling] = useState<string | null>(null);
@@ -28,7 +32,9 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ category: fixedCategory, 
 
 	useEffect(() => {
 		refreshRegistry().catch((e) =>
-			setLoadError(e instanceof Error ? e.message : t('Could not load registry')),
+			setLoadError(
+				e instanceof Error ? e.message : t('Could not load registry'),
+			),
 		);
 	}, []);
 
@@ -49,10 +55,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ category: fixedCategory, 
 				versions: undefined as RecipeVersion[] | undefined,
 				local: true,
 			}));
-		return [
-			...registry.map((entry) => ({ ...entry, local: false })),
-			...local,
-		];
+		return [...registry.map((entry) => ({ ...entry, local: false })), ...local];
 	}, [registry, recipes]);
 
 	const categories = useMemo(
@@ -92,7 +95,13 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ category: fixedCategory, 
 		let cancelled = false;
 		(async () => {
 			for (const entry of paginated) {
-				if (!entry.manifestUrl || entry.icon || entry.iconUrl || icons[entry.id]) continue;
+				if (
+					!entry.manifestUrl ||
+					entry.icon ||
+					entry.iconUrl ||
+					icons[entry.id]
+				)
+					continue;
 				try {
 					const res = await fetch(entry.manifestUrl, { cache: 'force-cache' });
 					if (!res.ok) continue;
@@ -167,8 +176,8 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ category: fixedCategory, 
 				<h3>
 					{fixedCategory
 						? t('Browse {category} recipes', {
-							category: typeLabel(fixedCategory),
-						})
+								category: typeLabel(fixedCategory),
+							})
 						: t('Browse recipes')}
 				</h3>
 				<button className='action-button' onClick={onDone}>
@@ -239,9 +248,13 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({ category: fixedCategory, 
 								)}
 								<span className='recipe-name'>{entry.name}</span>
 								{entry.version && (
-									<span className='recipe-version-badge'>latest: v{entry.version}</span>
+									<span className='recipe-version-badge'>
+										latest: v{entry.version}
+									</span>
 								)}
-								<span className='recipe-type-badge'>{typeLabel(entry.type)}</span>
+								<span className='recipe-type-badge'>
+									{typeLabel(entry.type)}
+								</span>
 								{entry.local && (
 									<span className='recipe-version-badge'>{t('Local')}</span>
 								)}

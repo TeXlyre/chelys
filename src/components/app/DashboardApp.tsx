@@ -53,7 +53,10 @@ const DashboardApp: React.FC = () => {
 
 		return () => {
 			cancelled = true;
-			window.removeEventListener('chelys-platform-changed', refreshPlatformInfo);
+			window.removeEventListener(
+				'chelys-platform-changed',
+				refreshPlatformInfo,
+			);
 		};
 	}, []);
 
@@ -63,7 +66,6 @@ const DashboardApp: React.FC = () => {
 				<div className='header-left'>
 					<img className='logo' alt='Chelys logo' src='/chelys-logo.svg'></img>
 					<h1>{t('Chelys')}</h1>
-
 				</div>
 				<div className='header-right'>
 					<AccountCollabIndicator />
@@ -90,7 +92,8 @@ const DashboardApp: React.FC = () => {
 										className={`category-item ${activeCategory === null ? 'active' : ''}`}
 										disabled={panelBusy && activeCategory !== null}
 										onClick={() => {
-											if (!(panelBusy && activeCategory !== null)) setActiveCategory(null);
+											if (!(panelBusy && activeCategory !== null))
+												setActiveCategory(null);
 										}}
 									>
 										{t('Plugins')}
@@ -158,7 +161,6 @@ const DashboardApp: React.FC = () => {
 				</p>
 			</footer>
 		</div>
-
 	);
 };
 

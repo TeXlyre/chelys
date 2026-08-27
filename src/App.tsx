@@ -6,6 +6,7 @@ import './styles/components/settings.css';
 import './styles/components/profile.css';
 import './styles/components/collaborator-avatars.css';
 import './styles/components/copy-field.css';
+import './styles/components/icon-button.css';
 import './styles/components/plugin-host.css';
 import './styles/themes/texlyre_wide/base.css';
 import './styles/themes/texlyre_wide/layout.css';
