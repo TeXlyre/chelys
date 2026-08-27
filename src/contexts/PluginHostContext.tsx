@@ -49,31 +49,33 @@ export const PluginHostContext = createContext<PluginHostContextType>({
 	recipes: [],
 	statuses: new Map(),
 	isReady: false,
-	install: async (_recipeId: string, _mode: InstallModeKind) => { },
-	cancelInstall: async () => { },
-	run: async () => { },
-	stop: async () => { },
+	install: async (_recipeId: string, _mode: InstallModeKind) => {},
+	cancelInstall: async () => {},
+	run: async () => {},
+	stop: async () => {},
 	save: async () => {
 		throw new Error('Not implemented');
 	},
-	remove: async () => { },
-	uninstall: async () => { },
+	remove: async () => {},
+	uninstall: async () => {},
 	importRecipe: async () => {
 		throw new Error('Not implemented');
 	},
 	registry: [],
-	refreshRegistry: async () => { },
+	refreshRegistry: async () => {},
 	installFromRegistry: async () => {
 		throw new Error('Not implemented');
 	},
 	updatesAvailable: new Map(),
-	setVariables: async () => { },
+	setVariables: async () => {},
 });
 
 export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 	children,
 }) => {
-	const [statuses, setStatuses] = useState<Map<string, RecipeStatus>>(new Map());
+	const [statuses, setStatuses] = useState<Map<string, RecipeStatus>>(
+		new Map(),
+	);
 	const [recipes, setRecipes] = useState<Recipe[]>([]);
 	const [registry, setRegistry] = useState<RegistryEntry[]>([]);
 	const [updatesAvailable, setUpdatesAvailable] = useState<Map<string, string>>(
@@ -87,17 +89,16 @@ export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 			await recipeManager.initialize();
 			const loaded = recipeManager.listRecipes();
 			setRecipes(loaded);
-			unsubscribe = recipeManager.subscribe((next) => setStatuses(new Map(next)));
+			unsubscribe = recipeManager.subscribe((next) =>
+				setStatuses(new Map(next)),
+			);
 			setIsReady(true);
 			void recipeManager.reinjectRunning();
 
 			void reconcileRoutes(
 				loaded
 					.filter((r) => recipeManager.getStatus(r.id)?.state === 'running')
-					.map(
-						(r) =>
-							(r.typeConfig as { configId?: string }).configId ?? r.id,
-					),
+					.map((r) => (r.typeConfig as { configId?: string }).configId ?? r.id),
 			);
 
 			try {
@@ -141,7 +142,10 @@ export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 		setUpdatesAvailable(recipeManager.checkForUpdates(entries));
 	};
 
-	const installFromRegistry = async (entry: RegistryEntry, version?: string) => {
+	const installFromRegistry = async (
+		entry: RegistryEntry,
+		version?: string,
+	) => {
 		const saved = await recipeManager.installFromRegistry(entry, version);
 		refresh();
 		setUpdatesAvailable(recipeManager.checkForUpdates(registry));

@@ -1,6 +1,6 @@
 // src/peer/BridgeResolution.ts
-import { getStoredSetting } from "../config";
-import { getActiveAccountId } from "../plugin-host/activeAccount";
+import { getStoredSetting } from '../config';
+import { getActiveAccountId } from '../plugin-host/activeAccount';
 
 export function resolveTransportRoomId(
 	configId: string,
@@ -15,8 +15,8 @@ export function resolveTransportRoomId(
 export function resolveSignalingServers(explicit?: string[]): string[] {
 	if (explicit?.length) return explicit;
 
-	return getStoredSetting<string>("collabSignalingServers")
-		.split(",")
+	return getStoredSetting<string>('collabSignalingServers')
+		.split(',')
 		.map((server) => server.trim())
 		.filter(Boolean);
 }

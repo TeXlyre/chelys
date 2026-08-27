@@ -30,7 +30,9 @@ export function normalizePlatform(platform: string): PlatformId {
 	return normalized;
 }
 
-export function normalizePlatformOverride(value: unknown): RecipePlatformOverride {
+export function normalizePlatformOverride(
+	value: unknown,
+): RecipePlatformOverride {
 	if (
 		value === 'auto' ||
 		value === 'windows' ||
@@ -54,7 +56,10 @@ export async function detectActualPlatform(): Promise<PlatformId> {
 		const { platform } = await import('@tauri-apps/plugin-os');
 		cachedDetectedPlatform = normalizePlatform(platform());
 	} catch (error) {
-		console.warn('[Chelys] OS detection failed, falling back to desktop', error);
+		console.warn(
+			'[Chelys] OS detection failed, falling back to desktop',
+			error,
+		);
 		cachedDetectedPlatform = 'desktop';
 	}
 
@@ -83,7 +88,9 @@ export async function detectPlatform(): Promise<PlatformId> {
 	return info.effective;
 }
 
-export function formatPlatform(platform: PlatformId | null | undefined): string {
+export function formatPlatform(
+	platform: PlatformId | null | undefined,
+): string {
 	if (!platform) return 'Detecting OS';
 
 	if (platform === 'windows') return 'Windows';

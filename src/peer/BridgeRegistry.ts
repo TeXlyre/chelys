@@ -1,6 +1,6 @@
 // src/peer/BridgeRegistry.ts
-import { RecipeBridge, bridgeOptionsFromConfig } from "./RecipeBridge";
-import type { TransportConfig } from "@chelys/types/transport";
+import { RecipeBridge, bridgeOptionsFromConfig } from './RecipeBridge';
+import type { TransportConfig } from '@chelys/types/transport';
 
 interface BridgeEntry {
 	bridge: RecipeBridge;

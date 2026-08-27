@@ -157,5 +157,5 @@ export const findMode = <K extends InstallModeKind>(
 	kind: K,
 ): Extract<InstallMode, { kind: K }> | undefined =>
 	recipe.modes.find((m) => m.kind === kind) as
-	| Extract<InstallMode, { kind: K }>
-	| undefined;
+		| Extract<InstallMode, { kind: K }>
+		| undefined;

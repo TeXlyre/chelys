@@ -120,10 +120,15 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 		(r) => stateOf(r.id) !== 'running' && r.modes.length === 1,
 	);
 
-	const runSelected = () => runnable.forEach((r) => run(r.id));
-	const stopSelected = () => stoppable.forEach((r) => stop(r.id));
-	const installSelected = () =>
-		installable.forEach((r) => install(r.id, r.modes[0].kind));
+	const runSelected = () => {
+		for (const r of runnable) run(r.id);
+	};
+	const stopSelected = () => {
+		for (const r of stoppable) stop(r.id);
+	};
+	const installSelected = () => {
+		for (const r of installable) install(r.id, r.modes[0].kind);
+	};
 
 	if (!isReady) return <p className='loading'>{t('Loading recipes…')}</p>;
 
@@ -287,7 +292,9 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 								)}
 								<span className='recipe-name'>{recipe.name}</span>
 								{recipe.version && (
-									<span className='recipe-version-badge'>v{recipe.version}</span>
+									<span className='recipe-version-badge'>
+										v{recipe.version}
+									</span>
 								)}
 								{updateVersion && (
 									<span className='recipe-update-badge'>
@@ -327,7 +334,10 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 										{t(modeLabel(kind))}
 									</button>
 								))}
-								<button className='button' onClick={() => setChoosingMode(null)}>
+								<button
+									className='button'
+									onClick={() => setChoosingMode(null)}
+								>
 									{t('Cancel')}
 								</button>
 							</div>
@@ -342,8 +352,8 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 										modeKinds.length === 1
 											? beginInstall(modeKinds[0])
 											: setChoosingMode(
-												choosingMode === recipe.id ? null : recipe.id,
-											)
+													choosingMode === recipe.id ? null : recipe.id,
+												)
 									}
 								>
 									{installed ? t('Reinstall') : t('Install')}
@@ -424,7 +434,9 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 								{status && status.logTail.length > 0 && (
 									<IconButton
 										icon={<TerminalIcon />}
-										label={expanded === recipe.id ? t('Hide log') : t('Show log')}
+										label={
+											expanded === recipe.id ? t('Hide log') : t('Show log')
+										}
 										onClick={() =>
 											setExpanded(expanded === recipe.id ? null : recipe.id)
 										}

@@ -28,10 +28,10 @@ class ProcessSupervisorService {
 		if (this.initialized) return;
 		this.initialized = true;
 		await listen<ProcessOutputEvent>('process-output', (event) => {
-			this.outputListeners.forEach((listener) => listener(event.payload));
+			for (const listener of this.outputListeners) listener(event.payload);
 		});
 		await listen<ProcessStatusEvent>('process-status', (event) => {
-			this.statusListeners.forEach((listener) => listener(event.payload));
+			for (const listener of this.statusListeners) listener(event.payload);
 		});
 	}
 

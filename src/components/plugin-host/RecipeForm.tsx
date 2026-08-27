@@ -61,7 +61,7 @@ const parseSteps = (text: string): InstallStep[] =>
 			const [labelPart, commandPart] = line.split('::');
 			const tokens = splitArgs(commandPart ?? labelPart);
 			return {
-				label: commandPart ? labelPart.trim() : tokens[0] ?? 'step',
+				label: commandPart ? labelPart.trim() : (tokens[0] ?? 'step'),
 				command: tokens[0] ?? '',
 				args: tokens.slice(1),
 			};
@@ -117,7 +117,9 @@ const typeConfigValues = (
 
 const recipeToParts = (recipe: Recipe | null): RecipePart[] => {
 	if (!recipe) {
-		return [{ name: 'recipe.json', kind: 'file', content: '{}', editable: true }];
+		return [
+			{ name: 'recipe.json', kind: 'file', content: '{}', editable: true },
+		];
 	}
 
 	const { extraFiles, sourceUrl, icon, typeConfig, ...rest } = recipe;
@@ -156,7 +158,9 @@ const recipeToParts = (recipe: Recipe | null): RecipePart[] => {
 				? isRelative(url)
 					? t('Edits are written back to {path} on save.', { path: rel(url) })
 					: undefined
-				: t('Read-only: dockerfileUrl points to a remote URL. Use a relative path or remove it to manage the Dockerfile in the recipe folder.'),
+				: t(
+						'Read-only: dockerfileUrl points to a remote URL. Use a relative path or remove it to manage the Dockerfile in the recipe folder.',
+					),
 		});
 	}
 
@@ -167,12 +171,19 @@ const recipeToParts = (recipe: Recipe | null): RecipePart[] => {
 			content: icon,
 			editable: false,
 			image: true,
-			note: t('Read-only: iconUrl points to a remote URL. Use a relative path or remove it to manage the icon in the recipe folder.'),
+			note: t(
+				'Read-only: iconUrl points to a remote URL. Use a relative path or remove it to manage the icon in the recipe folder.',
+			),
 		});
 	}
 
 	for (const path of extraFiles ?? []) {
-		parts.push({ name: path, kind: 'reference', content: null, editable: false });
+		parts.push({
+			name: path,
+			kind: 'reference',
+			content: null,
+			editable: false,
+		});
 	}
 
 	return parts;
@@ -221,10 +232,18 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 	const [mode, setMode] = useState<'guided' | 'files'>(initialView);
 	const [type, setType] = useState(recipe?.type ?? types[0]?.type ?? 'lsp');
 	const [name, setName] = useState(recipe?.name ?? '');
-	const [runCommand, setRunCommand] = useState(systemMode?.runCommand.command ?? '');
-	const [runArgs, setRunArgs] = useState(systemMode?.runCommand.args.join(' ') ?? '');
-	const [installText, setInstallText] = useState(stepsToText(systemMode?.installSteps));
-	const [uninstallText, setUninstallText] = useState(stepsToText(systemMode?.uninstallSteps));
+	const [runCommand, setRunCommand] = useState(
+		systemMode?.runCommand.command ?? '',
+	);
+	const [runArgs, setRunArgs] = useState(
+		systemMode?.runCommand.args.join(' ') ?? '',
+	);
+	const [installText, setInstallText] = useState(
+		stepsToText(systemMode?.installSteps),
+	);
+	const [uninstallText, setUninstallText] = useState(
+		stepsToText(systemMode?.uninstallSteps),
+	);
 	const [dockerImage, setDockerImage] = useState(dockerMode?.image ?? '');
 	const [envText, setEnvText] = useState(
 		Object.entries(recipe?.env ?? {})
@@ -293,10 +312,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 		const image = dockerImage.trim();
 		const docker: DockerMode | null = image
 			? {
-				...(dockerMode ?? { kind: 'docker' as const, buildSteps: [], runArgs: [] }),
-				kind: 'docker',
-				image,
-			}
+					...(dockerMode ?? {
+						kind: 'docker' as const,
+						buildSteps: [],
+						runArgs: [],
+					}),
+					kind: 'docker',
+					image,
+				}
 			: null;
 		const preserved = (recipe?.modes ?? []).filter(
 			(m) => m.kind !== 'system' && m.kind !== 'docker',
@@ -399,7 +422,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						dir='ltr'
 						value={value}
 						onChange={(e) =>
-							setTypeValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+							setTypeValues((prev) => ({
+								...prev,
+								[field.key]: e.target.value,
+							}))
 						}
 					/>
 				) : (
@@ -410,7 +436,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						value={value}
 						placeholder={field.placeholder}
 						onChange={(e) =>
-							setTypeValues((prev) => ({ ...prev, [field.key]: e.target.value }))
+							setTypeValues((prev) => ({
+								...prev,
+								[field.key]: e.target.value,
+							}))
 						}
 					/>
 				)}
@@ -439,8 +468,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							{parts.map((part) => (
 								<button
 									key={part.name}
-									className={`tab-button ${!part.editable ? 'part-readonly ' : ''}${part.name === selectedPart ? 'active' : ''
-										}`}
+									className={`tab-button ${!part.editable ? 'part-readonly ' : ''}${
+										part.name === selectedPart ? 'active' : ''
+									}`}
 									onClick={() => setSelectedPart(part.name)}
 								>
 									{part.name}
@@ -455,7 +485,9 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 					{selected?.kind === 'reference' ? (
 						<div className='form-group'>
 							<div className='info-message'>
-								{t('Fetched from the recipe source into the working directory on install.')}
+								{t(
+									'Fetched from the recipe source into the working directory on install.',
+								)}
 							</div>
 						</div>
 					) : selected?.image ? (
@@ -554,10 +586,14 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							onChange={(e) => setInstallText(e.target.value)}
 							placeholder={t('One per line: Label :: command arg1 arg2')}
 						/>
-						<small>{t('Each step runs in order. Review commands before installing.')}</small>
+						<small>
+							{t('Each step runs in order. Review commands before installing.')}
+						</small>
 					</div>
 					<div className='form-group'>
-						<label htmlFor='recipe-uninstall-steps'>{t('Uninstall steps')}</label>
+						<label htmlFor='recipe-uninstall-steps'>
+							{t('Uninstall steps')}
+						</label>
 						<textarea
 							id='recipe-uninstall-steps'
 							rows={3}
@@ -575,7 +611,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							onChange={(e) => setDockerImage(e.target.value)}
 							placeholder='traefik:3.7.8'
 						/>
-						<small>{t('Container image used in Docker mode. Leave empty to remove Docker mode.')}</small>
+						<small>
+							{t(
+								'Container image used in Docker mode. Leave empty to remove Docker mode.',
+							)}
+						</small>
 					</div>
 					<div className='form-group'>
 						<label htmlFor='recipe-env'>{t('Environment variables')}</label>
@@ -587,7 +627,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							onChange={(e) => setEnvText(e.target.value)}
 							placeholder='JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64'
 						/>
-						<small>{t('One per line as KEY=value. Passed to install and run commands.')}</small>
+						<small>
+							{t(
+								'One per line as KEY=value. Passed to install and run commands.',
+							)}
+						</small>
 					</div>
 				</>
 			)}

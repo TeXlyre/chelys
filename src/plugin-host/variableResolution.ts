@@ -1,98 +1,94 @@
 // src/plugin-host/variableResolution.ts
 import { rewriteTransportUrl } from './traefikRouting';
-import type {
-    CommandSpec,
-    DockerMode,
-    Recipe,
-} from './types';
+import type { CommandSpec, DockerMode, Recipe } from './types';
 
 const DOCKERFILE_NAME = 'Dockerfile.chelys';
 
 export function effectiveValues(recipe: Recipe): Record<string, string> {
-    const values: Record<string, string> = {};
+	const values: Record<string, string> = {};
 
-    for (const variable of recipe.variables ?? []) {
-        values[variable.key] = variable.default ?? '';
-    }
+	for (const variable of recipe.variables ?? []) {
+		values[variable.key] = variable.default ?? '';
+	}
 
-    return { ...values, ...(recipe.variableValues ?? {}) };
+	return { ...values, ...(recipe.variableValues ?? {}) };
 }
 
 const substitute = (input: string, values: Record<string, string>): string =>
-    input.replace(/\$\{(\w+)\}/g, (match, key) =>
-        key in values ? values[key] : match,
-    );
+	input.replace(/\$\{(\w+)\}/g, (match, key) =>
+		key in values ? values[key] : match,
+	);
 
 const mapStrings = <T>(value: T, values: Record<string, string>): T => {
-    if (typeof value === 'string') {
-        return substitute(value, values) as unknown as T;
-    }
+	if (typeof value === 'string') {
+		return substitute(value, values) as unknown as T;
+	}
 
-    if (Array.isArray(value)) {
-        return value.map((item) => mapStrings(item, values)) as unknown as T;
-    }
+	if (Array.isArray(value)) {
+		return value.map((item) => mapStrings(item, values)) as unknown as T;
+	}
 
-    if (value && typeof value === 'object') {
-        const result: Record<string, unknown> = {};
+	if (value && typeof value === 'object') {
+		const result: Record<string, unknown> = {};
 
-        for (const [key, inner] of Object.entries(value)) {
-            result[key] = mapStrings(inner, values);
-        }
+		for (const [key, inner] of Object.entries(value)) {
+			result[key] = mapStrings(inner, values);
+		}
 
-        return result as T;
-    }
+		return result as T;
+	}
 
-    return value;
+	return value;
 };
 
 const dockerfileDownloadStep = (dockerfileUrl: string) => ({
-    label: 'Download Dockerfile',
-    command: 'curl',
-    args: ['-fL', '-o', DOCKERFILE_NAME, dockerfileUrl],
+	label: 'Download Dockerfile',
+	command: 'curl',
+	args: ['-fL', '-o', DOCKERFILE_NAME, dockerfileUrl],
 });
 
 const dockerBuildStep = (docker: DockerMode) => ({
-    label: 'Build image',
-    command: 'docker',
-    args: ['build', '-f', DOCKERFILE_NAME, '-t', docker.image, '.'],
+	label: 'Build image',
+	command: 'docker',
+	args: ['build', '-f', DOCKERFILE_NAME, '-t', docker.image, '.'],
 });
 
 const dockerPullStep = (docker: DockerMode) => ({
-    label: 'Pull image',
-    command: 'docker',
-    args: ['pull', docker.image],
+	label: 'Pull image',
+	command: 'docker',
+	args: ['pull', docker.image],
 });
 
 export function resolveRecipe(recipe: Recipe): Recipe {
-    const values = effectiveValues(recipe);
-    const resolved = mapStrings(recipe, values) as Recipe;
+	const values = effectiveValues(recipe);
+	const resolved = mapStrings(recipe, values) as Recipe;
 
-    for (const mode of resolved.modes) {
-        if (mode.kind !== 'docker') continue;
+	for (const mode of resolved.modes) {
+		if (mode.kind !== 'docker') continue;
 
-        const docker = mode as DockerMode;
-        const hasDockerfile = !!docker.dockerfileUrl || !!docker.dockerfile;
+		const docker = mode as DockerMode;
+		const hasDockerfile = !!docker.dockerfileUrl || !!docker.dockerfile;
 
-        docker.buildSteps = [
-            ...docker.buildSteps,
-            ...(docker.dockerfileUrl && /^https?:\/\//i.test(docker.dockerfileUrl)
-                ? [dockerfileDownloadStep(docker.dockerfileUrl)]
-                : []),
-            ...(hasDockerfile ? [dockerBuildStep(docker)] : [dockerPullStep(docker)]),
-        ];
-    }
+		docker.buildSteps = [
+			...docker.buildSteps,
+			...(docker.dockerfileUrl && /^https?:\/\//i.test(docker.dockerfileUrl)
+				? [dockerfileDownloadStep(docker.dockerfileUrl)]
+				: []),
+			...(hasDockerfile ? [dockerBuildStep(docker)] : [dockerPullStep(docker)]),
+		];
+	}
 
-    const rewritten = rewriteTransportUrl(
-        resolved.typeConfig as { transportUrl?: unknown; configId?: unknown },
-    );
-    if (rewritten !== undefined) {
-        resolved.typeConfig = { ...resolved.typeConfig, transportUrl: rewritten };
-    }
+	const rewritten = rewriteTransportUrl(
+		resolved.typeConfig as { transportUrl?: unknown; configId?: unknown },
+	);
+	if (rewritten !== undefined) {
+		resolved.typeConfig = { ...resolved.typeConfig, transportUrl: rewritten };
+	}
 
-    return resolved;
+	return resolved;
 }
 
 export const resolveCommand = (
-    spec: CommandSpec,
-    values: Record<string, string>,
+	spec: CommandSpec,
+	values: Record<string, string>,
 ): CommandSpec => mapStrings(spec, values);

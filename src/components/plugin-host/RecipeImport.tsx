@@ -7,12 +7,7 @@ import { t } from '@/i18n';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
 import { loadRecipeFromDirectory } from '../../plugin-host/recipeDirectory';
 import type { Recipe } from '../../plugin-host/types';
-import {
-	FileIcon,
-	FolderIcon,
-	ImportIcon,
-	UrlIcon,
-} from '../common/Icons';
+import { FileIcon, FolderIcon, UploadIcon, UrlIcon } from '../common/Icons';
 
 interface RecipeImportProps {
 	category?: string;
@@ -70,7 +65,9 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 			setError(null);
 			onImported(parse(JSON.stringify(parsed)));
 		} catch (e) {
-			setError(e instanceof Error ? e.message : t('Could not read the recipe.'));
+			setError(
+				e instanceof Error ? e.message : t('Could not read the recipe.'),
+			);
 		}
 	};
 
@@ -157,7 +154,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 
 			<div className='recipe-import-options'>
 				<label className='import-option-button'>
-					<ImportIcon />
+					<UploadIcon />
 					<div>
 						<strong>{t('From file')}</strong>
 						<p>{t('Select or drop a JSON recipe file')}</p>

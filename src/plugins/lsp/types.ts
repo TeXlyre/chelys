@@ -13,7 +13,7 @@ export interface LspTypeConfig {
 	clientConfig: string;
 }
 
-export interface LspConfigBlock {
+export type LspConfigBlock = {
 	id: string;
 	name: string;
 	enabled: boolean;
@@ -28,4 +28,4 @@ export interface LspConfigBlock {
 		contentLength: boolean;
 	};
 	clientConfig: string;
-}
+};

@@ -1,7 +1,7 @@
 // src/plugin-host/bridgeHooks.ts
-import { bridgeRegistry } from "../peer/BridgeRegistry";
-import type { TransportConfig } from "@chelys/types/transport";
-import type { Recipe } from "./types";
+import { bridgeRegistry } from '../peer/BridgeRegistry';
+import type { TransportConfig } from '@chelys/types/transport';
+import type { Recipe } from './types';
 
 type Hook = (recipe: Recipe) => void;
 
@@ -10,9 +10,7 @@ export interface TransportBinding {
 	transport: TransportConfig;
 }
 
-export type TransportConfigReader = (
-	recipe: Recipe,
-) => TransportBinding | null;
+export type TransportConfigReader = (recipe: Recipe) => TransportBinding | null;
 
 export const withBridgeStart =
 	(readTransport: TransportConfigReader) =>

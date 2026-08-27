@@ -32,7 +32,7 @@ export interface TypesetterTypeConfig {
 	ui?: TypesetterUISchema;
 }
 
-export interface TypesetterConfigBlock {
+export type TypesetterConfigBlock = {
 	id: string;
 	name: string;
 	enabled: boolean;
@@ -54,4 +54,4 @@ export interface TypesetterConfigBlock {
 		formatter?: string;
 	};
 	ui?: TypesetterUISchema;
-}
+};

@@ -104,9 +104,11 @@ class RecipeManager {
 
 		const out: string[] = [];
 
-		const unsubscribe = processSupervisorService.onOutput(({ handleId, line }) => {
-			if (handleId === `${recipe.id}-port`) out.push(line);
-		});
+		const unsubscribe = processSupervisorService.onOutput(
+			({ handleId, line }) => {
+				if (handleId === `${recipe.id}-port`) out.push(line);
+			},
+		);
 
 		const code = await processSupervisorService
 			.runCommand(`${recipe.id}-port`, {
@@ -380,7 +382,8 @@ class RecipeManager {
 			this.patch(recipeId, { state: 'running', lastError: null });
 			this.runStartHook(recipe);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : 'failed to start';
+			const message =
+				error instanceof Error ? error.message : 'failed to start';
 			this.patch(recipeId, { state: 'error', lastError: message });
 		}
 	}
@@ -565,7 +568,9 @@ class RecipeManager {
 
 			unsubscribe();
 
-			return code === 0 && out.some((l) => l.trim() === containerName(recipeId));
+			return (
+				code === 0 && out.some((l) => l.trim() === containerName(recipeId))
+			);
 		} catch {
 			return false;
 		}
@@ -635,7 +640,7 @@ class RecipeManager {
 
 	private emit(): void {
 		const snapshot = new Map(this.statuses);
-		this.listeners.forEach((listener) => listener(snapshot));
+		for (const listener of this.listeners) listener(snapshot);
 	}
 
 	private async persistUserRecipes(): Promise<void> {
@@ -663,7 +668,10 @@ class RecipeManager {
 		if (record) map.set(recipeId, record);
 		else map.delete(recipeId);
 
-		localStorage.setItem(INSTALLED_KEY, JSON.stringify(Object.fromEntries(map)));
+		localStorage.setItem(
+			INSTALLED_KEY,
+			JSON.stringify(Object.fromEntries(map)),
+		);
 	}
 }
 

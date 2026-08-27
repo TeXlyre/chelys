@@ -1,5 +1,5 @@
 // src/webrtc-polyfill/index.ts
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import {
 	TauriRTCPeerConnection,
@@ -8,8 +8,8 @@ import {
 	getConnectedPeerCount,
 	resetPeerScope,
 	subscribePeerScope,
-} from "./RTCPeerConnection";
-import { TauriRTCDataChannel } from "./RTCDataChannel";
+} from './RTCPeerConnection';
+import { TauriRTCDataChannel } from './RTCDataChannel';
 
 let installPromise: Promise<void> | null = null;
 let unlistenPeer: UnlistenFn | null = null;
@@ -42,7 +42,7 @@ export function installWebRtcPolyfill(): Promise<void> {
 			sdpMLineIndex: number | null;
 			usernameFragment: string | null;
 			constructor(init: any) {
-				this.candidate = init.candidate ?? "";
+				this.candidate = init.candidate ?? '';
 				this.sdpMid = init.sdpMid ?? null;
 				this.sdpMLineIndex = init.sdpMLineIndex ?? null;
 				this.usernameFragment = init.usernameFragment ?? null;
@@ -53,37 +53,43 @@ export function installWebRtcPolyfill(): Promise<void> {
 			peer_id: string;
 			type: string;
 			payload: unknown;
-		}>("rtc-peer", (event: {
-			payload: {
-				peer_id: string;
-				type: string;
-				payload: unknown;
-			};
-		}) => {
-			dispatchPeerEvent(
-				event.payload.peer_id,
-				event.payload.type,
-				event.payload.payload,
-			);
-		});
+		}>(
+			'rtc-peer',
+			(event: {
+				payload: {
+					peer_id: string;
+					type: string;
+					payload: unknown;
+				};
+			}) => {
+				dispatchPeerEvent(
+					event.payload.peer_id,
+					event.payload.type,
+					event.payload.payload,
+				);
+			},
+		);
 
 		unlistenChannel = await listen<{
 			channel_id: string;
 			type: string;
 			payload: unknown;
-		}>("rtc-channel", (event: {
-			payload: {
-				channel_id: string;
-				type: string;
-				payload: unknown;
-			};
-		}) => {
-			dispatchChannelEvent(
-				event.payload.channel_id,
-				event.payload.type,
-				event.payload.payload,
-			);
-		});
+		}>(
+			'rtc-channel',
+			(event: {
+				payload: {
+					channel_id: string;
+					type: string;
+					payload: unknown;
+				};
+			}) => {
+				dispatchChannelEvent(
+					event.payload.channel_id,
+					event.payload.type,
+					event.payload.payload,
+				);
+			},
+		);
 	})();
 
 	return installPromise;

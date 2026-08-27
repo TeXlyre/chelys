@@ -1,7 +1,7 @@
 // src/webrtc-polyfill/RTCPeerConnection.ts
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from '@tauri-apps/api/core';
 
-import { TauriRTCDataChannel } from "./RTCDataChannel";
+import { TauriRTCDataChannel } from './RTCDataChannel';
 
 interface QueuedEvent {
 	type: string;
@@ -35,7 +35,7 @@ const lastNotifiedScopeCount = new Map<string, number>();
 const toError = (error: unknown): Error =>
 	error instanceof Error ? error : new Error(String(error));
 
-const stateName = (value: unknown): string => String(value ?? "").toLowerCase();
+const stateName = (value: unknown): string => String(value ?? '').toLowerCase();
 
 const notifyScope = (scopeId: string): void => {
 	const connected = connectedPeersByScope.get(scopeId)?.size ?? 0;
@@ -109,7 +109,7 @@ export async function resetPeerScope(scopeId: string): Promise<void> {
 	await Promise.allSettled(peers.map((peer) => peer.close()));
 
 	try {
-		await invoke("rtc_reset_peer_scope", { scopeId });
+		await invoke('rtc_reset_peer_scope', { scopeId });
 	} catch (error) {
 		console.warn(`[rtc] failed to reset native scope ${scopeId}:`, error);
 	}
@@ -128,7 +128,7 @@ export function dispatchChannelEvent(
 	const channel = channelByHandle.get(channelId);
 	if (channel) {
 		channel.emit(type, payload);
-		if (type === "close") channelByHandle.delete(channelId);
+		if (type === 'close') channelByHandle.delete(channelId);
 		return;
 	}
 
@@ -147,8 +147,8 @@ export function registerChannel(
 	if (!queued) return;
 
 	pendingChannelEvents.delete(channelId);
-	queued.forEach((event) => channel.emit(event.type, event.payload));
-	if (channel.readyState === "closed") channelByHandle.delete(channelId);
+	for (const event of queued) channel.emit(event.type, event.payload);
+	if (channel.readyState === 'closed') channelByHandle.delete(channelId);
 }
 
 export function dispatchPeerEvent(
@@ -159,10 +159,7 @@ export function dispatchPeerEvent(
 	const peer = peerByHandle.get(peerId);
 	if (peer) {
 		peer.emit(type, payload);
-		if (
-			type === "connectionstatechange" &&
-			stateName(payload) === "closed"
-		) {
+		if (type === 'connectionstatechange' && stateName(payload) === 'closed') {
 			peerByHandle.delete(peerId);
 		}
 		return;
@@ -181,7 +178,7 @@ class TauriRTCSessionDescription {
 	constructor(
 		public type: string,
 		public sdp: string,
-	) { }
+	) {}
 
 	toJSON(): { type: string; sdp: string } {
 		return { type: this.type, sdp: this.sdp };
@@ -195,7 +192,7 @@ class TauriRTCIceCandidate {
 	readonly usernameFragment: string | null;
 
 	constructor(init: Partial<RTCIceCandidateInit>) {
-		this.candidate = init.candidate ?? "";
+		this.candidate = init.candidate ?? '';
 		this.sdpMid = init.sdpMid ?? null;
 		this.sdpMLineIndex = init.sdpMLineIndex ?? null;
 		this.usernameFragment = init.usernameFragment ?? null;
@@ -225,10 +222,10 @@ export class TauriRTCPeerConnection extends EventTarget {
 	private readonly channelIds = new Set<string>();
 	private retired = false;
 
-	iceConnectionState: RTCIceConnectionState = "new";
-	connectionState: RTCPeerConnectionState = "new";
-	signalingState: RTCSignalingState = "stable";
-	iceGatheringState: RTCIceGatheringState = "new";
+	iceConnectionState: RTCIceConnectionState = 'new';
+	connectionState: RTCPeerConnectionState = 'new';
+	signalingState: RTCSignalingState = 'stable';
+	iceGatheringState: RTCIceGatheringState = 'new';
 	localDescription: TauriRTCSessionDescription | null = null;
 	remoteDescription: TauriRTCSessionDescription | null = null;
 
@@ -245,7 +242,7 @@ export class TauriRTCPeerConnection extends EventTarget {
 
 		const scopedConfig = config as ScopedRtcConfiguration;
 		this.nativeScopeId =
-			typeof scopedConfig.__chelysRuntimeScope === "string"
+			typeof scopedConfig.__chelysRuntimeScope === 'string'
 				? scopedConfig.__chelysRuntimeScope
 				: null;
 		registerScopedPeer(this);
@@ -256,7 +253,7 @@ export class TauriRTCPeerConnection extends EventTarget {
 			credential: server.credential,
 		}));
 
-		this.peerIdPromise = invoke<string>("rtc_create_peer", {
+		this.peerIdPromise = invoke<string>('rtc_create_peer', {
 			config: {
 				ice_servers: iceServers,
 				scope_id: this.nativeScopeId,
@@ -265,7 +262,7 @@ export class TauriRTCPeerConnection extends EventTarget {
 			.then((id: string) => {
 				if (this.retired) {
 					knownPeerHandles.add(id);
-					void invoke("rtc_close_peer", { peerId: id }).catch(() => undefined);
+					void invoke('rtc_close_peer', { peerId: id }).catch(() => undefined);
 					return id;
 				}
 
@@ -276,7 +273,7 @@ export class TauriRTCPeerConnection extends EventTarget {
 				const queued = pendingPeerEvents.get(id);
 				if (queued) {
 					pendingPeerEvents.delete(id);
-					queued.forEach((event) => this.emit(event.type, event.payload));
+					for (const event of queued) this.emit(event.type, event.payload);
 				}
 				return id;
 			})
@@ -289,39 +286,39 @@ export class TauriRTCPeerConnection extends EventTarget {
 	emit(type: string, payload: unknown): void {
 		if (this.retired) return;
 		switch (type) {
-			case "icecandidate":
+			case 'icecandidate':
 				this.emitIceCandidate(payload);
 				break;
-			case "iceconnectionstatechange": {
+			case 'iceconnectionstatechange': {
 				const state = stateName(payload) as RTCIceConnectionState;
 				this.iceConnectionState = state;
-				if (state === "connected" || state === "completed") {
+				if (state === 'connected' || state === 'completed') {
 					setScopedPeerConnected(this, true);
 				} else if (
-					state === "disconnected" ||
-					state === "failed" ||
-					state === "closed"
+					state === 'disconnected' ||
+					state === 'failed' ||
+					state === 'closed'
 				) {
 					setScopedPeerConnected(this, false);
 				}
 				this.emitEvent(
-					"iceconnectionstatechange",
+					'iceconnectionstatechange',
 					this.oniceconnectionstatechange,
 				);
 				break;
 			}
-			case "connectionstatechange": {
+			case 'connectionstatechange': {
 				const state = stateName(payload) as RTCPeerConnectionState;
 				this.connectionState = state;
-				setScopedPeerConnected(this, state === "connected");
-				this.emitEvent("connectionstatechange", this.onconnectionstatechange);
+				setScopedPeerConnected(this, state === 'connected');
+				this.emitEvent('connectionstatechange', this.onconnectionstatechange);
 				break;
 			}
-			case "signalingstatechange":
+			case 'signalingstatechange':
 				this.signalingState = stateName(payload) as RTCSignalingState;
-				this.emitEvent("signalingstatechange", this.onsignalingstatechange);
+				this.emitEvent('signalingstatechange', this.onsignalingstatechange);
 				break;
-			case "datachannel":
+			case 'datachannel':
 				this.emitDataChannel(payload as DataChannelPayload);
 				break;
 		}
@@ -343,8 +340,8 @@ export class TauriRTCPeerConnection extends EventTarget {
 		const candidate = payload
 			? new TauriRTCIceCandidate(payload as Partial<RTCIceCandidateInit>)
 			: null;
-		const event = new Event("icecandidate") as RTCPeerConnectionIceEvent;
-		Object.defineProperty(event, "candidate", { value: candidate });
+		const event = new Event('icecandidate') as RTCPeerConnectionIceEvent;
+		Object.defineProperty(event, 'candidate', { value: candidate });
 		this.onicecandidate?.call(this, event);
 		this.dispatchEvent(event);
 	}
@@ -359,8 +356,8 @@ export class TauriRTCPeerConnection extends EventTarget {
 		);
 		registerChannel(payload.channelId, channel);
 
-		const event = new Event("datachannel") as RTCDataChannelEvent;
-		Object.defineProperty(event, "channel", { value: channel });
+		const event = new Event('datachannel') as RTCDataChannelEvent;
+		Object.defineProperty(event, 'channel', { value: channel });
 		this.ondatachannel?.call(this, event);
 		this.dispatchEvent(event);
 	}
@@ -388,7 +385,7 @@ export class TauriRTCPeerConnection extends EventTarget {
 	}
 
 	private fireNegotiationNeeded(): void {
-		this.emitEvent("negotiationneeded", this.onnegotiationneeded);
+		this.emitEvent('negotiationneeded', this.onnegotiationneeded);
 	}
 
 	async createOffer(
@@ -396,7 +393,7 @@ export class TauriRTCPeerConnection extends EventTarget {
 	): Promise<TauriRTCSessionDescription> {
 		await this.pendingChannelOps;
 		const result = await this.invokePeer<{ type: string; sdp: string }>(
-			"rtc_create_offer",
+			'rtc_create_offer',
 		);
 		return new TauriRTCSessionDescription(result.type, result.sdp);
 	}
@@ -406,7 +403,7 @@ export class TauriRTCPeerConnection extends EventTarget {
 	): Promise<TauriRTCSessionDescription> {
 		await this.pendingChannelOps;
 		const result = await this.invokePeer<{ type: string; sdp: string }>(
-			"rtc_create_answer",
+			'rtc_create_answer',
 		);
 		return new TauriRTCSessionDescription(result.type, result.sdp);
 	}
@@ -414,23 +411,23 @@ export class TauriRTCPeerConnection extends EventTarget {
 	async setLocalDescription(
 		description: RTCSessionDescriptionInit,
 	): Promise<void> {
-		const dto = { type: description.type, sdp: description.sdp ?? "" };
-		await this.invokePeer("rtc_set_local_description", { sdp: dto });
+		const dto = { type: description.type, sdp: description.sdp ?? '' };
+		await this.invokePeer('rtc_set_local_description', { sdp: dto });
 		this.localDescription = new TauriRTCSessionDescription(dto.type, dto.sdp);
 	}
 
 	async setRemoteDescription(
 		description: RTCSessionDescriptionInit,
 	): Promise<void> {
-		const dto = { type: description.type, sdp: description.sdp ?? "" };
-		await this.invokePeer("rtc_set_remote_description", { sdp: dto });
+		const dto = { type: description.type, sdp: description.sdp ?? '' };
+		await this.invokePeer('rtc_set_remote_description', { sdp: dto });
 		this.remoteDescription = new TauriRTCSessionDescription(dto.type, dto.sdp);
 	}
 
 	async addIceCandidate(candidate?: RTCIceCandidateInit | null): Promise<void> {
 		if (!candidate?.candidate || /\.local\b/i.test(candidate.candidate)) return;
 
-		await this.invokePeer("rtc_add_ice_candidate", {
+		await this.invokePeer('rtc_add_ice_candidate', {
 			candidate: {
 				candidate: candidate.candidate,
 				sdpMid: candidate.sdpMid ?? null,
@@ -450,23 +447,23 @@ export class TauriRTCPeerConnection extends EventTarget {
 			channelId,
 			label,
 			init?.ordered ?? true,
-			init?.protocol ?? "",
+			init?.protocol ?? '',
 		);
 		registerChannel(channelId, channel);
 
 		const operation = this.pendingChannelOps.then(() =>
-			this.invokePeer("rtc_create_data_channel", {
+			this.invokePeer('rtc_create_data_channel', {
 				channelId,
 				label,
 				init: init
 					? {
-						ordered: init.ordered,
-						max_packet_life_time: init.maxPacketLifeTime,
-						max_retransmits: init.maxRetransmits,
-						protocol: init.protocol,
-						negotiated: init.negotiated,
-						id: init.id,
-					}
+							ordered: init.ordered,
+							max_packet_life_time: init.maxPacketLifeTime,
+							max_retransmits: init.maxRetransmits,
+							protocol: init.protocol,
+							negotiated: init.negotiated,
+							id: init.id,
+						}
 					: null,
 			}),
 		);
@@ -492,10 +489,10 @@ export class TauriRTCPeerConnection extends EventTarget {
 		if (this.closePromise) return this.closePromise;
 
 		this.closePromise = this.closePeer().finally(() => {
-			this.connectionState = "closed";
-			this.signalingState = "closed";
+			this.connectionState = 'closed';
+			this.signalingState = 'closed';
 			setScopedPeerConnected(this, false);
-			this.emitEvent("connectionstatechange", this.onconnectionstatechange);
+			this.emitEvent('connectionstatechange', this.onconnectionstatechange);
 			unregisterScopedPeer(this);
 		});
 		return this.closePromise;
@@ -514,7 +511,7 @@ export class TauriRTCPeerConnection extends EventTarget {
 		pendingPeerEvents.delete(peerId);
 		knownPeerHandles.add(peerId);
 		try {
-			await invoke("rtc_close_peer", { peerId });
+			await invoke('rtc_close_peer', { peerId });
 		} catch (error) {
 			console.warn(`[rtc] failed to close peer ${peerId}:`, error);
 		} finally {
@@ -525,8 +522,8 @@ export class TauriRTCPeerConnection extends EventTarget {
 	private retireChannels(): void {
 		for (const channelId of this.channelIds) {
 			const channel = channelByHandle.get(channelId);
-			if (channel && channel.readyState !== "closed") {
-				channel.emit("close", null);
+			if (channel && channel.readyState !== 'closed') {
+				channel.emit('close', null);
 			}
 			channelByHandle.delete(channelId);
 			pendingChannelEvents.delete(channelId);
@@ -536,41 +533,41 @@ export class TauriRTCPeerConnection extends EventTarget {
 
 	async getStats(): Promise<Map<string, unknown>> {
 		const stats = new Map<string, unknown>();
-		if (this.connectionState !== "connected") return stats;
+		if (this.connectionState !== 'connected') return stats;
 
-		stats.set("cp", {
-			id: "cp",
-			type: "candidate-pair",
-			state: "succeeded",
+		stats.set('cp', {
+			id: 'cp',
+			type: 'candidate-pair',
+			state: 'succeeded',
 			selected: true,
 			nominated: true,
-			localCandidateId: "lc",
-			remoteCandidateId: "rc",
+			localCandidateId: 'lc',
+			remoteCandidateId: 'rc',
 		});
-		stats.set("lc", {
-			id: "lc",
-			type: "local-candidate",
-			address: "127.0.0.1",
+		stats.set('lc', {
+			id: 'lc',
+			type: 'local-candidate',
+			address: '127.0.0.1',
 			port: 0,
-			protocol: "udp",
-			candidateType: "host",
+			protocol: 'udp',
+			candidateType: 'host',
 		});
-		stats.set("rc", {
-			id: "rc",
-			type: "remote-candidate",
-			address: "127.0.0.1",
+		stats.set('rc', {
+			id: 'rc',
+			type: 'remote-candidate',
+			address: '127.0.0.1',
 			port: 0,
-			protocol: "udp",
-			candidateType: "host",
+			protocol: 'udp',
+			candidateType: 'host',
 		});
 		return stats;
 	}
 
 	addTransceiver(): never {
-		throw new Error("addTransceiver not supported");
+		throw new Error('addTransceiver not supported');
 	}
 
 	addTrack(): never {
-		throw new Error("addTrack not supported");
+		throw new Error('addTrack not supported');
 	}
 }

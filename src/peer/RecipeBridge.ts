@@ -1,28 +1,28 @@
 // src/peer/RecipeBridge.ts
-import { getAccountControlUser } from "@chelys/peer/AccountControlRoom";
+import { getAccountControlUser } from '@chelys/peer/AccountControlRoom';
 import {
 	acquireRendezvous,
 	type RendezvousLease,
-} from "@chelys/peer/RendezvousRoom";
+} from '@chelys/peer/RendezvousRoom';
 import {
 	HOST_PROBE_MESSAGE,
 	HOST_READY_MESSAGE,
-} from "@chelys/peer/SessionContract";
-import { SessionHostRegistry } from "@chelys/peer/SessionHostRegistry";
+} from '@chelys/peer/SessionContract';
+import { SessionHostRegistry } from '@chelys/peer/SessionHostRegistry';
 import type {
 	HostTransport,
 	TransportConfig,
 	TransportPayload,
-} from "@chelys/types/transport";
+} from '@chelys/types/transport';
 import {
 	chelysAccountSyncService,
 	type ChelysAccountConnection,
-} from "@texlyre/services/ChelysAccountSyncService";
-import { getActiveAccountId } from "../plugin-host/activeAccount";
+} from '@texlyre/services/ChelysAccountSyncService';
+import { getActiveAccountId } from '../plugin-host/activeAccount';
 import {
 	resolveSignalingServers,
 	resolveTransportRoomId,
-} from "./BridgeResolution";
+} from './BridgeResolution';
 
 export interface RecipeBridgeOptions {
 	recipeId: string;
@@ -35,7 +35,7 @@ export interface RecipeBridgeOptions {
 }
 
 const toSocketData = (payload: TransportPayload): string | ArrayBuffer => {
-	if (typeof payload === "string") return payload;
+	if (typeof payload === 'string') return payload;
 	const buffer = new ArrayBuffer(payload.byteLength);
 	new Uint8Array(buffer).set(payload);
 	return buffer;
@@ -52,11 +52,7 @@ export class RecipeBridge {
 	constructor(private readonly options: RecipeBridgeOptions) {}
 
 	start(): void {
-		if (
-			this.sessionHosts ||
-			this.sharedRendezvous ||
-			this.unsubscribeAccount
-		) {
+		if (this.sessionHosts || this.sharedRendezvous || this.unsubscribeAccount) {
 			return;
 		}
 
@@ -83,24 +79,28 @@ export class RecipeBridge {
 		}
 
 		if (this.options.accountRoomId) {
-			this.unsubscribeAccount = chelysAccountSyncService.subscribe((connection) => {
-				const usable =
-					connection?.roomId === this.options.accountRoomId ? connection : null;
-				if (usable === this.sessionConnection) return;
-				this.sessionHosts?.stop();
-				this.sessionHosts = null;
-				this.sessionConnection = usable;
-				if (!usable) return;
-				const sessionHosts = new SessionHostRegistry({
-					connection: usable,
-					baseRoomId: this.options.roomId,
-					label: this.options.label,
-					signaling: this.options.signaling,
-					onChannel: (channel) => this.attach(channel),
-				});
-				sessionHosts.start();
-				this.sessionHosts = sessionHosts;
-			});
+			this.unsubscribeAccount = chelysAccountSyncService.subscribe(
+				(connection) => {
+					const usable =
+						connection?.roomId === this.options.accountRoomId
+							? connection
+							: null;
+					if (usable === this.sessionConnection) return;
+					this.sessionHosts?.stop();
+					this.sessionHosts = null;
+					this.sessionConnection = usable;
+					if (!usable) return;
+					const sessionHosts = new SessionHostRegistry({
+						connection: usable,
+						baseRoomId: this.options.roomId,
+						label: this.options.label,
+						signaling: this.options.signaling,
+						onChannel: (channel) => this.attach(channel),
+					});
+					sessionHosts.start();
+					this.sessionHosts = sessionHosts;
+				},
+			);
 			return;
 		}
 
@@ -124,7 +124,7 @@ export class RecipeBridge {
 	}
 
 	private attach(channel: HostTransport): void {
-		const reusableBackend = this.options.label.startsWith("typesetter:");
+		const reusableBackend = this.options.label.startsWith('typesetter:');
 		let socket: WebSocket | null = null;
 		let socketReceivedResponse = false;
 		let closed = false;
@@ -176,12 +176,12 @@ export class RecipeBridge {
 				return;
 			}
 			const current = new WebSocket(this.options.targetUrl);
-			current.binaryType = "arraybuffer";
+			current.binaryType = 'arraybuffer';
 			socket = current;
 			socketReceivedResponse = false;
 			this.sockets.add(current);
 
-			current.addEventListener("open", () => {
+			current.addEventListener('open', () => {
 				if (closed || socket !== current) return;
 				while (outbound.length > 0) {
 					const message = outbound.shift();
@@ -192,17 +192,17 @@ export class RecipeBridge {
 				}
 			});
 
-			current.addEventListener("message", (event) => {
+			current.addEventListener('message', (event) => {
 				if (closed || socket !== current) return;
 				socketReceivedResponse = true;
 				channel.send(
-					typeof event.data === "string"
+					typeof event.data === 'string'
 						? event.data
 						: new Uint8Array(event.data as ArrayBuffer),
 				);
 			});
 
-			current.addEventListener("close", () => {
+			current.addEventListener('close', () => {
 				this.sockets.delete(current);
 				if (socket !== current || closed) return;
 				socket = null;
@@ -213,7 +213,7 @@ export class RecipeBridge {
 				closeChannel();
 			});
 
-			current.addEventListener("error", () => {
+			current.addEventListener('error', () => {
 				console.error(
 					`[RecipeBridge] socket error for ${this.options.recipeId}`,
 				);
@@ -254,14 +254,14 @@ export function bridgeOptionsFromConfig(
 	label: string,
 	config: TransportConfig,
 ): RecipeBridgeOptions | null {
-	if (config.type !== "webrtc") return null;
+	if (config.type !== 'webrtc') return null;
 	if (!config.url) {
 		console.warn(`[RecipeBridge] ${label}: transportUrl is missing`);
 		return null;
 	}
 
 	const explicitRoomId =
-		typeof config.roomId === "string" && config.roomId.trim().length > 0;
+		typeof config.roomId === 'string' && config.roomId.trim().length > 0;
 	const roomId = resolveTransportRoomId(configId, config.roomId);
 	if (!roomId) {
 		console.warn(`[RecipeBridge] ${label}: no Chelys room is available`);
@@ -278,7 +278,9 @@ export function bridgeOptionsFromConfig(
 		recipeId,
 		label,
 		roomId,
-		accountRoomId: explicitRoomId ? undefined : getActiveAccountId() ?? undefined,
+		accountRoomId: explicitRoomId
+			? undefined
+			: (getActiveAccountId() ?? undefined),
 		sharedRendezvous: explicitRoomId,
 		signaling,
 		targetUrl: config.url,

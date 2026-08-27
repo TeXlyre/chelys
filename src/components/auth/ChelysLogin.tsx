@@ -55,7 +55,11 @@ const ChelysLogin: React.FC = () => {
 			<div className='auth-box'>
 				<div className='auth-header'>
 					<div className='auth-logo-wrapper'>
-						<img src='/chelys-logo.svg' className='auth-logo' alt={t('Chelys logo')} />
+						<img
+							src='/chelys-logo.svg'
+							className='auth-logo'
+							alt={t('Chelys logo')}
+						/>
 					</div>
 					<h1>{t('Chelys')}</h1>
 					<div className='auth-header-controls'>
@@ -135,7 +139,7 @@ const ChelysLogin: React.FC = () => {
 						</button>
 					</form>
 				</div>
-			</div >
+			</div>
 
 			<footer>
 				<p className='texlyre-info'>
@@ -161,7 +165,7 @@ const ChelysLogin: React.FC = () => {
 					</span>
 				</p>
 			</footer>
-		</div >
+		</div>
 	);
 };
 

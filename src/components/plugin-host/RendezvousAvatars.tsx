@@ -29,8 +29,7 @@ const RendezvousAvatars: React.FC<RendezvousAvatarsProps> = ({
 
 	const config = recipe.typeConfig as SharedTransportConfig;
 	const roomId =
-		typeof config.transportRoomId === 'string' &&
-		config.transportRoomId.trim()
+		typeof config.transportRoomId === 'string' && config.transportRoomId.trim()
 			? config.transportRoomId.trim()
 			: null;
 	const signaling = useMemo(
@@ -51,10 +50,7 @@ const RendezvousAvatars: React.FC<RendezvousAvatarsProps> = ({
 			return;
 		}
 
-		const lease: RendezvousLease = acquireRendezvous(
-			roomId,
-			signaling,
-		);
+		const lease: RendezvousLease = acquireRendezvous(roomId, signaling);
 		const unsubscribe = lease.subscribe((connection) => {
 			setAwareness(connection.awareness);
 		});
@@ -68,7 +64,9 @@ const RendezvousAvatars: React.FC<RendezvousAvatarsProps> = ({
 
 	return (
 		<div className='recipe-awareness'>
-			{awareness && <CollaboratorAvatars awareness={awareness} maxVisible={4} />}
+			{awareness && (
+				<CollaboratorAvatars awareness={awareness} maxVisible={4} />
+			)}
 		</div>
 	);
 };
