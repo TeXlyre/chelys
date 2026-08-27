@@ -11,6 +11,9 @@ use tokio::sync::Mutex;
 
 pub const CANCELLED_EXIT_CODE: i32 = 130;
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct CommandSpec {
@@ -68,6 +71,8 @@ fn build_command(spec: &CommandSpec) -> Command {
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
     cmd.kill_on_drop(true);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
     cmd
 }
 
