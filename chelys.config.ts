@@ -28,7 +28,7 @@ const config: ChelysConfig = {
 				texlyreBaseUrl: 'https://texlyre.org/texlyre',
 				traefikEnabled: false,
 				traefikBaseUrl: 'ws://localhost:8000',
-				traefikBackendHost: '127.0.0.1',
+				traefikBackendHost: 'auto',
 				traefikRouteServerPort: 8099,
 			},
 		},

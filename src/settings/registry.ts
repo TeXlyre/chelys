@@ -94,7 +94,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'text',
 		label: t('Traefik backend host'),
 		description: t(
-			'Host Traefik uses to reach services on this machine. Use 127.0.0.1 when Traefik runs as a system process, and host.docker.internal when it runs in Docker on Windows or macOS.',
+			'Host Traefik uses to reach services on this machine. Leave as auto to use 127.0.0.1 for a system-mode Traefik and host.docker.internal for a containerised one on Windows and macOS.',
 		),
 		defaultValue: getSettingDefault('traefikBackendHost'),
 		onChange: () => {

@@ -2,11 +2,13 @@
 import { invoke } from '@tauri-apps/api/core';
 
 import { getStoredSetting } from '../config';
+import { getDetectedPlatform } from './platformResolution';
 import { safeName } from './traefikRouting';
 import { effectiveValues } from './variableResolution';
 import type { Recipe } from './types';
 
 const DEFAULT_ROUTE_SERVER_PORT = 8099;
+const INSTALLED_RECIPES_KEY = 'chelys-installed-recipes';
 const NOOP_SERVICE = 'chelys-placeholder';
 
 interface RouteInfo {
@@ -22,8 +24,26 @@ interface RouteServerHandle {
 const routes = new Map<string, RouteInfo>();
 let server: RouteServerHandle | null = null;
 
-const backendHost = (): string =>
-	getStoredSetting<string>('traefikBackendHost').trim() || '127.0.0.1';
+const traefikInDocker = (): boolean => {
+	try {
+		const raw = localStorage.getItem(INSTALLED_RECIPES_KEY);
+		return raw ? JSON.parse(raw).traefik?.mode === 'docker' : false;
+	} catch {
+		return false;
+	}
+};
+
+const backendHost = (): string => {
+	const configured = getStoredSetting<string>('traefikBackendHost').trim();
+	if (configured && configured !== 'auto') return configured;
+
+	const platform = getDetectedPlatform();
+	const needsGateway = platform === 'windows' || platform === 'macos';
+
+	return needsGateway && traefikInDocker()
+		? 'host.docker.internal'
+		: '127.0.0.1';
+};
 
 const configIdOf = (recipe: Recipe): string => {
 	const typeConfig = recipe.typeConfig as { configId?: unknown };
