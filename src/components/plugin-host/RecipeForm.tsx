@@ -6,6 +6,7 @@ import { open as openDialog } from '@tauri-apps/plugin-dialog';
 import { t } from '@/i18n';
 import { usePluginHost } from '../../hooks/usePluginHost';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
+import { sanitizeIconMarkup } from '../../plugin-host/recipeIcon';
 import {
 	dockerOf,
 	isLocalDir,
@@ -168,7 +169,7 @@ const recipeToParts = (recipe: Recipe | null): RecipePart[] => {
 		parts.push({
 			name: 'icon',
 			kind: 'file',
-			content: icon,
+			content: sanitizeIconMarkup(icon),
 			editable: false,
 			image: true,
 			note: t(

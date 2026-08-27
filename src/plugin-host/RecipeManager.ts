@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { applyPlatform, detectPlatform } from './platformResolution';
 import { pluginTypeRegistry } from './PluginTypeRegistry';
 import { processSupervisorService } from './ProcessSupervisorService';
+import { withSanitizedIcon } from './recipeIcon';
 import { recipeRegistry } from './RecipeRegistry';
 import { recipeStore } from './RecipeStore';
 import { effectiveValues, resolveRecipe } from './variableResolution';
@@ -172,7 +173,7 @@ class RecipeManager {
 		const byId = new Map<string, Recipe>();
 
 		for (const recipe of [...seeds, ...stored]) {
-			byId.set(recipe.id, recipe);
+			byId.set(recipe.id, withSanitizedIcon(recipe));
 		}
 
 		this.recipes = byId;
@@ -237,7 +238,7 @@ class RecipeManager {
 
 	async save(recipe: Recipe): Promise<Recipe> {
 		const id = recipe.id || nanoid();
-		const stored: Recipe = { ...recipe, id };
+		const stored: Recipe = withSanitizedIcon({ ...recipe, id });
 
 		this.recipes.set(id, stored);
 
