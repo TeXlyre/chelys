@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { t } from '@/i18n';
 import { usePluginHost } from '../../hooks/usePluginHost';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
+import { sanitizeIconMarkup } from '../../plugin-host/recipeIcon';
 import type { RegistryEntry, RecipeVersion } from '../../plugin-host/types';
 import { SearchIcon } from '../common/Icons';
 
@@ -14,6 +15,27 @@ interface RecipeBrowserProps {
 }
 
 const RECIPES_PER_PAGE = 12;
+
+const loadEntryIcon = async (entry: RegistryEntry): Promise<string | null> => {
+	let source = entry.icon ?? entry.iconUrl;
+
+	if (!source && entry.manifestUrl) {
+		const response = await fetch(entry.manifestUrl, { cache: 'force-cache' });
+		if (!response.ok) return null;
+		const manifest = (await response.json()) as {
+			icon?: string;
+			iconUrl?: string;
+		};
+		source = manifest.icon ?? manifest.iconUrl;
+	}
+
+	if (!source) return null;
+	if (source.trimStart().startsWith('<')) return sanitizeIconMarkup(source);
+	if (!/\.svg(\?|$)/i.test(source)) return source;
+
+	const response = await fetch(source, { cache: 'force-cache' });
+	return response.ok ? sanitizeIconMarkup(await response.text()) : source;
+};
 
 const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 	category: fixedCategory,
@@ -95,23 +117,11 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 		let cancelled = false;
 		(async () => {
 			for (const entry of paginated) {
-				if (
-					!entry.manifestUrl ||
-					entry.icon ||
-					entry.iconUrl ||
-					icons[entry.id]
-				)
-					continue;
+				if (icons[entry.id]) continue;
 				try {
-					const res = await fetch(entry.manifestUrl, { cache: 'force-cache' });
-					if (!res.ok) continue;
-					const manifest = (await res.json()) as {
-						icon?: string;
-						iconUrl?: string;
-					};
-					const resolved = manifest.icon ?? manifest.iconUrl;
-					if (resolved && !cancelled) {
-						setIcons((prev) => ({ ...prev, [entry.id]: resolved }));
+					const icon = await loadEntryIcon(entry);
+					if (icon && !cancelled) {
+						setIcons((prev) => ({ ...prev, [entry.id]: icon }));
 					}
 				} catch {
 					/* leave fallback */
@@ -222,7 +232,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 			)}
 
 			{paginated.map((entry) => {
-				const resolved = entry.icon ?? entry.iconUrl ?? icons[entry.id];
+				const resolved = icons[entry.id] ?? entry.icon ?? entry.iconUrl;
 				const isMarkup = !!resolved && resolved.trimStart().startsWith('<');
 				const icon = resolved ?? pluginTypeRegistry.get(entry.type)?.icon;
 				return (
@@ -233,7 +243,9 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 									<span
 										className='recipe-icon'
 										aria-hidden='true'
-										dangerouslySetInnerHTML={{ __html: icon }}
+										dangerouslySetInnerHTML={{
+											__html: sanitizeIconMarkup(icon ?? ''),
+										}}
 									/>
 								) : resolved ? (
 									<span className='recipe-icon' aria-hidden='true'>
@@ -243,7 +255,9 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 									<span
 										className='recipe-icon'
 										aria-hidden='true'
-										dangerouslySetInnerHTML={{ __html: icon }}
+										dangerouslySetInnerHTML={{
+											__html: sanitizeIconMarkup(icon ?? ''),
+										}}
 									/>
 								)}
 								<span className='recipe-name'>{entry.name}</span>
