@@ -45,6 +45,10 @@ export function normalizePlatformOverride(
 	return 'auto';
 }
 
+export function getDetectedPlatform(): PlatformId | null {
+	return cachedDetectedPlatform;
+}
+
 export function resetPlatformCache(): void {
 	cachedDetectedPlatform = null;
 }
