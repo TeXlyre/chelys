@@ -1,8 +1,9 @@
 # Chelys
 
-A **[local-first](https://www.inkandswitch.com/essay/local-first/)** desktop companion for **[TeXlyre](https://github.com/TeXlyre/texlyre)**. Chelys runs the local tooling that a browser cannot, such as language servers and typesetting engines, and keeps your TeXlyre account synchronized across your devices over peer-to-peer connections. Built with Tauri, React, TypeScript, and Yjs.
+A local desktop companion app for **[TeXlyre](https://github.com/TeXlyre/texlyre)**. Chelys runs the local tooling that a browser cannot, such as language servers and typesetting engines, and keeps your TeXlyre account synchronized across your devices over peer-to-peer connections. Built with Tauri, Rust, React, TypeScript, and Yjs.
 
 [![Latest release](https://img.shields.io/github/v/release/TeXlyre/chelys?include_prereleases&label=download)](https://github.com/TeXlyre/chelys/releases/latest)
+[![Recipe registry](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Ftexlyre.github.io%2Fchelys-recipes%2Fapi%2Frecipes.json&query=%24.version&label=recipes&color=blue)](https://github.com/TeXlyre/chelys-recipes)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB.svg?logo=tauri)](https://v2.tauri.app/)
 [![Rust 1.88+](https://img.shields.io/badge/Rust-1.88%2B-000000.svg?logo=rust)](https://www.rust-lang.org/)
@@ -10,7 +11,7 @@ A **[local-first](https://www.inkandswitch.com/essay/local-first/)** desktop com
 
 ![TeXlyre and Chelys WebRTC architecture](showcase/texlyre_chelys_webrtc_architecture.svg)
 
-> **Status:** This is the [third phase (Tasks 2,3 & 5)](https://texlyre.github.io/blog/nlnet-ngi0-funding-overview#task-2-chelys-proof-of-concept-local-lsp-bridge) of development, currently covering language server and typesetting engine setup, with a WebRTC bridge for local tool sharing. Distributed storage are planned, per the [project scope](https://texlyre.github.io/blog/nlnet-ngi0-funding-overview).
+> **Status:** This is the [third phase (Tasks 2,3 & 5)](https://texlyre.github.io/blog/nlnet-ngi0-funding-overview#task-2-chelys-proof-of-concept-local-lsp-bridge) of development, currently covering language server and typesetting engine setup, with a WebRTC bridge for local tool sharing. Distributed storage are planned as per the [project scope](https://texlyre.github.io/blog/nlnet-ngi0-funding-overview).
 
 ## Features
 
@@ -22,17 +23,17 @@ Ready-made recipes are available at [chelys-recipes](https://texlyre.github.io/c
 
 ### Account Synchronization
 
-Your TeXlyre settings, properties, secrets, and records synchronize directly between your devices using **[Yjs](https://github.com/yjs/yjs) CRDTs** over **WebRTC** without a central server storing data. A presence indicator shows which of your devices are currently connected.
+Your TeXlyre settings, properties, secrets, and records synchronize directly between your devices using **[Yjs](https://github.com/yjs/yjs) CRDTs** over **WebRTC** without a central server storing data. A presence indicator shows which of your devices are currently connected in Chelys.
 
 ### Secure Pairing
 
-Chelys pairs with your existing TeXlyre identity using your username, password, and a **WebAuthn/PRF** passkey to derive an encrypted account room. Credentials are stored in your operating system's native keychain.
+Chelys pairs with your existing TeXlyre identity using your username, password, and a **WebAuthn/PRF** passkey or a generated temporary pseudo-PRF key to derive an encrypted account room. Credentials are stored in your operating system's native keychain.
 
 ## Quick Start
 
 Download the latest build for your platform from the [Releases](https://github.com/TeXlyre/chelys/releases) page:
 
-* **macOS**: `.dmg` (Apple Silicon and Intel)
+* **macOS**: `.dmg` (Apple Silicon and Intel). Note that several typesetter recipes do not support `arm64` architectures.
 * **Windows**: `.msi` or `.exe`
 * **Linux**: `.AppImage` or `.deb`
 
@@ -44,11 +45,11 @@ Some recipes require additional tools to be installed on your system:
 * **System recipes** may require [Rust/Cargo](https://www.rust-lang.org/tools/install) if they install Rust-based tools.
 * On **Windows**, Cargo-based recipes may also require Microsoft C++ Build Tools.
 
-For copy-paste setup commands, see [INSTALL.md](INSTALL.md).
+For durther setup commands, see [INSTALL.md](INSTALL.md).
 
 ## Build from Source
 
-Requires [Node.js](https://nodejs.org/) LTS, the [Rust toolchain](https://www.rust-lang.org/tools/install), and [Tauri's system prerequisites](https://v2.tauri.app/start/prerequisites/).
+Requires [Node.js](https://nodejs.org/) LTS, the [Rust toolchain](https://www.rust-lang.org/tools/install), and [Tauri's system prerequisites](https://v2.tauri.app/start/prerequisites/). All typesetter recipes require [Docker](https://docs.docker.com/get-docker/).
 
 ```bash
 git clone --recursive https://github.com/TeXlyre/chelys.git
@@ -57,6 +58,8 @@ npm install
 npm run tauri build    # produce a release build
 npm run tauri dev      # run in development
 ```
+
+The output executable is found in `./src-tauri/target/release/chelys-app*`
 
 ## License
 

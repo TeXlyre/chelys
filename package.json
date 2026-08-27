@@ -1,7 +1,14 @@
 {
 	"name": "chelys",
-	"version": "0.4.0",
 	"private": true,
+	"version": "0.4.0",
+	"description": "A local desktop companion app for TeXlyre",
+	"author": "Fares Abawi <fares@abawi.me> (https://abawi.me)",
+	"license": "AGPL-3.0-or-later",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/texlyre/chelys.git"
+	},
 	"type": "module",
 	"scripts": {
 		"dev": "node scripts/update-version.mjs && vite",

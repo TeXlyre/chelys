@@ -94,24 +94,17 @@ pub async fn rtc_create_peer(
     registry: State<'_, WebRtcRegistry>,
     config: PeerConfigCfg,
 ) -> Result<String, String> {
-    // let ice_servers: Vec<RTCIceServer> = config
-    //     .ice_servers
-    //     .into_iter()
-    //     .map(|s| RTCIceServer {
-    //         urls: s.urls,
-    //         username: s.username.unwrap_or_default(),
-    //         credential: s.credential.unwrap_or_default(),
-    //         ..Default::default()
+    // To filter out TURN:
+    //
+    // into_inter()
+    // .filter(|s| {
+    //         !s.urls
+    //             .iter()
+    //             .any(|u| u.starts_with("turn:") || u.starts_with("turns:"))
     //     })
-    //     .collect();
     let ice_servers: Vec<RTCIceServer> = config
         .ice_servers
         .into_iter()
-        .filter(|s| {
-            !s.urls
-                .iter()
-                .any(|u| u.starts_with("turn:") || u.starts_with("turns:"))
-        })
         .map(|s| RTCIceServer {
             urls: s.urls,
             username: s.username.unwrap_or_default(),
