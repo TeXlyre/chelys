@@ -1,7 +1,7 @@
 {
-  "identifier": "REPLACE_WITH_PARTNER_CENTER_PACKAGE_IDENTITY_NAME",
-  "publisher": "CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER_ID",
-  "publisherDisplayName": "REPLACE_WITH_PARTNER_CENTER_PUBLISHER_DISPLAY_NAME",
+  "identifier": "TeXlyre.Chelys",
+  "publisher": "CN=TeXlyre",
+  "publisherDisplayName": "TeXlyre",
   "capabilities": {
     "general": [
       "internetClient",
