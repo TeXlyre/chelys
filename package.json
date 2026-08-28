@@ -18,7 +18,8 @@
 		"build": "node scripts/update-version.mjs && npm run init:submodules && vite build",
 		"preview": "vite preview",
 		"tauri": "node scripts/update-version.mjs && tauri",
-		"init:submodules": "node scripts/init-submodules.mjs"
+		"init:submodules": "node scripts/init-submodules.mjs",
+		"tauri:windows:build": "tauri-windows-bundle build"
 	},
 	"dependencies": {
 		"@picocss/pico": "^2.1.1",
@@ -45,6 +46,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.9",
+		"@choochmeque/tauri-windows-bundle": "0.1.28",
 		"@tauri-apps/cli": "^2.11.4",
 		"@types/react": "^19.2.18",
 		"@types/react-dom": "^19.2.4",

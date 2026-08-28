@@ -120,6 +120,10 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Add MSIX build targets
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        run: rustup target add aarch64-pc-windows-msvc
+
       - uses: swatinem/rust-cache@v2
 
       - name: Install frontend dependencies
@@ -135,3 +139,15 @@ jobs:
           releaseName: "Chelys ${{ needs.prepare.outputs.tag }}"
           releaseDraft: true
           prerelease: ${{ contains(needs.prepare.outputs.version, '-') }}
+
+      - name: Build MSIX bundle
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        run: npm run tauri:windows:build -- --arch x64,arm64 --runner npm
+
+      - name: Upload MSIX bundle artifact
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        uses: actions/upload-artifact@v4
+        with:
+          name: msix-${{ needs.prepare.outputs.tag }}
+          path: src-tauri/target/msix/*.msixbundle
+          if-no-files-found: error
