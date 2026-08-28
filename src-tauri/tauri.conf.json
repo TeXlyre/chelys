@@ -31,6 +31,7 @@
   },
   "bundle": {
     "active": true,
+    "shortDescription": "A local desktop companion app for TeXlyre",
     "targets": "all",
     "icon": [
       "icons/32x32.png",

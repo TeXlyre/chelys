@@ -24,7 +24,9 @@ target/
 Cargo.lock
 
 # Tauri build artifacts
-src-tauri/gen/
+src-tauri/gen/*
+!src-tauri/gen/windows/
+src-tauri/gen/windows/certificate.pfx
 src-tauri/WixTools/
 src-tauri/icons/source.png
 

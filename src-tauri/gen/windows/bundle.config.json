@@ -1,0 +1,36 @@
+{
+  "identifier": "REPLACE_WITH_PARTNER_CENTER_PACKAGE_IDENTITY_NAME",
+  "publisher": "CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER_ID",
+  "publisherDisplayName": "REPLACE_WITH_PARTNER_CENTER_PUBLISHER_DISPLAY_NAME",
+  "capabilities": {
+    "general": [
+      "internetClient",
+      "internetClientServer",
+      "privateNetworkClientServer"
+    ]
+  },
+  "extensions": {
+    "shareTarget": false,
+    "fileAssociations": [],
+    "protocolHandlers": [],
+    "startupTask": {
+      "enabled": true
+    }
+  },
+  "signing": {
+    "pfx": null,
+    "pfxPassword": null
+  },
+  "resourceIndex": {
+    "enabled": true,
+    "keepConfig": false
+  },
+  "assets": {
+    "variants": {
+      "scale": true,
+      "targetSize": true,
+      "unplated": true,
+      "lightUnplated": true
+    }
+  }
+}
