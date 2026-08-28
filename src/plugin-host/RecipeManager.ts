@@ -1,13 +1,23 @@
 // src/plugin-host/RecipeManager.ts
 import { nanoid } from 'nanoid';
 
-import { applyPlatform, detectPlatform } from './platformResolution';
+import {
+	applyPlatform,
+	detectArch,
+	detectPlatform,
+	dockerPlatform,
+	type ArchId,
+} from './platformResolution';
 import { pluginTypeRegistry } from './PluginTypeRegistry';
 import { processSupervisorService } from './ProcessSupervisorService';
 import { withSanitizedIcon } from './recipeIcon';
 import { recipeRegistry } from './RecipeRegistry';
 import { recipeStore } from './RecipeStore';
-import { effectiveValues, resolveRecipe } from './variableResolution';
+import {
+	effectiveValues,
+	registryPullSteps,
+	resolveRecipe,
+} from './variableResolution';
 import { invoke } from '@tauri-apps/api/core';
 import { getStoredSetting } from '../config';
 import { appDataDir } from '@tauri-apps/api/path';
@@ -15,6 +25,7 @@ import { routeEndpoint } from './traefikRoutes';
 import { materializeRecipeFiles } from './recipeWorkdir';
 import {
 	findMode,
+	type DockerInstallSource,
 	type InstallModeKind,
 	type InstallStep,
 	type PlatformId,
@@ -42,6 +53,7 @@ class RecipeManager {
 	private listeners = new Set<StatusListener>();
 	private initialized = false;
 	private platform: PlatformId = 'desktop';
+	private arch: ArchId | null = null;
 	private reattached = new Set<string>();
 	private cancelling = new Set<string>();
 	private ports = new Map<string, Record<string, string>>();
@@ -61,6 +73,7 @@ class RecipeManager {
 
 	private async resolveForCurrentPlatform(base: Recipe): Promise<Recipe> {
 		this.platform = await detectPlatform();
+		this.arch = await detectArch();
 
 		const pinned = this.ports.get(base.id);
 		const source = pinned ? { ...base, variableValues: pinned } : base;
@@ -135,6 +148,7 @@ class RecipeManager {
 		const tokens: Record<string, string> = {
 			'${CHELYS_DATA}': await appDataDir(),
 			'${CHELYS_ROUTE_ENDPOINT}': await routeEndpoint(),
+			'${CHELYS_ARCH}': this.arch ?? '',
 		};
 
 		const expand = <T>(value: T): T => {
@@ -274,7 +288,11 @@ class RecipeManager {
 		await processSupervisorService.stop(recipeId);
 	}
 
-	async install(recipeId: string, mode: InstallModeKind): Promise<void> {
+	async install(
+		recipeId: string,
+		mode: InstallModeKind,
+		source: DockerInstallSource = 'build',
+	): Promise<void> {
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
 
@@ -299,7 +317,13 @@ class RecipeManager {
 				const docker = findMode(recipe, 'docker');
 				if (!docker) throw new Error('Docker mode not supported');
 
-				await this.runSteps(recipe, docker.buildSteps, workdir);
+				await this.runSteps(
+					recipe,
+					source === 'registry'
+						? registryPullSteps(docker, dockerPlatform(this.arch))
+						: docker.buildSteps,
+					workdir,
+				);
 			} else if (mode === 'connect') {
 				// Nothing to install for connect mode.
 			}

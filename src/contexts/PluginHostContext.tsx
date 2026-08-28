@@ -7,6 +7,7 @@ import { recipeRegistry } from '../plugin-host/RecipeRegistry';
 import { pluginTypeRegistry } from '../plugin-host/PluginTypeRegistry';
 import { reconcileRoutes } from '../plugin-host/traefikRoutes';
 import type {
+	DockerInstallSource,
 	InstallModeKind,
 	Recipe,
 	RecipeStatus,
@@ -24,7 +25,11 @@ interface PluginHostContextType {
 	recipes: Recipe[];
 	statuses: Map<string, RecipeStatus>;
 	isReady: boolean;
-	install: (recipeId: string, mode: InstallModeKind) => Promise<void>;
+	install: (
+		recipeId: string,
+		mode: InstallModeKind,
+		source?: DockerInstallSource,
+	) => Promise<void>;
 	cancelInstall: (recipeId: string) => Promise<void>;
 	run: (recipeId: string) => Promise<void>;
 	stop: (recipeId: string) => Promise<void>;
@@ -49,7 +54,11 @@ export const PluginHostContext = createContext<PluginHostContextType>({
 	recipes: [],
 	statuses: new Map(),
 	isReady: false,
-	install: async (_recipeId: string, _mode: InstallModeKind) => {},
+	install: async (
+		_recipeId: string,
+		_mode: InstallModeKind,
+		_source?: DockerInstallSource,
+	) => {},
 	cancelInstall: async () => {},
 	run: async () => {},
 	stop: async () => {},
