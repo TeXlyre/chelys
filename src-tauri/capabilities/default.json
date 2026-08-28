@@ -27,6 +27,7 @@
       ]
     },
     "os:allow-platform",
+    "os:allow-arch",
     "fs:allow-mkdir",
     "fs:allow-write-text-file",
     "fs:allow-read-text-file",

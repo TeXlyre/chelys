@@ -1,6 +1,6 @@
 // src/plugin-host/variableResolution.ts
 import { rewriteTransportUrl } from './traefikRouting';
-import type { CommandSpec, DockerMode, Recipe } from './types';
+import type { CommandSpec, DockerMode, InstallStep, Recipe } from './types';
 
 const DOCKERFILE_NAME = 'Dockerfile.chelys';
 
@@ -58,6 +58,23 @@ const dockerPullStep = (docker: DockerMode) => ({
 	command: 'docker',
 	args: ['pull', docker.image],
 });
+
+const REGISTRY_REF = /^[^/]*[.:][^/]*\//;
+
+export const canPullImage = (docker: DockerMode): boolean =>
+	(!!docker.dockerfile || !!docker.dockerfileUrl) &&
+	REGISTRY_REF.test(docker.image);
+
+export const registryPullSteps = (
+	docker: DockerMode,
+	platform: string | null,
+): InstallStep[] => [
+	{
+		label: 'Pull image',
+		command: 'docker',
+		args: ['pull', ...(platform ? ['--platform', platform] : []), docker.image],
+	},
+];
 
 export function resolveRecipe(recipe: Recipe): Recipe {
 	const values = effectiveValues(recipe);

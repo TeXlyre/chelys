@@ -52,6 +52,8 @@ export interface ConnectMode {
 
 export type InstallMode = SystemMode | DockerMode | ConnectMode;
 
+export type DockerInstallSource = 'build' | 'registry';
+
 export type VariableKind = 'text' | 'number' | 'boolean' | 'select';
 
 export interface RecipeVariable {

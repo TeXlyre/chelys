@@ -10,7 +10,10 @@ export interface PlatformInfo {
 	override: RecipePlatformOverride;
 }
 
+export type ArchId = 'amd64' | 'arm64';
+
 let cachedDetectedPlatform: PlatformId | null = null;
+let cachedArch: ArchId | null = null;
 
 export function normalizePlatform(platform: string): PlatformId {
 	const normalized = platform.trim().toLowerCase();
@@ -69,6 +72,26 @@ export async function detectActualPlatform(): Promise<PlatformId> {
 
 	return cachedDetectedPlatform;
 }
+
+export async function detectArch(): Promise<ArchId | null> {
+	if (cachedArch) return cachedArch;
+
+	try {
+		const { arch } = await import('@tauri-apps/plugin-os');
+		const value = arch().toLowerCase();
+
+		cachedArch =
+			value === 'x86_64' ? 'amd64' : value === 'aarch64' ? 'arm64' : null;
+	} catch (error) {
+		console.warn('[Chelys] CPU architecture detection failed', error);
+		cachedArch = null;
+	}
+
+	return cachedArch;
+}
+
+export const dockerPlatform = (arch: ArchId | null): string | null =>
+	arch ? `linux/${arch}` : null;
 
 export function getPlatformOverride(): RecipePlatformOverride {
 	return normalizePlatformOverride(

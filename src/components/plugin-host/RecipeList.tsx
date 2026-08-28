@@ -1,18 +1,22 @@
 // src/components/plugin-host/RecipeList.tsx
 import type React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 import { t } from '@/i18n';
 import { usePluginHost } from '../../hooks/usePluginHost';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
 import {
+	findMode,
 	modeLabel,
+	type DockerInstallSource,
 	type InstallModeKind,
 	type Recipe,
 	type RecipeRuntimeState,
 } from '../../plugin-host/types';
 import IconButton from '../common/IconButton';
 import {
+	ChevronDownIcon,
+	DownloadIcon,
 	EditIcon,
 	ImportIcon,
 	PlusIcon,
@@ -29,6 +33,7 @@ import RecipeImport from './RecipeImport';
 import RecipeShareActions from './RecipeShareActions';
 import RendezvousAvatars from './RendezvousAvatars';
 import RecipeVariables from './RecipeVariables';
+import { canPullImage } from '../../plugin-host/variableResolution';
 
 const STATE_LABELS: Record<RecipeRuntimeState, string> = {
 	'not-installed': 'Not installed',
@@ -70,6 +75,8 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 	const [editingView, setEditingView] = useState<'guided' | 'files'>('guided');
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [choosingMode, setChoosingMode] = useState<string | null>(null);
+	const [installMenu, setInstallMenu] = useState<string | null>(null);
+	const installMenuRef = useRef<HTMLDivElement>(null);
 	const [browsing, setBrowsing] = useState(false);
 	const [importing, setImporting] = useState(false);
 	const [configuring, setConfiguring] = useState<Recipe | null>(null);
@@ -81,6 +88,19 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 	useEffect(() => {
 		onBusyChange?.(busyView);
 	}, [busyView, onBusyChange]);
+
+	useEffect(() => {
+		if (!installMenu) return;
+
+		const handleClickOutside = (event: MouseEvent) => {
+			if (!installMenuRef.current?.contains(event.target as Node)) {
+				setInstallMenu(null);
+			}
+		};
+
+		document.addEventListener('mousedown', handleClickOutside);
+		return () => document.removeEventListener('mousedown', handleClickOutside);
+	}, [installMenu]);
 
 	const toggleSelected = (id: string) => {
 		setSelected((prev) => {
@@ -261,9 +281,16 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 				const updateVersion = updatesAvailable.get(recipe.id);
 				const locked = starting || stopping;
 
-				const beginInstall = (mode: InstallModeKind) => {
+				const docker = findMode(recipe, 'docker');
+				const pullable = !!docker && canPullImage(docker);
+
+				const beginInstall = (
+					mode: InstallModeKind,
+					source?: DockerInstallSource,
+				) => {
 					setChoosingMode(null);
-					install(recipe.id, mode);
+					setInstallMenu(null);
+					install(recipe.id, mode, source);
 				};
 
 				const installUpdate = () => {
@@ -325,18 +352,71 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 								<span className='recipe-mode-picker-label'>
 									{t('Choose how to install:')}
 								</span>
-								{modeKinds.map((kind) => (
-									<button
-										key={kind}
-										className='button'
-										onClick={() => beginInstall(kind)}
-									>
-										{t(modeLabel(kind))}
-									</button>
-								))}
+								{modeKinds.map((kind) =>
+									kind === 'docker' && pullable && docker ? (
+										<div
+											key={kind}
+											className='recipe-install-buttons'
+											ref={
+												installMenu === recipe.id ? installMenuRef : undefined
+											}
+										>
+											<div className='open-button-group'>
+												<button
+													className='button open-button'
+													onClick={() => beginInstall('docker')}
+												>
+													{t(modeLabel('docker'))}
+												</button>
+												<button
+													className='button dropdown-toggle'
+													title={t('Docker install options')}
+													onClick={() =>
+														setInstallMenu(
+															installMenu === recipe.id ? null : recipe.id,
+														)
+													}
+												>
+													<ChevronDownIcon />
+												</button>
+											</div>
+											{installMenu === recipe.id && (
+												<div className='open-dropdown'>
+													<button
+														className='open-dropdown-item'
+														onClick={() => beginInstall('docker')}
+													>
+														<TerminalIcon />
+														<span>{t('Build image locally')}</span>
+													</button>
+													<button
+														className='open-dropdown-item'
+														onClick={() => beginInstall('docker', 'registry')}
+													>
+														<DownloadIcon />
+														<span>
+															{t('Pull {image}', { image: docker.image })}
+														</span>
+													</button>
+												</div>
+											)}
+										</div>
+									) : (
+										<button
+											key={kind}
+											className='button'
+											onClick={() => beginInstall(kind)}
+										>
+											{t(modeLabel(kind))}
+										</button>
+									),
+								)}
 								<button
 									className='button'
-									onClick={() => setChoosingMode(null)}
+									onClick={() => {
+										setChoosingMode(null);
+										setInstallMenu(null);
+									}}
 								>
 									{t('Cancel')}
 								</button>
@@ -349,7 +429,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 									className='button'
 									disabled={busy}
 									onClick={() =>
-										modeKinds.length === 1
+										modeKinds.length === 1 && !pullable
 											? beginInstall(modeKinds[0])
 											: setChoosingMode(
 													choosingMode === recipe.id ? null : recipe.id,
