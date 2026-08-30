@@ -6,14 +6,21 @@ import {
 	readDir,
 	readFile,
 	readTextFile,
+	writeFile,
 	writeTextFile,
 } from '@tauri-apps/plugin-fs';
 
+import {
+	fetchRecipeFileBytes,
+	isRecipeUrl,
+	normalizeRecipeFilePath,
+} from './recipeFiles';
 import { recipeDirName } from './recipeWorkdir';
 import { findMode, type DockerMode, type Recipe } from './types';
 
-export const isUrl = (value?: string): boolean =>
-	!!value && /^https?:\/\//i.test(value);
+export type RecipeTextFiles = Record<string, string>;
+
+export const isUrl = isRecipeUrl;
 
 export const isRelative = (value?: string): value is string =>
 	!!value && !isUrl(value);
@@ -36,8 +43,74 @@ const inlineIconFromDir = async (
 	let binary = '';
 	for (const b of bytes) binary += String.fromCharCode(b);
 
-	return `<img src="data:image/png;base64,${btoa(binary)}" alt="" />`;
+	const mime = /\.jpe?g$/i.test(path)
+		? 'image/jpeg'
+		: /\.webp$/i.test(path)
+			? 'image/webp'
+			: /\.gif$/i.test(path)
+				? 'image/gif'
+				: 'image/png';
+	return `<img src="data:${mime};base64,${btoa(binary)}" alt="" />`;
 };
+
+const parentDir = async (dir: string, path: string): Promise<void> => {
+	const slash = path.lastIndexOf('/');
+	if (slash === -1) return;
+	await mkdir(await join(dir, path.slice(0, slash)), { recursive: true });
+};
+
+const bytesFromBase64 = (base64: string): Uint8Array => {
+	const binary = atob(base64);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+	return bytes;
+};
+
+const iconNameFromUrl = (
+	iconUrl: string | undefined,
+	fallback: string,
+): string => {
+	if (!iconUrl) return fallback;
+	const withoutQuery = iconUrl.split(/[?#]/, 1)[0];
+	const name = withoutQuery.split(/[\\/]/).pop();
+	return name && /^[a-zA-Z0-9_.-]+$/.test(name) ? name : fallback;
+};
+
+async function writeInlineIconToDirectory(
+	recipe: Recipe,
+	dir: string,
+): Promise<string | undefined> {
+	const icon = recipe.icon?.trim();
+	if (!icon) return undefined;
+
+	if (/<svg(?:\s|>)/i.test(icon)) {
+		const name = iconNameFromUrl(recipe.iconUrl, 'icon.svg');
+		const target = /\.svg$/i.test(name) ? name : 'icon.svg';
+		await writeTextFile(await join(dir, target), icon);
+		return target;
+	}
+
+	const data = icon.match(/src=["']data:([^;,]+);base64,([^"']+)["']/i);
+	if (!data) return undefined;
+
+	const mime = data[1].toLowerCase();
+	const extension =
+		mime === 'image/svg+xml'
+			? 'svg'
+			: mime === 'image/jpeg'
+				? 'jpg'
+				: mime === 'image/webp'
+					? 'webp'
+					: mime === 'image/gif'
+						? 'gif'
+						: 'png';
+	const name = iconNameFromUrl(recipe.iconUrl, `icon.${extension}`);
+	const expectedExtension =
+		extension === 'jpg' ? /\.jpe?g$/i : new RegExp(`\\.${extension}$`, 'i');
+	const target = expectedExtension.test(name) ? name : `icon.${extension}`;
+	await writeFile(await join(dir, target), bytesFromBase64(data[2]));
+	return target;
+}
 
 export async function loadRecipeFromDirectory(
 	dir: string,
@@ -95,15 +168,18 @@ export async function loadRecipeFromDirectory(
 export async function writeRecipeToDirectory(
 	recipe: Recipe,
 	dir: string,
+	extraTextFiles: RecipeTextFiles = {},
 ): Promise<void> {
 	const { icon: _icon, sourceUrl: _sourceUrl, ...rest } = recipe;
 	const docker = dockerOf(recipe);
+	const exportedIconUrl = await writeInlineIconToDirectory(recipe, dir);
 
 	await writeTextFile(
 		await join(dir, 'recipe.json'),
 		JSON.stringify(
 			{
 				...rest,
+				...(exportedIconUrl ? { iconUrl: exportedIconUrl } : {}),
 				modes: rest.modes.map((m) =>
 					m.kind === 'docker' ? { ...m, dockerfile: docker?.dockerfile } : m,
 				),
@@ -113,18 +189,33 @@ export async function writeRecipeToDirectory(
 		),
 	);
 
-	if (!docker?.dockerfile) return;
-
-	const target = isRelative(docker.dockerfileUrl)
-		? rel(docker.dockerfileUrl)
-		: 'Dockerfile';
-	const slash = target.lastIndexOf('/');
-
-	if (slash !== -1) {
-		await mkdir(await join(dir, target.slice(0, slash)), { recursive: true });
+	if (docker?.dockerfile) {
+		const target = isRelative(docker.dockerfileUrl)
+			? rel(docker.dockerfileUrl)
+			: 'Dockerfile';
+		await parentDir(dir, target);
+		await writeTextFile(await join(dir, target), docker.dockerfile);
 	}
 
-	await writeTextFile(await join(dir, target), docker.dockerfile);
+	const extras = recipe.extraFiles ?? [];
+	if (extras.length === 0) return;
+	if (!recipe.sourceUrl) {
+		throw new Error('Recipe has extra files but no source to fetch them from');
+	}
+
+	for (const rawPath of extras) {
+		const path = normalizeRecipeFilePath(rawPath);
+		await parentDir(dir, path);
+
+		const text = extraTextFiles[path] ?? extraTextFiles[rawPath];
+		if (text !== undefined) {
+			await writeTextFile(await join(dir, path), text);
+			continue;
+		}
+
+		const bytes = await fetchRecipeFileBytes(recipe.sourceUrl, path);
+		await writeFile(await join(dir, path), bytes);
+	}
 }
 
 export async function writeBackRelativeDockerfile(
@@ -163,5 +254,25 @@ export async function writeBackRelativeDockerfile(
 		});
 	} catch (error) {
 		console.warn('[recipeDirectory] Could not write Dockerfile back:', error);
+	}
+}
+
+export async function writeBackExtraFiles(
+	recipe: Recipe,
+	files: RecipeTextFiles,
+): Promise<void> {
+	if (!isLocalDir(recipe.sourceUrl)) return;
+
+	for (const [rawPath, content] of Object.entries(files)) {
+		const path = normalizeRecipeFilePath(rawPath);
+		try {
+			await parentDir(recipe.sourceUrl as string, path);
+			await writeTextFile(
+				await join(recipe.sourceUrl as string, path),
+				content,
+			);
+		} catch (error) {
+			console.warn(`[recipeDirectory] Could not write ${path} back:`, error);
+		}
 	}
 }

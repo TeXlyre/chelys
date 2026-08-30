@@ -12,9 +12,16 @@ import {
 	isLocalDir,
 	isRelative,
 	rel,
+	writeBackExtraFiles,
 	writeBackRelativeDockerfile,
 	writeRecipeToDirectory,
+	type RecipeTextFiles,
 } from '../../plugin-host/recipeDirectory';
+import {
+	decodeRecipeText,
+	fetchRecipeFileBytes,
+	normalizeRecipeFilePath,
+} from '../../plugin-host/recipeFiles';
 import {
 	findMode,
 	type DockerMode,
@@ -24,6 +31,7 @@ import {
 	type InstallStep,
 	type Recipe,
 } from '../../plugin-host/types';
+import RecipeCodeMirror, { recipeEditorLanguage } from './RecipeCodeMirror';
 
 interface RecipeFormProps {
 	recipe: Recipe | null;
@@ -31,7 +39,7 @@ interface RecipeFormProps {
 	onDone: () => void;
 }
 
-// 'file': real file (recipe.json, Dockerfile, icon) | 'view': slice of recipe.json (typeConfig) | 'reference': extraFiles path fetched on install
+// 'file': real file (recipe.json, Dockerfile, icon) | 'view': slice of recipe.json (typeConfig) | 'reference': extraFiles path fetched from the recipe source
 type PartKind = 'file' | 'view' | 'reference';
 
 interface RecipePart {
@@ -40,6 +48,8 @@ interface RecipePart {
 	content: string | null;
 	editable: boolean;
 	image?: boolean;
+	binary?: boolean;
+	loading?: boolean;
 	note?: string;
 }
 
@@ -167,14 +177,12 @@ const recipeToParts = (recipe: Recipe | null): RecipePart[] => {
 
 	if (icon) {
 		parts.push({
-			name: 'icon',
+			name: isRelative(rest.iconUrl) ? rel(rest.iconUrl) : 'icon',
 			kind: 'file',
 			content: sanitizeIconMarkup(icon),
 			editable: false,
 			image: true,
-			note: t(
-				'Read-only: iconUrl points to a remote URL. Use a relative path or remove it to manage the icon in the recipe folder.',
-			),
+			note: t('Read-only: the icon is managed by iconUrl.'),
 		});
 	}
 
@@ -184,6 +192,10 @@ const recipeToParts = (recipe: Recipe | null): RecipePart[] => {
 			kind: 'reference',
 			content: null,
 			editable: false,
+			loading: !!sourceUrl,
+			note: sourceUrl
+				? undefined
+				: t('Recipe has no source from which this extra file can be loaded.'),
 		});
 	}
 
@@ -264,6 +276,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 
 	const schema = pluginTypeRegistry.get(type)?.formSchema ?? [];
 	const selected = parts.find((p) => p.name === selectedPart);
+	const extraFilesKey = (recipe?.extraFiles ?? []).join('\n');
 
 	useEffect(() => {
 		setTypeValues(
@@ -273,6 +286,82 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 			),
 		);
 	}, [type, recipe]);
+
+	useEffect(() => {
+		const extraFiles = recipe?.extraFiles ?? [];
+		if (extraFiles.length === 0 || !sourceUrl) return;
+
+		let cancelled = false;
+		void Promise.all(
+			extraFiles.map(async (rawPath) => {
+				try {
+					const path = normalizeRecipeFilePath(rawPath);
+					const bytes = await fetchRecipeFileBytes(sourceUrl, path);
+					const content = decodeRecipeText(bytes);
+					return { rawPath, path, content, error: null as string | null };
+				} catch (loadError) {
+					return {
+						rawPath,
+						path: rawPath,
+						content: null,
+						error:
+							loadError instanceof Error
+								? loadError.message
+								: String(loadError),
+					};
+				}
+			}),
+		).then((loaded) => {
+			if (cancelled) return;
+			const byPath = new Map(loaded.map((entry) => [entry.rawPath, entry]));
+			setParts((current) =>
+				current.map((part) => {
+					if (part.kind !== 'reference') return part;
+					const entry = byPath.get(part.name);
+					if (!entry) return part;
+
+					if (entry.error) {
+						return {
+							...part,
+							loading: false,
+							note: entry.error,
+						};
+					}
+
+					if (entry.content === null) {
+						return {
+							...part,
+							loading: false,
+							binary: true,
+							note: t(
+								'Binary extra file. It is copied unchanged when the recipe is saved to a directory.',
+							),
+						};
+					}
+
+					const editable = isLocalDir(sourceUrl);
+					return {
+						...part,
+						content: entry.content,
+						loading: false,
+						binary: false,
+						editable,
+						note: editable
+							? t('Edits are written back to {path} on save.', {
+									path: entry.path,
+								})
+							: t(
+									'Read-only: extra file comes from a remote recipe source. Save to a directory to edit a local copy.',
+								),
+					};
+				}),
+			);
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [recipe?.id, sourceUrl, extraFilesKey]);
 
 	const parseEnv = (): Record<string, string> => {
 		const env: Record<string, string> = {};
@@ -353,6 +442,19 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 		};
 	};
 
+	const buildExtraTextFiles = (): RecipeTextFiles =>
+		Object.fromEntries(
+			parts
+				.filter(
+					(part) =>
+						part.kind === 'reference' && !part.binary && part.content !== null,
+				)
+				.map((part) => [
+					normalizeRecipeFilePath(part.name),
+					part.content as string,
+				]),
+		);
+
 	const updateSelectedPart = (content: string) => {
 		setParts((prev) =>
 			prev.map((p) => (p.name === selectedPart ? { ...p, content } : p)),
@@ -363,8 +465,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 		setError(null);
 		try {
 			const built = buildRecipe();
+			const extraTextFiles = buildExtraTextFiles();
 			await save(built);
 			await writeBackRelativeDockerfile(built);
+			await writeBackExtraFiles(built, extraTextFiles);
 			onDone();
 		} catch (e) {
 			setError(e instanceof Error ? e.message : t('Could not save recipe'));
@@ -381,7 +485,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 			});
 			if (typeof dir !== 'string') return;
 
-			await writeRecipeToDirectory(built, dir);
+			await writeRecipeToDirectory(built, dir, buildExtraTextFiles());
 		} catch (e) {
 			setError(e instanceof Error ? e.message : String(e));
 		}
@@ -483,15 +587,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						</div>
 					</div>
 
-					{selected?.kind === 'reference' ? (
-						<div className='form-group'>
-							<div className='info-message'>
-								{t(
-									'Fetched from the recipe source into the working directory on install.',
-								)}
-							</div>
-						</div>
-					) : selected?.image ? (
+					{selected?.image ? (
 						<div className='form-group'>
 							{selected.note && (
 								<div className='warning-message'>
@@ -503,6 +599,20 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 								dangerouslySetInnerHTML={{ __html: selected.content ?? '' }}
 							/>
 						</div>
+					) : selected?.loading ? (
+						<div className='form-group'>
+							<div className='info-message'>{t('Loading file…')}</div>
+						</div>
+					) : selected?.binary ? (
+						<div className='form-group'>
+							<div className='info-message'>{selected.note}</div>
+						</div>
+					) : selected?.kind === 'reference' && selected.content === null ? (
+						<div className='form-group'>
+							<div className='warning-message'>
+								<p>{selected.note}</p>
+							</div>
+						</div>
 					) : selected ? (
 						<div className='form-group'>
 							{selected.note &&
@@ -513,13 +623,12 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 										<p>{selected.note}</p>
 									</div>
 								))}
-							<textarea
-								rows={16}
-								spellCheck={false}
-								dir='ltr'
+							<RecipeCodeMirror
+								key={selected.name}
 								value={selected.content ?? ''}
+								language={recipeEditorLanguage(selected.name, selected.kind)}
 								readOnly={!selected.editable}
-								onChange={(e) => updateSelectedPart(e.target.value)}
+								onChange={updateSelectedPart}
 							/>
 						</div>
 					) : null}
