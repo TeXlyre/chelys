@@ -34,7 +34,7 @@ Chelys pairs with your existing TeXlyre identity using your username, password, 
 Download the latest build for your platform from the [Releases](https://github.com/TeXlyre/chelys/releases) page:
 
 * **macOS**: `.dmg` (Apple Silicon and Intel). Note that several typesetter recipes do not support `arm64` architectures.
-* **Windows**: `.msi` or `.exe` (build workflow creates `msixbundle` as an artifact)
+* **Windows**: `.msi` or `.exe` (release workflow creates `msixbundle` as an artifact)
 * **Linux**: `.AppImage` or `.deb`
 
 Open Chelys and sign in with your TeXlyre account.
