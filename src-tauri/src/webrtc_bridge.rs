@@ -1,8 +1,9 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter, State};
+use tauri::ipc::{Channel, InvokeBody, InvokeResponseBody, Request};
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 use webrtc::api::setting_engine::{SctpMaxMessageSize, SettingEngine};
 use webrtc::api::APIBuilder;
@@ -15,12 +16,17 @@ use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
 
+const FRAME_HEADER_BYTES: usize = 2;
+const FRAME_KIND_STRING: u8 = 0;
+const FRAME_KIND_BINARY: u8 = 1;
+
 #[derive(Default)]
 struct RegistryInner {
     peers: DashMap<String, Arc<RTCPeerConnection>>,
     channels: DashMap<String, Arc<RTCDataChannel>>,
     peer_channels: DashMap<String, Vec<String>>,
     peer_scopes: DashMap<String, String>,
+    message_sink: Mutex<Option<Channel<InvokeResponseBody>>>,
 }
 
 #[derive(Clone, Default)]
@@ -86,6 +92,36 @@ struct ChannelEvent {
 
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
+}
+
+fn encode_message_frame(channel_id: &str, is_string: bool, data: &[u8]) -> Vec<u8> {
+    let id = channel_id.as_bytes();
+    let mut frame = Vec::with_capacity(FRAME_HEADER_BYTES + id.len() + data.len());
+    frame.push(if is_string {
+        FRAME_KIND_STRING
+    } else {
+        FRAME_KIND_BINARY
+    });
+    frame.push(id.len() as u8);
+    frame.extend_from_slice(id);
+    frame.extend_from_slice(data);
+    frame
+}
+
+fn decode_message_frame(frame: &[u8]) -> Result<(bool, &str, &[u8]), String> {
+    if frame.len() < FRAME_HEADER_BYTES {
+        return Err("message frame is truncated".to_string());
+    }
+
+    let kind = frame[0];
+    let id_len = frame[1] as usize;
+    if kind > FRAME_KIND_BINARY || id_len == 0 || frame.len() < FRAME_HEADER_BYTES + id_len {
+        return Err("message frame header is malformed".to_string());
+    }
+
+    let body = FRAME_HEADER_BYTES + id_len;
+    let channel_id = std::str::from_utf8(&frame[FRAME_HEADER_BYTES..body]).map_err(err)?;
+    Ok((kind == FRAME_KIND_STRING, channel_id, &frame[body..]))
 }
 
 #[tauri::command]
@@ -231,7 +267,7 @@ pub async fn rtc_create_peer(
             .entry(pid.clone())
             .or_default()
             .push(channel_id.clone());
-        attach_channel_handlers(app.clone(), channel_id.clone(), dc.clone());
+        attach_channel_handlers(app.clone(), registry.clone(), channel_id.clone(), dc.clone());
         Box::pin(async move {
             let _ = app.emit(
                 "rtc-peer",
@@ -256,7 +292,12 @@ pub async fn rtc_create_peer(
     Ok(peer_id)
 }
 
-fn attach_channel_handlers(app: AppHandle, channel_id: String, dc: Arc<RTCDataChannel>) {
+fn attach_channel_handlers(
+    app: AppHandle,
+    registry: Arc<RegistryInner>,
+    channel_id: String,
+    dc: Arc<RTCDataChannel>,
+) {
     let app1 = app.clone();
     let cid1 = channel_id.clone();
     dc.on_open(Box::new(move || {
@@ -308,24 +349,19 @@ fn attach_channel_handlers(app: AppHandle, channel_id: String, dc: Arc<RTCDataCh
         })
     }));
 
-    let app4 = app.clone();
     let cid4 = channel_id.clone();
     dc.on_message(Box::new(move |msg: DataChannelMessage| {
-        let app = app4.clone();
+        let registry = registry.clone();
         let cid = cid4.clone();
         Box::pin(async move {
-            let payload = serde_json::json!({
-                "kind": if msg.is_string { "string" } else { "binary" },
-                "data": msg.data.to_vec(),
-            });
-            let _ = app.emit(
-                "rtc-channel",
-                ChannelEvent {
-                    channel_id: cid,
-                    event_type: "message".into(),
-                    payload,
-                },
-            );
+            let sink = registry
+                .message_sink
+                .lock()
+                .ok()
+                .and_then(|sink| sink.clone());
+            let Some(sink) = sink else { return };
+            let frame = encode_message_frame(&cid, msg.is_string, &msg.data);
+            let _ = sink.send(InvokeResponseBody::Raw(frame));
         })
     }));
 
@@ -382,7 +418,7 @@ pub async fn rtc_create_data_channel(
         .entry(peer_id)
         .or_default()
         .push(channel_id.clone());
-    attach_channel_handlers(app, channel_id, dc);
+    attach_channel_handlers(app, registry.inner.clone(), channel_id, dc);
     Ok(())
 }
 
@@ -543,34 +579,39 @@ pub async fn rtc_reset_peer_scope(
 }
 
 #[tauri::command]
-pub async fn rtc_channel_send_string(
+pub fn rtc_set_message_sink(
     registry: State<'_, WebRtcRegistry>,
-    channel_id: String,
-    data: String,
+    sink: Channel<InvokeResponseBody>,
 ) -> Result<(), String> {
-    let dc = registry
-        .inner
-        .channels
-        .get(&channel_id)
-        .ok_or_else(|| "channel not found".to_string())?
-        .clone();
-    dc.send_text(data).await.map_err(err)?;
+    *registry.inner.message_sink.lock().map_err(err)? = Some(sink);
     Ok(())
 }
 
 #[tauri::command]
-pub async fn rtc_channel_send_binary(
-    registry: State<'_, WebRtcRegistry>,
-    channel_id: String,
-    data: Vec<u8>,
-) -> Result<(), String> {
-    let dc = registry
-        .inner
-        .channels
-        .get(&channel_id)
-        .ok_or_else(|| "channel not found".to_string())?
-        .clone();
-    dc.send(&bytes::Bytes::from(data)).await.map_err(err)?;
+pub async fn rtc_channel_send(app: AppHandle, request: Request<'_>) -> Result<(), String> {
+    let InvokeBody::Raw(frame) = request.body() else {
+        return Err("expected a raw message frame".to_string());
+    };
+    let (is_string, channel_id, payload) = decode_message_frame(frame)?;
+
+    let dc = {
+        let registry = app.state::<WebRtcRegistry>();
+        let dc = registry
+            .inner
+            .channels
+            .get(channel_id)
+            .ok_or_else(|| "channel not found".to_string())?;
+        dc.clone()
+    };
+
+    if is_string {
+        let text = std::str::from_utf8(payload).map_err(err)?;
+        dc.send_text(text.to_string()).await.map_err(err)?;
+    } else {
+        dc.send(&bytes::Bytes::copy_from_slice(payload))
+            .await
+            .map_err(err)?;
+    }
     Ok(())
 }
 

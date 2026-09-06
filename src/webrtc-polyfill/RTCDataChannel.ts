@@ -1,14 +1,17 @@
 // src/webrtc-polyfill/RTCDataChannel.ts
 import { invoke } from '@tauri-apps/api/core';
 
+import { encodeMessageFrame } from './messageFrame';
+
 const MAX_SEND_ATTEMPTS = 3;
 const SEND_RETRY_DELAYS_MS = [100, 250] as const;
 const textEncoder = new TextEncoder();
-const textDecoder = new TextDecoder();
 
-type PendingSend =
-	| { kind: 'string'; data: string; size: number; attempts: number }
-	| { kind: 'binary'; data: number[]; size: number; attempts: number };
+interface PendingSend {
+	frame: Uint8Array;
+	size: number;
+	attempts: number;
+}
 
 type ChannelEventHandler<TEvent extends Event = Event> =
 	| ((this: TauriRTCDataChannel, event: TEvent) => unknown)
@@ -76,28 +79,17 @@ export class TauriRTCDataChannel extends EventTarget {
 		if (this.readyState === 'closing' || this.readyState === 'closed') return;
 
 		if (typeof data === 'string') {
-			this.enqueue({
-				kind: 'string',
-				data,
-				size: textEncoder.encode(data).byteLength,
-				attempts: 0,
-			});
+			this.enqueue(data, textEncoder.encode(data).byteLength);
 			return;
 		}
 
 		if (data instanceof Blob) throw new Error('Blob send not supported');
 
-		const buffer =
+		const bytes =
 			data instanceof ArrayBuffer
-				? data
-				: data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-		const bytes = Array.from(new Uint8Array(buffer));
-		this.enqueue({
-			kind: 'binary',
-			data: bytes,
-			size: bytes.length,
-			attempts: 0,
-		});
+				? new Uint8Array(data)
+				: new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+		this.enqueue(bytes, bytes.byteLength);
 	}
 
 	close(): void {
@@ -122,31 +114,19 @@ export class TauriRTCDataChannel extends EventTarget {
 	private emitMessage(payload: unknown): void {
 		if (this.readyState === 'closed') return;
 
-		const message = payload as {
-			kind: 'string' | 'binary';
-			data: number[] | string;
-		};
-		const bytes =
-			typeof message.data === 'string'
-				? textEncoder.encode(message.data)
-				: Array.isArray(message.data)
-					? Uint8Array.from(message.data)
-					: new Uint8Array();
-		const data =
-			message.kind === 'string'
-				? textDecoder.decode(bytes)
-				: bytes.buffer.slice(
-						bytes.byteOffset,
-						bytes.byteOffset + bytes.byteLength,
-					);
+		const { data } = payload as { data: string | ArrayBuffer };
 		const event = new MessageEvent('message', { data });
 		this.onmessage?.call(this, event);
 		this.dispatchEvent(event);
 	}
 
-	private enqueue(item: PendingSend): void {
-		this.sendQueue.push(item);
-		this.bufferedAmount += item.size;
+	private enqueue(data: string | Uint8Array, size: number): void {
+		this.sendQueue.push({
+			frame: encodeMessageFrame(this.channelId, data),
+			size,
+			attempts: 0,
+		});
+		this.bufferedAmount += size;
 		if (this.readyState === 'open') void this.pump();
 	}
 
@@ -160,7 +140,7 @@ export class TauriRTCDataChannel extends EventTarget {
 				if (!item) return;
 
 				try {
-					await this.sendItem(item);
+					await invoke('rtc_channel_send', item.frame);
 				} catch (error) {
 					item.attempts += 1;
 					if (item.attempts < MAX_SEND_ATTEMPTS) {
@@ -185,17 +165,6 @@ export class TauriRTCDataChannel extends EventTarget {
 				void this.pump();
 			}
 		}
-	}
-
-	private sendItem(item: PendingSend): Promise<unknown> {
-		const command =
-			item.kind === 'string'
-				? 'rtc_channel_send_string'
-				: 'rtc_channel_send_binary';
-		return invoke(command, {
-			channelId: this.channelId,
-			data: item.data,
-		});
 	}
 
 	private consumeBufferedAmount(size: number): void {
