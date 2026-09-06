@@ -5,6 +5,7 @@
 			"scripts/**/*",
 			"chelys.config.ts",
 			"vite.config.ts",
+			"vitest.config.ts",
 			"package.json",
 			"tsconfig.json",
 			"biome.json",

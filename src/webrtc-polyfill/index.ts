@@ -1,6 +1,8 @@
 // src/webrtc-polyfill/index.ts
+import { Channel, invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
+import { decodeMessageFrame } from './messageFrame';
 import {
 	TauriRTCPeerConnection,
 	dispatchPeerEvent,
@@ -14,6 +16,12 @@ import { TauriRTCDataChannel } from './RTCDataChannel';
 let installPromise: Promise<void> | null = null;
 let unlistenPeer: UnlistenFn | null = null;
 let unlistenChannel: UnlistenFn | null = null;
+
+function handleMessageFrame(frame: ArrayBuffer): void {
+	const message = decodeMessageFrame(frame);
+	if (!message) return;
+	dispatchChannelEvent(message.channelId, 'message', message);
+}
 
 export function installWebRtcPolyfill(): Promise<void> {
 	if (installPromise) return installPromise;
@@ -48,6 +56,10 @@ export function installWebRtcPolyfill(): Promise<void> {
 				this.usernameFragment = init.usernameFragment ?? null;
 			}
 		};
+
+		const sink = new Channel<ArrayBuffer>();
+		sink.onmessage = handleMessageFrame;
+		await invoke('rtc_set_message_sink', { sink });
 
 		unlistenPeer = await listen<{
 			peer_id: string;
