@@ -282,6 +282,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 				const locked = starting || stopping;
 
 				const docker = findMode(recipe, 'docker');
+				const configurable = hasVariables || !!docker;
 				const pullable = !!docker && canPullImage(docker);
 
 				const beginInstall = (
@@ -370,7 +371,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 												</button>
 												<button
 													className='button dropdown-toggle'
-													title={t('Docker install options')}
+													title={t('Container install options')}
 													onClick={() =>
 														setInstallMenu(
 															installMenu === recipe.id ? null : recipe.id,
@@ -491,11 +492,11 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 										onClick={installUpdate}
 									/>
 								)}
-								{hasVariables && (
+								{configurable && (
 									<IconButton
 										icon={<SettingsIcon />}
 										label={t('Settings')}
-										tooltip={t('Edit the variables this recipe exposes.')}
+										tooltip={t('Configure this recipe.')}
 										disabled={locked}
 										onClick={() => setConfiguring(recipe)}
 									/>

@@ -22,6 +22,14 @@ export interface SettingOption {
 	value: string | number | boolean;
 }
 
+export interface SettingDependency {
+	id: string;
+	value?: unknown;
+	values?: unknown[];
+	invert?: boolean;
+	nest?: boolean;
+}
+
 export interface Setting {
 	id: string;
 	category: string;
@@ -39,6 +47,9 @@ export interface Setting {
 	onChange?: (value: unknown) => void;
 	strictDefaultValue?: boolean;
 	liveUpdate?: boolean;
+	dependsOn?: SettingDependency;
+	disabledReason?: React.ReactNode;
+	disabled?: boolean;
 }
 
 export interface SettingsContextType {

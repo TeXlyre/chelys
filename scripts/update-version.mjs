@@ -1,9 +1,13 @@
 // scripts/update-version.mjs
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 
 const pkgPath = 'package.json';
 const cargoTomlPath = 'src-tauri/Cargo.toml';
 const tauriConfPath = 'src-tauri/tauri.conf.json';
+const flatpakManifestPath = 'packaging/flatpak/io.github.texlyre.chelys.yml';
+const flatpakMetainfoPath =
+	'packaging/flatpak/io.github.texlyre.chelys.metainfo.xml';
 
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 const version = pkg.version;
@@ -34,5 +38,38 @@ cargoToml = cargoToml.replace(
 );
 
 fs.writeFileSync(cargoTomlPath, cargoToml);
+
+// Update Flatpak release URL and AppStream release version
+let flatpakManifest = fs.readFileSync(flatpakManifestPath, 'utf8');
+flatpakManifest = flatpakManifest.replace(
+	/url:\s*https:\/\/github\.com\/TeXlyre\/chelys\/releases\/download\/v[^/\s]+\/[Cc]helys_[^\s]+_amd64\.deb/,
+	`url: https://github.com/TeXlyre/chelys/releases/download/v${version}/Chelys_${version}_amd64.deb`,
+);
+
+let flatpakMetainfo = fs.readFileSync(flatpakMetainfoPath, 'utf8');
+flatpakMetainfo = flatpakMetainfo.replace(
+	/(<release\s+version=")[^"]+("\s+date=")/,
+	`$1${version}$2`,
+);
+
+// If a Debian bundle is available, keep the Flatpak checksum in sync too.
+const debPath =
+	process.argv[2] ??
+	`src-tauri/target/release/bundle/deb/Chelys_${version}_amd64.deb`;
+
+if (fs.existsSync(debPath)) {
+	const sha256 = crypto
+		.createHash('sha256')
+		.update(fs.readFileSync(debPath))
+		.digest('hex');
+	flatpakManifest = flatpakManifest.replace(
+		/(^\s*sha256:\s*)\S+/m,
+		`$1${sha256}`,
+	);
+	console.log(`Synced Flatpak Debian SHA-256: ${sha256}`);
+}
+
+fs.writeFileSync(flatpakManifestPath, flatpakManifest);
+fs.writeFileSync(flatpakMetainfoPath, flatpakMetainfo);
 
 console.log(`Synced app version: ${version}`);

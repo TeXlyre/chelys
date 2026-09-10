@@ -402,7 +402,7 @@
 .plugin-category-nav {
 	display: flex;
 	gap: var(--space-xs);
-	border-bottom: 1px solid var(--accent-border);
+	border-bottom: 0;
 }
 
 .plugin-category-nav .category-item {

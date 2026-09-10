@@ -1,7 +1,7 @@
 {
 	"name": "chelys",
 	"private": true,
-	"version": "1.2.0",
+	"version": "1.2.1",
 	"description": "A local desktop companion app for TeXlyre",
 	"author": "Fares Abawi <fares@abawi.me> (https://abawi.me)",
 	"license": "AGPL-3.0-or-later",

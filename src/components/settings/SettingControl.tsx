@@ -18,8 +18,10 @@ const SettingControl: React.FC<SettingControlProps> = ({
 }) => {
 	const value =
 		setting.value !== undefined ? setting.value : setting.defaultValue;
+	const disabled = Boolean(setting.disabled);
 
 	const handleChange = (newValue: unknown) => {
+		if (disabled) return;
 		onLocalUpdate?.(newValue);
 	};
 
@@ -31,6 +33,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 						<input
 							type='checkbox'
 							checked={Boolean(value)}
+							disabled={disabled}
 							onChange={(e) => handleChange(e.target.checked)}
 						/>
 						<span>{setting.label}</span>
@@ -43,6 +46,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 						<label>{setting.label}</label>
 						<select
 							value={String(value)}
+							disabled={disabled}
 							onChange={(e) => handleChange(e.target.value)}
 						>
 							{setting.options?.map((option) => (
@@ -62,6 +66,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 							type='text'
 							value={String(value)}
 							dir='ltr'
+							disabled={disabled}
 							onChange={(e) => handleChange(e.target.value)}
 						/>
 					</div>
@@ -77,6 +82,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 							min={setting.min}
 							max={setting.max}
 							step={setting.step}
+							disabled={disabled}
 							onChange={(e) => handleChange(Number(e.target.value))}
 						/>
 					</div>
@@ -89,6 +95,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 						<input
 							type='color'
 							value={String(value)}
+							disabled={disabled}
 							onChange={(e) => handleChange(e.target.value)}
 						/>
 					</div>
@@ -105,8 +112,11 @@ const SettingControl: React.FC<SettingControlProps> = ({
 	};
 
 	return (
-		<div className='setting-control'>
+		<div className={`setting-control${disabled ? ' disabled' : ''}`}>
 			{renderControl()}
+			{disabled && setting.disabledReason && (
+				<div className='setting-dependency-badge'>{setting.disabledReason}</div>
+			)}
 			{setting.description && (
 				<div className='setting-description'>{setting.description}</div>
 			)}

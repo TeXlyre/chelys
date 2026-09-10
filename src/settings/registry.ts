@@ -140,6 +140,35 @@ export const getChelysSettings = (): Setting[] => [
 		defaultValue: getSettingDefault('dynamicPortFallback'),
 	},
 	{
+		id: 'defaultContainerEngine',
+		category: t('Recipes'),
+		subcategory: t('Runtime'),
+		type: 'select',
+		label: t('Default container engine'),
+		description: t(
+			'Container engine used when installing recipes that do not override it.',
+		),
+		defaultValue: getSettingDefault('defaultContainerEngine'),
+		options: [
+			{ label: 'Docker', value: 'docker' },
+			{ label: 'Podman', value: 'podman' },
+		],
+	},
+	{
+		id: 'podmanUnqualifiedSearchRegistries',
+		category: t('Recipes'),
+		subcategory: t('Runtime'),
+		type: 'text',
+		label: t('Podman unqualified search registries'),
+		description: t(
+			'Comma-separated registries used by Podman to resolve unqualified image names, in order. Leave empty to use Podman configuration.',
+		),
+		defaultValue: getSettingDefault('podmanUnqualifiedSearchRegistries'),
+		dependsOn: { id: 'defaultContainerEngine', value: 'podman', nest: true },
+		disabledReason: t('Available when: Default container engine is Podman'),
+		liveUpdate: true,
+	},
+	{
 		id: 'recipePlatformOverride',
 		category: t('Recipes'),
 		subcategory: t('Runtime'),
