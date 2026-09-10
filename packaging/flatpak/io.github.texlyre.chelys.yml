@@ -1,0 +1,38 @@
+id: io.github.texlyre.chelys
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: chelys
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --share=ipc
+  - --share=network
+  - --filesystem=xdg-run/docker
+  - --filesystem=xdg-run/podman
+  - --filesystem=xdg-run/tray-icon:create
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.Flatpak
+
+modules:
+  - name: chelys
+    buildsystem: simple
+    sources:
+      - type: file
+        path: io.github.texlyre.chelys.metainfo.xml
+      - type: file
+        url: https://github.com/TeXlyre/chelys/releases/download/v1.2.1/Chelys_1.2.1_amd64.deb
+        sha256: 125a2fd03c84d178059b2625c00c06716926129a44dca315beade9571437c32b
+        only-arches: [x86_64]
+    build-commands:
+      - set -e
+      - mkdir deb-extract
+      - ar -x *.deb --output deb-extract
+      - tar -C deb-extract -xf deb-extract/data.tar.gz
+      - install -Dm755 deb-extract/usr/bin/chelys /app/bin/chelys
+      - sed -i 's/^Icon=.*/Icon=io.github.texlyre.chelys/' deb-extract/usr/share/applications/chelys.desktop
+      - install -Dm644 deb-extract/usr/share/applications/chelys.desktop /app/share/applications/io.github.texlyre.chelys.desktop
+      - install -Dm644 deb-extract/usr/share/icons/hicolor/128x128/apps/chelys.png /app/share/icons/hicolor/128x128/apps/io.github.texlyre.chelys.png
+      - install -Dm644 deb-extract/usr/share/icons/hicolor/256x256@2/apps/chelys.png /app/share/icons/hicolor/256x256@2/apps/io.github.texlyre.chelys.png
+      - install -Dm644 io.github.texlyre.chelys.metainfo.xml /app/share/metainfo/io.github.texlyre.chelys.metainfo.xml

@@ -44,10 +44,10 @@ jobs:
       - name: Ensure versioned files are already committed
         shell: bash
         run: |
-          if ! git diff --quiet -- package.json package-lock.json src-tauri/Cargo.toml src-tauri/tauri.conf.json; then
+          if ! git diff --quiet -- package.json package-lock.json src-tauri/Cargo.toml src-tauri/tauri.conf.json packaging/flatpak/io.github.texlyre.chelys.yml packaging/flatpak/io.github.texlyre.chelys.metainfo.xml; then
             echo "Version files changed after running scripts/update-version.mjs."
             echo "Commit these changes before creating a release."
-            git diff -- package.json package-lock.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
+            git diff -- package.json package-lock.json src-tauri/Cargo.toml src-tauri/tauri.conf.json packaging/flatpak/io.github.texlyre.chelys.yml packaging/flatpak/io.github.texlyre.chelys.metainfo.xml
             exit 1
           fi
 

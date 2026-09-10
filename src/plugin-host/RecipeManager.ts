@@ -89,10 +89,11 @@ class RecipeManager {
 			this.containerEngineForRuntime(base.id) === 'podman' &&
 			typeof expanded.typeConfig.transportUrl === 'string'
 		) {
-			expanded.typeConfig.transportUrl = expanded.typeConfig.transportUrl.replace(
-				/^ws:\/\/localhost(?=[:/])/i,
-				'ws://127.0.0.1',
-			);
+			expanded.typeConfig.transportUrl =
+				expanded.typeConfig.transportUrl.replace(
+					/^ws:\/\/localhost(?=[:/])/i,
+					'ws://127.0.0.1',
+				);
 		}
 
 		return expanded;
@@ -708,9 +709,8 @@ class RecipeManager {
 	private containerEngineForInstall(recipeId: string): ContainerEngine {
 		const override = this.getContainerEngineOverride(recipeId);
 		if (override) return override;
-		return getStoredSetting<ContainerEngine>(
-			'defaultContainerEngine',
-		) === 'podman'
+		return getStoredSetting<ContainerEngine>('defaultContainerEngine') ===
+			'podman'
 			? 'podman'
 			: 'docker';
 	}
