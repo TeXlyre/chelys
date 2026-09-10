@@ -82,7 +82,20 @@ class RecipeManager {
 		const source = pinned ? { ...base, variableValues: pinned } : base;
 
 		const resolved = resolveRecipe(applyPlatform(source, this.platform));
-		return this.expandRuntimeTokens(resolved);
+		const expanded = await this.expandRuntimeTokens(resolved);
+
+		if (
+			this.statuses.get(base.id)?.mode === 'docker' &&
+			this.containerEngineForRuntime(base.id) === 'podman' &&
+			typeof expanded.typeConfig.transportUrl === 'string'
+		) {
+			expanded.typeConfig.transportUrl = expanded.typeConfig.transportUrl.replace(
+				/^ws:\/\/localhost(?=[:/])/i,
+				'ws://127.0.0.1',
+			);
+		}
+
+		return expanded;
 	}
 
 	private async allocatePorts(base: Recipe): Promise<void> {
@@ -695,8 +708,9 @@ class RecipeManager {
 	private containerEngineForInstall(recipeId: string): ContainerEngine {
 		const override = this.getContainerEngineOverride(recipeId);
 		if (override) return override;
-		return getStoredSetting<ContainerEngine>('defaultContainerEngine') ===
-			'podman'
+		return getStoredSetting<ContainerEngine>(
+			'defaultContainerEngine',
+		) === 'podman'
 			? 'podman'
 			: 'docker';
 	}
