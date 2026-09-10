@@ -25,6 +25,7 @@ import { routeEndpoint } from './traefikRoutes';
 import { materializeRecipeFiles } from './recipeWorkdir';
 import {
 	findMode,
+	type ContainerEngine,
 	type DockerInstallSource,
 	type InstallModeKind,
 	type InstallStep,
@@ -36,12 +37,14 @@ import {
 
 const LOG_TAIL_LIMIT = 200;
 const INSTALLED_KEY = 'chelys-installed-recipes';
+const CONTAINER_ENGINES_KEY = 'chelys-container-engines';
 
 type StatusListener = (statuses: Map<string, RecipeStatus>) => void;
 
 interface InstalledRecord {
 	mode: InstallModeKind;
 	version?: string;
+	containerEngine?: ContainerEngine;
 }
 
 const containerName = (recipeId: string): string =>
@@ -126,7 +129,7 @@ class RecipeManager {
 
 		const code = await processSupervisorService
 			.runCommand(`${recipe.id}-port`, {
-				command: 'docker',
+				command: this.containerEngineForRuntime(recipe.id),
 				args: ['port', containerName(recipe.id)],
 				env: {},
 			})
@@ -278,6 +281,7 @@ class RecipeManager {
 		this.recipes.delete(recipeId);
 		this.statuses.delete(recipeId);
 		this.setInstalled(recipeId, null);
+		this.setContainerEngineOverride(recipeId, null);
 
 		await this.persistUserRecipes();
 		this.emit();
@@ -297,6 +301,8 @@ class RecipeManager {
 		if (!base) return;
 
 		const recipe = await this.resolveForCurrentPlatform(base);
+		const containerEngine =
+			mode === 'docker' ? this.containerEngineForInstall(recipeId) : undefined;
 
 		this.patch(recipeId, {
 			state: 'installing',
@@ -315,7 +321,7 @@ class RecipeManager {
 				await this.runSteps(recipe, system.installSteps, workdir);
 			} else if (mode === 'docker') {
 				const docker = findMode(recipe, 'docker');
-				if (!docker) throw new Error('Docker mode not supported');
+				if (!docker) throw new Error('Container mode not supported');
 
 				await this.runSteps(
 					recipe,
@@ -323,6 +329,7 @@ class RecipeManager {
 						? registryPullSteps(docker, dockerPlatform(this.arch))
 						: docker.buildSteps,
 					workdir,
+					containerEngine,
 				);
 			} else if (mode === 'connect') {
 				// Nothing to install for connect mode.
@@ -331,6 +338,7 @@ class RecipeManager {
 			this.setInstalled(recipeId, {
 				mode,
 				version: this.recipes.get(recipeId)?.version,
+				containerEngine,
 			});
 
 			this.patch(recipeId, { state: 'installed' });
@@ -386,10 +394,11 @@ class RecipeManager {
 				});
 			} else if (mode === 'docker') {
 				const docker = findMode(recipe, 'docker');
-				if (!docker) throw new Error('Docker mode not supported');
+				if (!docker) throw new Error('Container mode not supported');
 
+				const containerEngine = this.containerEngineForRuntime(recipeId);
 				await processSupervisorService.spawn(recipeId, {
-					command: 'docker',
+					command: containerEngine,
 					args: [
 						'run',
 						'--rm',
@@ -399,7 +408,10 @@ class RecipeManager {
 						docker.image,
 						...(docker.command ?? []),
 					],
-					env: recipe.env,
+					env:
+						containerEngine === 'podman'
+							? await this.podmanRegistryEnv(recipe.env)
+							: recipe.env,
 					cwd: recipe.cwd,
 				});
 			}
@@ -424,7 +436,7 @@ class RecipeManager {
 		if (mode === 'docker') {
 			await processSupervisorService
 				.runCommand(`${recipeId}-stop`, {
-					command: 'docker',
+					command: this.containerEngineForRuntime(recipeId),
 					args: ['stop', containerName(recipeId)],
 					env: {},
 				})
@@ -451,6 +463,23 @@ class RecipeManager {
 
 		await this.persistUserRecipes();
 		this.emit();
+	}
+
+	getContainerEngineOverride(recipeId: string): ContainerEngine | null {
+		return this.readContainerEngineOverrides().get(recipeId) ?? null;
+	}
+
+	setContainerEngineOverride(
+		recipeId: string,
+		engine: ContainerEngine | null,
+	): void {
+		const map = this.readContainerEngineOverrides();
+		if (engine) map.set(recipeId, engine);
+		else map.delete(recipeId);
+		localStorage.setItem(
+			CONTAINER_ENGINES_KEY,
+			JSON.stringify(Object.fromEntries(map)),
+		);
 	}
 
 	async installFromRegistry(
@@ -485,10 +514,11 @@ class RecipeManager {
 		try {
 			if (mode === 'docker') {
 				const docker = findMode(recipe, 'docker');
+				const containerEngine = this.containerEngineForRuntime(recipeId);
 
 				await processSupervisorService
 					.runCommand(`${recipeId}-rm`, {
-						command: 'docker',
+						command: containerEngine,
 						args: ['rm', '-f', containerName(recipeId)],
 						env: {},
 					})
@@ -496,7 +526,7 @@ class RecipeManager {
 
 				if (docker?.image) {
 					await processSupervisorService.runCommand(`${recipeId}-rmi`, {
-						command: 'docker',
+						command: containerEngine,
 						args: ['rmi', '-f', docker.image],
 						env: {},
 					});
@@ -579,11 +609,11 @@ class RecipeManager {
 			const code = await processSupervisorService.runCommand(
 				`${recipeId}-probe`,
 				{
-					command: 'docker',
+					command: this.containerEngineForRuntime(recipeId),
 					args: [
 						'ps',
 						'--filter',
-						`name=^/${containerName(recipeId)}$`,
+						`name=${containerName(recipeId)}`,
 						'--format',
 						'{{.Names}}',
 					],
@@ -605,18 +635,26 @@ class RecipeManager {
 		recipe: Recipe,
 		steps: InstallStep[],
 		cwd?: string,
+		containerEngine?: ContainerEngine,
 	): Promise<void> {
 		for (const step of steps) {
 			if (this.cancelling.has(recipe.id)) {
 				throw new Error('Install cancelled');
 			}
 
-			this.appendLog(recipe.id, `$ ${step.command} ${step.args.join(' ')}`);
+			const command =
+				containerEngine && step.command === 'docker'
+					? containerEngine
+					: step.command;
+			this.appendLog(recipe.id, `$ ${command} ${step.args.join(' ')}`);
 
 			const code = await processSupervisorService.runCommand(recipe.id, {
-				command: step.command,
+				command,
 				args: step.args,
-				env: recipe.env,
+				env:
+					containerEngine === 'podman' && step.command === 'docker'
+						? await this.podmanRegistryEnv(recipe.env)
+						: recipe.env,
 				cwd: recipe.cwd ?? cwd,
 			});
 
@@ -627,6 +665,54 @@ class RecipeManager {
 			if (code !== 0) {
 				throw new Error(`"${step.label}" exited with code ${code}`);
 			}
+		}
+	}
+
+	private async podmanRegistryEnv(
+		env: Record<string, string>,
+	): Promise<Record<string, string>> {
+		const registries = String(
+			getStoredSetting<string>('podmanUnqualifiedSearchRegistries') ?? '',
+		)
+			.split(',')
+			.map((registry) => registry.trim())
+			.filter(Boolean);
+		if (registries.length === 0) return env;
+
+		const path = await invoke<string>('path_join', {
+			parts: [await appDataDir(), 'podman-registries.conf'],
+		});
+		const contents = Array.from(
+			new TextEncoder().encode(
+				`unqualified-search-registries = ${JSON.stringify(registries)}\n`,
+			),
+		);
+
+		await invoke('fs_write', { path, contents });
+		return { ...env, CONTAINERS_REGISTRIES_CONF: path };
+	}
+
+	private containerEngineForInstall(recipeId: string): ContainerEngine {
+		const override = this.getContainerEngineOverride(recipeId);
+		if (override) return override;
+		return getStoredSetting<ContainerEngine>('defaultContainerEngine') ===
+			'podman'
+			? 'podman'
+			: 'docker';
+	}
+
+	private containerEngineForRuntime(recipeId: string): ContainerEngine {
+		const record = this.readInstalled().get(recipeId);
+		if (record?.mode === 'docker') return record.containerEngine ?? 'docker';
+		return this.containerEngineForInstall(recipeId);
+	}
+
+	private readContainerEngineOverrides(): Map<string, ContainerEngine> {
+		try {
+			const raw = localStorage.getItem(CONTAINER_ENGINES_KEY);
+			return new Map(raw ? Object.entries(JSON.parse(raw)) : []);
+		} catch {
+			return new Map();
 		}
 	}
 

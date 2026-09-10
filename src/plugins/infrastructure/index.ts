@@ -61,7 +61,7 @@ const traefikRecipe: Recipe = {
 	name: 'Traefik',
 	version: TRAEFIK_VERSION.replace(/^v/, ''),
 	notes:
-		'Reverse proxy that routes TeXlyre services through a single entrypoint. While "Route services through Traefik" is enabled in settings, Chelys serves the routing table to Traefik over HTTP and Traefik polls it. System mode downloads the Traefik binary into the Chelys data directory. Docker mode uses host networking on Linux and published ports on Windows and macOS, where the Traefik backend host must be set to host.docker.internal; note that services installed in system mode listen on loopback and stay unreachable from a containerised Traefik.',
+		'Reverse proxy that routes TeXlyre services through a single entrypoint. While "Route services through Traefik" is enabled in settings, Chelys serves the routing table to Traefik over HTTP and Traefik polls it. System mode downloads the Traefik binary into the Chelys data directory. Container mode uses host networking on Linux and published ports on Windows and macOS, where the Traefik backend host must be set to host.docker.internal; note that services installed in system mode listen on loopback and stay unreachable from a containerised Traefik.',
 	env: {},
 	variables: [
 		{
@@ -142,7 +142,7 @@ const traefikRecipe: Recipe = {
 		},
 		{
 			kind: 'docker',
-			image: `traefik:${TRAEFIK_VERSION.replace(/^v/, '')}`,
+			image: `docker.io/library/traefik:${TRAEFIK_VERSION.replace(/^v/, '')}`,
 			buildSteps: [],
 			runArgs: ['--network', 'host'],
 			command: traefikArgs,

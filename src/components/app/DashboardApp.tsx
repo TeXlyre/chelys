@@ -63,10 +63,33 @@ const DashboardApp: React.FC = () => {
 	return (
 		<div className='app-container'>
 			<header>
-				<div className='header-left'>
-					<img className='logo' alt='Chelys logo' src='/chelys-logo.svg'></img>
-					<h1>{t('Chelys')}</h1>
-				</div>
+				{exclusiveCategories.length > 0 && (
+					<div className='plugin-category-nav'>
+						<button
+							className={`category-item ${activeCategory === null ? 'active' : ''}`}
+							disabled={panelBusy && activeCategory !== null}
+							onClick={() => {
+								if (!(panelBusy && activeCategory !== null))
+									setActiveCategory(null);
+							}}
+						>
+							{t('Plugins')}
+						</button>
+						{exclusiveCategories.map((definition) => (
+							<button
+								key={definition.type}
+								className={`category-item ${activeCategory === definition.type ? 'active' : ''}`}
+								disabled={panelBusy && activeCategory !== definition.type}
+								onClick={() => {
+									if (!(panelBusy && activeCategory !== definition.type))
+										setActiveCategory(definition.type);
+								}}
+							>
+								{t(definition.label)}
+							</button>
+						))}
+					</div>
+				)}
 				<div className='header-right'>
 					<AccountCollabIndicator />
 					<SettingsButton className='auth-theme-toggle' />
@@ -82,37 +105,7 @@ const DashboardApp: React.FC = () => {
 			<div className='main-content'>
 				<div className='editor-container'>
 					<div className='project-list-container'>
-						{/* <div className='project-list-header'>
-							<h3>{t('Plugins')}</h3>
-						</div> */}
 						<PluginHostProvider>
-							{exclusiveCategories.length > 0 && (
-								<div className='plugin-category-nav'>
-									<button
-										className={`category-item ${activeCategory === null ? 'active' : ''}`}
-										disabled={panelBusy && activeCategory !== null}
-										onClick={() => {
-											if (!(panelBusy && activeCategory !== null))
-												setActiveCategory(null);
-										}}
-									>
-										{t('Plugins')}
-									</button>
-									{exclusiveCategories.map((definition) => (
-										<button
-											key={definition.type}
-											className={`category-item ${activeCategory === definition.type ? 'active' : ''}`}
-											disabled={panelBusy && activeCategory !== definition.type}
-											onClick={() => {
-												if (!(panelBusy && activeCategory !== definition.type))
-													setActiveCategory(definition.type);
-											}}
-										>
-											{t(definition.label)}
-										</button>
-									))}
-								</div>
-							)}
 							<RecipeList
 								key={activeCategory ?? 'plugins'}
 								category={activeCategory ?? undefined}

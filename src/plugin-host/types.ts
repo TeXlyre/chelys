@@ -21,6 +21,7 @@ export interface PlatformPipeline {
 }
 
 export type InstallModeKind = 'system' | 'docker' | 'connect';
+export type ContainerEngine = 'docker' | 'podman';
 
 export interface SystemMode {
 	kind: 'system';
@@ -151,7 +152,7 @@ export const modeLabel = (kind: InstallModeKind): string =>
 	kind === 'system'
 		? 'Install on system'
 		: kind === 'docker'
-			? 'Docker container'
+			? 'Container'
 			: 'Connect to existing';
 
 export const findMode = <K extends InstallModeKind>(

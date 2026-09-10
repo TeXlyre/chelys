@@ -24,6 +24,8 @@ const config: ChelysConfig = {
 				startOnBoot: false,
 				recipePlatformOverride: 'auto',
 				dynamicPortFallback: true,
+				defaultContainerEngine: 'docker',
+				podmanUnqualifiedSearchRegistries: 'docker.io',
 				serviceHost: 'localhost',
 				texlyreBaseUrl: 'https://texlyre.org/texlyre',
 				traefikEnabled: false,

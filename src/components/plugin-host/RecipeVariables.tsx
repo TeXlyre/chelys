@@ -7,7 +7,12 @@ import { usePluginHost } from '../../hooks/usePluginHost';
 import { effectiveValues } from '../../plugin-host/variableResolution';
 import { rewriteTransportUrl } from '../../plugin-host/traefikRouting';
 import { getStoredSetting } from '../../config';
-import type { Recipe, RecipeVariable } from '../../plugin-host/types';
+import {
+	findMode,
+	type ContainerEngine,
+	type Recipe,
+	type RecipeVariable,
+} from '../../plugin-host/types';
 
 interface RecipeVariablesProps {
 	recipe: Recipe;
@@ -20,14 +25,31 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 	recipe,
 	onDone,
 }) => {
-	const { setVariables } = usePluginHost();
+	const {
+		setVariables,
+		getContainerEngineOverride,
+		setContainerEngineOverride,
+	} = usePluginHost();
 	const [values, setValues] = useState<Record<string, string>>(() =>
 		effectiveValues(recipe),
 	);
+	const [containerEngine, setContainerEngine] = useState<ContainerEngine | ''>(
+		() => getContainerEngineOverride(recipe.id) ?? '',
+	);
+	const hasContainerMode = !!findMode(recipe, 'docker');
 
-	if (!recipe.variables || recipe.variables.length === 0) return null;
+	if (
+		!hasContainerMode &&
+		(!recipe.variables || recipe.variables.length === 0)
+	) {
+		return null;
+	}
 
 	const traefikEnabled = getStoredSetting<boolean>('traefikEnabled');
+	const defaultContainerEngine =
+		getStoredSetting<ContainerEngine>('defaultContainerEngine') === 'podman'
+			? 'podman'
+			: 'docker';
 	const typeConfig = recipe.typeConfig as {
 		transportUrl?: unknown;
 		configId?: unknown;
@@ -44,13 +66,38 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 		setValues((prev) => ({ ...prev, [key]: value }));
 
 	const handleSave = async () => {
-		await setVariables(recipe.id, values);
+		if (recipe.variables?.length) await setVariables(recipe.id, values);
+		setContainerEngineOverride(recipe.id, containerEngine || null);
 		onDone();
 	};
 
 	return (
 		<div className='recipe-variables'>
-			{recipe.variables.map((variable: RecipeVariable) => {
+			{hasContainerMode && (
+				<div className='form-group'>
+					<label>{t('Container engine')}</label>
+					<select
+						value={containerEngine}
+						onChange={(e) =>
+							setContainerEngine(e.target.value as ContainerEngine | '')
+						}
+					>
+						<option value=''>
+							{t('Default ({engine})', {
+								engine:
+									defaultContainerEngine === 'podman' ? 'Podman' : 'Docker',
+							})}
+						</option>
+						<option value='docker'>Docker</option>
+						<option value='podman'>Podman</option>
+					</select>
+					<small>
+						{t('Overrides the default container engine on the next install.')}
+					</small>
+				</div>
+			)}
+
+			{(recipe.variables ?? []).map((variable: RecipeVariable) => {
 				const portLocked = traefikEnabled && isPortVariable(variable.key);
 				return (
 					<div key={variable.key} className='form-group'>

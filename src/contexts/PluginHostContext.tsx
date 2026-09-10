@@ -7,6 +7,7 @@ import { recipeRegistry } from '../plugin-host/RecipeRegistry';
 import { pluginTypeRegistry } from '../plugin-host/PluginTypeRegistry';
 import { reconcileRoutes } from '../plugin-host/traefikRoutes';
 import type {
+	ContainerEngine,
 	DockerInstallSource,
 	InstallModeKind,
 	Recipe,
@@ -48,6 +49,11 @@ interface PluginHostContextType {
 		recipeId: string,
 		values: Record<string, string>,
 	) => Promise<void>;
+	getContainerEngineOverride: (recipeId: string) => ContainerEngine | null;
+	setContainerEngineOverride: (
+		recipeId: string,
+		engine: ContainerEngine | null,
+	) => void;
 }
 
 export const PluginHostContext = createContext<PluginHostContextType>({
@@ -77,6 +83,8 @@ export const PluginHostContext = createContext<PluginHostContextType>({
 	},
 	updatesAvailable: new Map(),
 	setVariables: async () => {},
+	getContainerEngineOverride: () => null,
+	setContainerEngineOverride: () => {},
 });
 
 export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
@@ -188,6 +196,10 @@ export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 				installFromRegistry,
 				updatesAvailable,
 				setVariables,
+				getContainerEngineOverride:
+					recipeManager.getContainerEngineOverride.bind(recipeManager),
+				setContainerEngineOverride:
+					recipeManager.setContainerEngineOverride.bind(recipeManager),
 			}}
 		>
 			{children}
