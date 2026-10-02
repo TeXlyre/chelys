@@ -625,3 +625,50 @@ pub async fn rtc_channel_close(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{decode_message_frame, encode_message_frame};
+
+    #[test]
+    fn message_frame_round_trips_binary_payloads() {
+        let payload: Vec<u8> = (0..=255).collect();
+        let frame = encode_message_frame("channel-123", false, &payload);
+        let (is_string, channel_id, decoded) = decode_message_frame(&frame).unwrap();
+
+        assert!(!is_string);
+        assert_eq!(channel_id, "channel-123");
+        assert_eq!(decoded, payload.as_slice());
+    }
+
+    #[test]
+    fn message_frame_round_trips_utf8_text_payloads() {
+        let payload = "héllo 🌍".as_bytes();
+        let frame = encode_message_frame("channel-utf8", true, payload);
+        let (is_string, channel_id, decoded) = decode_message_frame(&frame).unwrap();
+
+        assert!(is_string);
+        assert_eq!(channel_id, "channel-utf8");
+        assert_eq!(std::str::from_utf8(decoded).unwrap(), "héllo 🌍");
+    }
+
+    #[test]
+    fn message_frame_rejects_truncated_or_malformed_headers() {
+        for frame in [
+            vec![],
+            vec![1],
+            vec![2, 1, b'a'],
+            vec![1, 0],
+            vec![1, 4, b'a', b'b'],
+        ] {
+            assert!(decode_message_frame(&frame).is_err(), "accepted {frame:?}");
+        }
+    }
+
+    #[test]
+    fn message_frame_rejects_non_utf8_channel_ids() {
+        let frame = [1, 2, 0xff, 0xfe, 1, 2, 3];
+
+        assert!(decode_message_frame(&frame).is_err());
+    }
+}
