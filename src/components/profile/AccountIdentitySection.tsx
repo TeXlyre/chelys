@@ -85,7 +85,7 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
 
 	return (
 		<form onSubmit={handleSubmit} className='profile-form'>
-			<div className='form-group'>
+			<div className='form-group ui-field'>
 				<label htmlFor='profile-username'>{t('Username')}</label>
 				<input
 					type='text'
@@ -98,7 +98,7 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
 			</div>
 
 			<h3>{t('Change Password')}</h3>
-			<div className='form-group'>
+			<div className='form-group ui-field'>
 				<label htmlFor='profile-new-password'>{t('New Password')}</label>
 				<input
 					type='password'
@@ -109,7 +109,7 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
 					autoComplete='new-password'
 				/>
 			</div>
-			<div className='form-group'>
+			<div className='form-group ui-field'>
 				<label htmlFor='profile-confirm-password'>
 					{t('Confirm New Password')}
 				</label>
@@ -142,7 +142,7 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
 					'Your key selects which room you sync with. Keep it to stay in the same room, paste a key to match another account, or generate new key to create a temporary session.',
 				)}
 			</p>
-			<div className='form-group'>
+			<div className='form-group ui-field'>
 				<PasteField
 					label={t('Replace key')}
 					id='profile-prf'
@@ -155,7 +155,7 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
 					disabled={isSubmitting}
 				/>
 			</div>
-			<div className='form-group'>
+			<div className='form-group ui-field'>
 				<button
 					type='button'
 					className='button secondary'

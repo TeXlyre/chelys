@@ -74,7 +74,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 	return (
 		<div className='recipe-variables'>
 			{hasContainerMode && (
-				<div className='form-group'>
+				<div className='form-group ui-field'>
 					<label>{t('Container engine')}</label>
 					<select
 						value={containerEngine}
@@ -100,7 +100,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 			{(recipe.variables ?? []).map((variable: RecipeVariable) => {
 				const portLocked = traefikEnabled && isPortVariable(variable.key);
 				return (
-					<div key={variable.key} className='form-group'>
+					<div key={variable.key} className='form-group ui-field'>
 						<label>{t(variable.label)}</label>
 						{variable.kind === 'select' ? (
 							<select
@@ -139,7 +139,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 			})}
 
 			{traefikEnabled && traefikUrl && (
-				<div className='form-group'>
+				<div className='form-group ui-field'>
 					<label>{t('Traefik endpoint')}</label>
 					<input type='text' value={traefikUrl} readOnly />
 					<small>
@@ -150,7 +150,11 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 				</div>
 			)}
 
-			<div className='form-actions'>
+			<div
+				className='form-actions ui-actions'
+				data-variant='form'
+				data-align='end'
+			>
 				<button className='button' onClick={onDone}>
 					{t('Cancel')}
 				</button>

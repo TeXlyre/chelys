@@ -194,20 +194,23 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 			<div className='recipe-list-header'>
 				<div className='recipe-list-actions'>
 					<button
-						className='action-button primary'
+						className='button action-button primary'
 						onClick={() => setBrowsing(true)}
 					>
 						<SearchIcon />
 						{t('Browse recipes')}
 					</button>
 					<button
-						className='action-button'
+						className='button action-button'
 						onClick={() => openEditor('new', 'guided')}
 					>
 						<PlusIcon />
 						{t('Add recipe')}
 					</button>
-					<button className='action-button' onClick={() => setImporting(true)}>
+					<button
+						className='button action-button'
+						onClick={() => setImporting(true)}
+					>
 						<ImportIcon />
 						{t('Import recipe')}
 					</button>

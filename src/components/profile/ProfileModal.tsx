@@ -29,15 +29,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
 			icon={UserIcon}
 			size='large'
 		>
-			<div className='view-tabs'>
+			<div className='view-tabs ui-tab-list' data-variant='switcher'>
 				<button
-					className={`tab-button ${tab === 'account' ? 'active' : ''}`}
+					className={`tab-button ui-tab ${tab === 'account' ? 'active' : ''}`}
 					onClick={() => setTab('account')}
 				>
 					{t('Account')}
 				</button>
 				<button
-					className={`tab-button ${tab === 'data' ? 'active' : ''}`}
+					className={`tab-button ui-tab ${tab === 'data' ? 'active' : ''}`}
 					onClick={() => setTab('data')}
 				>
 					{t('Data')}
