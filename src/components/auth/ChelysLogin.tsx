@@ -70,7 +70,11 @@ const ChelysLogin: React.FC = () => {
 				<div className='auth-form-container'>
 					<h2>{t('Log in to Chelys')}</h2>
 					{error && <div className='auth-error'>{error}</div>}
-					<form onSubmit={handleSubmit} className='auth-form'>
+					<form
+						onSubmit={handleSubmit}
+						className='auth-form ui-stack'
+						data-gap='md'
+					>
 						<div className='form-group ui-field'>
 							<label htmlFor='username'>{t('Username')}</label>
 							<input

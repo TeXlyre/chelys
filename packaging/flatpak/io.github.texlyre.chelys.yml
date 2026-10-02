@@ -23,7 +23,7 @@ modules:
         path: io.github.texlyre.chelys.metainfo.xml
       - type: file
         url: https://github.com/TeXlyre/chelys/releases/download/v1.3.0/Chelys_1.3.0_amd64.deb
-        sha256: ef6a1f4745bc2068cee71d8fad5d6787c78ca906cbbcb240c0ac3e7cf02445d4
+        sha256: 435cfb4a8415948502687344a9dd8d9327117f681fb26359bc41fa0a399bec26
         only-arches: [x86_64]
     build-commands:
       - set -e
