@@ -47,9 +47,9 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 			</button>
 
 			{isOpen && (
-				<div className='user-dropdown-menu'>
+				<div className='user-dropdown-menu ui-menu' data-layout='column'>
 					<button
-						className='dropdown-item'
+						className='dropdown-item ui-menu-item'
 						onClick={() => {
 							setIsOpen(false);
 							onOpenProfile();
@@ -58,9 +58,9 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 						<EditIcon />
 						{t('Account Settings')}
 					</button>
-					<div className='dropdown-separator' />
+					<div className='dropdown-separator ui-menu-divider' />
 					<button
-						className='dropdown-item'
+						className='dropdown-item ui-menu-item'
 						onClick={() => {
 							setIsOpen(false);
 							onLogout();

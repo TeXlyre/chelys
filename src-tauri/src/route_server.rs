@@ -118,3 +118,26 @@ pub fn traefik_set_routes(
     *current = config;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{serve, RouteServerState};
+    use axum::extract::{Path, State};
+    use axum::http::StatusCode;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn route_table_is_only_served_for_the_secret_token() {
+        let state = RouteServerState::default();
+        state.token.set("secret-token".to_string()).unwrap();
+        *state.config.lock().unwrap() = json!({"http": {"routers": {"test": {}}}});
+
+        let response = serve(Path("secret-token".to_string()), State(state.clone()))
+            .await
+            .unwrap();
+        assert_eq!(response.0, json!({"http": {"routers": {"test": {}}}}));
+
+        let error = serve(Path("wrong-token".to_string()), State(state)).await.err();
+        assert_eq!(error, Some(StatusCode::NOT_FOUND));
+    }
+}

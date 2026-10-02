@@ -136,7 +136,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 			</div>
 
 			{!category && (
-				<div className='form-group'>
+				<div className='form-group ui-field'>
 					<label htmlFor='recipe-import-type'>{t('Recipe type')}</label>
 					<select
 						id='recipe-import-type'
@@ -204,7 +204,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 			{error && <div className='error-message'>{error}</div>}
 
 			{source === 'url' && (
-				<div className='form-group'>
+				<div className='form-group ui-field'>
 					<label htmlFor='recipe-import-url'>{t('Recipe URL')}</label>
 					<input
 						id='recipe-import-url'
@@ -225,7 +225,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 			)}
 
 			{source === 'json' && (
-				<div className='form-group'>
+				<div className='form-group ui-field'>
 					<label htmlFor='recipe-import-json'>{t('Recipe JSON')}</label>
 					<textarea
 						id='recipe-import-json'
@@ -245,7 +245,11 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 				</div>
 			)}
 
-			<div className='form-actions'>
+			<div
+				className='form-actions ui-actions'
+				data-variant='form'
+				data-align='end'
+			>
 				<button className='button secondary' onClick={onCancel}>
 					{t('Cancel')}
 				</button>

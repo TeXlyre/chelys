@@ -70,8 +70,12 @@ const ChelysLogin: React.FC = () => {
 				<div className='auth-form-container'>
 					<h2>{t('Log in to Chelys')}</h2>
 					{error && <div className='auth-error'>{error}</div>}
-					<form onSubmit={handleSubmit} className='auth-form'>
-						<div className='form-group'>
+					<form
+						onSubmit={handleSubmit}
+						className='auth-form ui-stack'
+						data-gap='md'
+					>
+						<div className='form-group ui-field'>
 							<label htmlFor='username'>{t('Username')}</label>
 							<input
 								type='text'
@@ -82,7 +86,7 @@ const ChelysLogin: React.FC = () => {
 								autoComplete='username'
 							/>
 						</div>
-						<div className='form-group'>
+						<div className='form-group ui-field'>
 							<label htmlFor='password'>{t('Password')}</label>
 							<input
 								type='password'
@@ -93,7 +97,7 @@ const ChelysLogin: React.FC = () => {
 								autoComplete='current-password'
 							/>
 						</div>
-						<div className='form-group'>
+						<div className='form-group ui-field'>
 							<PasteField
 								label={t('Chelys key (PRF output)')}
 								id='prf'
@@ -103,7 +107,7 @@ const ChelysLogin: React.FC = () => {
 								disabled={isLoading}
 							/>
 						</div>
-						<div className='form-group'>
+						<div className='form-group ui-field'>
 							<button
 								type='button'
 								className='button secondary'

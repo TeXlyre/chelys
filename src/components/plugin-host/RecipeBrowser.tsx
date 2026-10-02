@@ -190,7 +190,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 							})
 						: t('Browse recipes')}
 				</h3>
-				<button className='action-button' onClick={onDone}>
+				<button className='button action-button' onClick={onDone}>
 					{t('Back')}
 				</button>
 			</div>
@@ -291,7 +291,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 
 						<div className='recipe-actions'>
 							<button
-								className='action-button primary'
+								className='button action-button primary'
 								disabled={entry.local || installing === entry.id}
 								onClick={() => handleInstall(entry)}
 							>
@@ -330,7 +330,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 			})}
 
 			{totalPages > 1 && (
-				<div className='recipe-pagination'>
+				<div className='recipe-pagination ui-pagination'>
 					<div className='pagination-info'>
 						{t('Showing {startItem}-{endItem} of {count}', {
 							startItem,
@@ -338,7 +338,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 							count: filtered.length,
 						})}
 					</div>
-					<div className='pagination-controls'>
+					<div className='pagination-controls ui-actions'>
 						<button
 							className='pagination-button'
 							onClick={() => goToPage(currentPage - 1)}

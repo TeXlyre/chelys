@@ -493,7 +493,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 
 	const modeTab = (id: typeof mode, label: string) => (
 		<button
-			className={`tab-button ${mode === id ? 'active' : ''}`}
+			className={`tab-button ui-tab ${mode === id ? 'active' : ''}`}
 			onClick={() => setMode(id)}
 		>
 			{label}
@@ -505,7 +505,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 		const id = `recipe-type-${field.key}`;
 
 		return (
-			<div key={field.key} className='form-group'>
+			<div key={field.key} className='form-group ui-field'>
 				<label htmlFor={id}>{t(field.label)}</label>
 				{field.kind === 'boolean' ? (
 					<input
@@ -557,7 +557,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 		<div className='recipe-form'>
 			<div className='recipe-form-header'>
 				<h3>{recipe ? t('Edit recipe') : t('Add recipe')}</h3>
-				<div className='view-tabs'>
+				<div className='view-tabs ui-tab-list' data-variant='switcher'>
 					{modeTab('guided', t('Guided'))}
 					{modeTab('files', t('Files'))}
 				</div>
@@ -568,12 +568,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 
 			{mode === 'files' ? (
 				<>
-					<div className='form-group'>
-						<div className='view-tabs recipe-parts'>
+					<div className='form-group ui-field'>
+						<div
+							className='view-tabs recipe-parts ui-tab-list'
+							data-variant='switcher'
+						>
 							{parts.map((part) => (
 								<button
 									key={part.name}
-									className={`tab-button ${!part.editable ? 'part-readonly ' : ''}${
+									className={`tab-button ui-tab ${!part.editable ? 'part-readonly ' : ''}${
 										part.name === selectedPart ? 'active' : ''
 									}`}
 									onClick={() => setSelectedPart(part.name)}
@@ -588,7 +591,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 					</div>
 
 					{selected?.image ? (
-						<div className='form-group'>
+						<div className='form-group ui-field'>
 							{selected.note && (
 								<div className='warning-message'>
 									<p>{selected.note}</p>
@@ -600,21 +603,21 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							/>
 						</div>
 					) : selected?.loading ? (
-						<div className='form-group'>
+						<div className='form-group ui-field'>
 							<div className='info-message'>{t('Loading file…')}</div>
 						</div>
 					) : selected?.binary ? (
-						<div className='form-group'>
+						<div className='form-group ui-field'>
 							<div className='info-message'>{selected.note}</div>
 						</div>
 					) : selected?.kind === 'reference' && selected.content === null ? (
-						<div className='form-group'>
+						<div className='form-group ui-field'>
 							<div className='warning-message'>
 								<p>{selected.note}</p>
 							</div>
 						</div>
 					) : selected ? (
-						<div className='form-group'>
+						<div className='form-group ui-field'>
 							{selected.note &&
 								(selected.editable ? (
 									<small>{selected.note}</small>
@@ -635,7 +638,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 				</>
 			) : (
 				<>
-					<div className='form-group'>
+					<div className='form-group ui-field'>
 						<label htmlFor='recipe-type'>{t('Recipe type')}</label>
 						<select
 							id='recipe-type'
@@ -649,7 +652,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							))}
 						</select>
 					</div>
-					<div className='form-group'>
+					<div className='form-group ui-field'>
 						<label htmlFor='recipe-name'>{t('Name')}</label>
 						<input
 							id='recipe-name'
@@ -668,7 +671,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 					)}
 
 					<h4 className='recipe-form-section'>{t('Runtime')}</h4>
-					<div className='form-group'>
+					<div className='form-group ui-field'>
 						<label htmlFor='recipe-run-command'>{t('Run command')}</label>
 						<input
 							id='recipe-run-command'
@@ -677,7 +680,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							placeholder='lsp-ws-proxy'
 						/>
 					</div>
-					<div className='form-group'>
+					<div className='form-group ui-field'>
 						<label htmlFor='recipe-run-args'>{t('Run arguments')}</label>
 						<input
 							id='recipe-run-args'
@@ -686,7 +689,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							placeholder='-l 127.0.0.1:7020 -- ./bin/server'
 						/>
 					</div>
-					<div className='form-group'>
+					<div className='form-group ui-field'>
 						<label htmlFor='recipe-install-steps'>{t('Install steps')}</label>
 						<textarea
 							id='recipe-install-steps'
@@ -700,7 +703,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							{t('Each step runs in order. Review commands before installing.')}
 						</small>
 					</div>
-					<div className='form-group'>
+					<div className='form-group ui-field'>
 						<label htmlFor='recipe-uninstall-steps'>
 							{t('Uninstall steps')}
 						</label>
@@ -713,7 +716,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							placeholder={t('One per line: Label :: command arg1 arg2')}
 						/>
 					</div>
-					<div className='form-group'>
+					<div className='form-group ui-field'>
 						<label htmlFor='recipe-docker-image'>{t('Docker image')}</label>
 						<input
 							id='recipe-docker-image'
@@ -727,7 +730,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							)}
 						</small>
 					</div>
-					<div className='form-group'>
+					<div className='form-group ui-field'>
 						<label htmlFor='recipe-env'>{t('Environment variables')}</label>
 						<textarea
 							id='recipe-env'
@@ -746,7 +749,11 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 				</>
 			)}
 
-			<div className='form-actions'>
+			<div
+				className='form-actions ui-actions'
+				data-variant='form'
+				data-align='end'
+			>
 				<button className='button' onClick={handleSaveToDisk}>
 					{t('Save to directory')}
 				</button>
