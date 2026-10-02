@@ -21,7 +21,6 @@ lerna-debug.log*
 # Rust / Cargo (Tauri backend)
 target/
 **/*.rs.bk
-Cargo.lock
 
 # Tauri build artifacts
 src-tauri/gen/*
