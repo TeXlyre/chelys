@@ -14,6 +14,7 @@ import type {
 	RecipeStatus,
 	RegistryEntry,
 } from '../plugin-host/types';
+import { registerAcpPlugin } from '../plugins/acp';
 import { registerLspPlugin } from '../plugins/lsp';
 import { registerTypesetterPlugin } from '../plugins/typesetter';
 import { registerInfrastructurePlugin } from '../plugins/infrastructure';
@@ -21,6 +22,7 @@ import { registerInfrastructurePlugin } from '../plugins/infrastructure';
 registerLspPlugin();
 registerTypesetterPlugin();
 registerInfrastructurePlugin();
+registerAcpPlugin();
 
 interface PluginHostContextType {
 	recipes: Recipe[];
