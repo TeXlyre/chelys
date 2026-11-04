@@ -556,11 +556,32 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 	return (
 		<div className='recipe-form'>
 			<div className='recipe-form-header'>
-				<h3>{recipe ? t('Edit recipe') : t('Add recipe')}</h3>
-				<div className='view-tabs ui-tab-list' data-variant='switcher'>
-					{modeTab('guided', t('Guided'))}
-					{modeTab('files', t('Files'))}
+				<div className='recipe-form-header-main'>
+					<h3>{recipe ? t('Edit recipe') : t('Add recipe')}</h3>
+					<div className='view-tabs ui-tab-list' data-variant='switcher'>
+						{modeTab('guided', t('Guided'))}
+						{modeTab('files', t('Files'))}
+					</div>
 				</div>
+				{mode === 'files' && (
+					<div className='view-tabs recipe-parts ui-tab-list' data-variant='switcher'>
+						{parts.map((part) => (
+							<button
+								key={part.name}
+								title={part.name}
+								className={`tab-button ui-tab ${!part.editable ? 'part-readonly ' : ''}${
+									part.name === selectedPart ? 'active' : ''
+								}`}
+								onClick={() => setSelectedPart(part.name)}
+							>
+								{part.name}
+								{part.kind === 'view' && (
+									<span className='recipe-type-badge'>recipe.json</span>
+								)}
+							</button>
+						))}
+					</div>
+				)}
 			</div>
 
 			{error && <div className='error-message'>{error}</div>}
@@ -568,28 +589,6 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 
 			{mode === 'files' ? (
 				<>
-					<div className='form-group ui-field'>
-						<div
-							className='view-tabs recipe-parts ui-tab-list'
-							data-variant='switcher'
-						>
-							{parts.map((part) => (
-								<button
-									key={part.name}
-									className={`tab-button ui-tab ${!part.editable ? 'part-readonly ' : ''}${
-										part.name === selectedPart ? 'active' : ''
-									}`}
-									onClick={() => setSelectedPart(part.name)}
-								>
-									{part.name}
-									{part.kind === 'view' && (
-										<span className='recipe-type-badge'>recipe.json</span>
-									)}
-								</button>
-							))}
-						</div>
-					</div>
-
 					{selected?.image ? (
 						<div className='form-group ui-field'>
 							{selected.note && (
