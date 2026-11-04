@@ -11,7 +11,7 @@ A local desktop companion app for **[TeXlyre](https://github.com/TeXlyre/texlyre
 
 ![TeXlyre and Chelys WebRTC architecture](showcase/texlyre_chelys_webrtc_architecture.svg)
 
-> **Status:** This is the [third phase (Tasks 2,3 & 5)](https://texlyre.github.io/blog/nlnet-ngi0-funding-overview#task-2-chelys-proof-of-concept-local-lsp-bridge) of development, currently covering language server and typesetting engine setup, with a WebRTC bridge for local tool sharing. Distributed storage are planned as per the [project scope](https://texlyre.github.io/blog/nlnet-ngi0-funding-overview).
+> **Status:** This is the fourth phase (Tasks [2](https://texlyre.github.io/blog/chelys-lsp-bridge), [3](https://texlyre.github.io/blog/chelys-peer-to-peer-tools), [5](https://texlyre.github.io/blog/chelys-local-typesetters) & 6) of development, currently covering language servers and typesetting engines, and file storage, with WebSocket and WebRTC bridge for local tool sharing. Distributed storage are planned as per the [project scope](https://texlyre.github.io/blog/nlnet-ngi0-funding-overview).
 
 ## Features
 
