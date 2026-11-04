@@ -17,9 +17,11 @@ import type {
 import { registerLspPlugin } from '../plugins/lsp';
 import { registerTypesetterPlugin } from '../plugins/typesetter';
 import { registerInfrastructurePlugin } from '../plugins/infrastructure';
+import { registerStoragePlugin } from '../plugins/storage';
 
 registerLspPlugin();
 registerTypesetterPlugin();
+registerStoragePlugin();
 registerInfrastructurePlugin();
 
 interface PluginHostContextType {

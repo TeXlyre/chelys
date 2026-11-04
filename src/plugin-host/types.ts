@@ -36,11 +36,17 @@ export interface DockerPlatformOverride {
 	command?: string[];
 }
 
+export interface DockerVolume {
+	id: string;
+	target: string;
+}
+
 export interface DockerMode {
 	kind: 'docker';
 	image: string;
 	buildSteps: InstallStep[];
 	runArgs: string[];
+	volumes?: DockerVolume[];
 	command?: string[];
 	dockerfile?: string;
 	dockerfileUrl?: string;

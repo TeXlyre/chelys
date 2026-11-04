@@ -1,6 +1,6 @@
 // src/components/plugin-host/RecipeList.tsx
 import type React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 
 import { t } from '@/i18n';
 import { usePluginHost } from '../../hooks/usePluginHost';
@@ -82,6 +82,10 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 	const [configuring, setConfiguring] = useState<Recipe | null>(null);
 	const [selectionMode, setSelectionMode] = useState(false);
 	const [selected, setSelected] = useState<Set<string>>(new Set());
+	const listScrollTop = useRef(0);
+	const restoreListScroll = useCallback((node: HTMLDivElement | null) => {
+		if (node) node.scrollTop = listScrollTop.current;
+	}, []);
 
 	const busyView =
 		editing !== null || browsing || importing || configuring !== null;
@@ -190,7 +194,13 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 	}
 
 	return (
-		<div className='recipe-list'>
+		<div
+			className='recipe-list'
+			ref={restoreListScroll}
+			onScroll={(event) => {
+				listScrollTop.current = event.currentTarget.scrollTop;
+			}}
+		>
 			<div className='recipe-list-header'>
 				<div className='recipe-list-actions'>
 					<button
