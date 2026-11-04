@@ -54,6 +54,10 @@
 		"y-websocket": "^3.1.0",
 		"yjs": "^13.6.32"
 	},
+	"overrides": {
+		"glob": "^14.0.3",
+		"minimatch": "^11.0.4"
+	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.9",
 		"@choochmeque/tauri-windows-bundle": "0.2.0",
