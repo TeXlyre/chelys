@@ -41,6 +41,44 @@ const mapStrings = <T>(value: T, values: Record<string, string>): T => {
 	return value;
 };
 
+export const secretKeys = (recipe: Recipe): Set<string> =>
+	new Set(
+		(recipe.variables ?? [])
+			.filter((variable) => variable.kind === 'secret')
+			.map((variable) => variable.key),
+	);
+
+// The recipe without the values of its secret variables, e.g. for download.
+export function withoutSecretValues(recipe: Recipe): Recipe {
+	const secrets = secretKeys(recipe);
+	if (secrets.size === 0 || !recipe.variableValues) return recipe;
+	return {
+		...recipe,
+		variableValues: Object.fromEntries(
+			Object.entries(recipe.variableValues).filter(
+				([key]) => !secrets.has(key),
+			),
+		),
+	};
+}
+
+const SINGLE_TOKEN = /^\$\{(\w+)\}$/;
+
+const resolveEnv = (
+	env: Record<string, string>,
+	values: Record<string, string>,
+	secrets: Set<string>,
+): Record<string, string> => {
+	const resolved: Record<string, string> = {};
+	for (const [key, template] of Object.entries(env)) {
+		const token = template.match(SINGLE_TOKEN)?.[1];
+		// An empty secret leaves the inherited variable in place.
+		if (token && secrets.has(token) && !values[token]) continue;
+		resolved[key] = substitute(template, values);
+	}
+	return resolved;
+};
+
 const dockerfileDownloadStep = (dockerfileUrl: string) => ({
 	label: 'Download Dockerfile',
 	command: 'curl',
@@ -78,7 +116,14 @@ export const registryPullSteps = (
 
 export function resolveRecipe(recipe: Recipe): Recipe {
 	const values = effectiveValues(recipe);
-	const resolved = mapStrings(recipe, values) as Recipe;
+	const secrets = secretKeys(recipe);
+	// Secrets go into env only: never into commands (logged, and visible to
+	// other processes) or the config block handed to TeXlyre.
+	const publicValues = Object.fromEntries(
+		Object.entries(values).filter(([key]) => !secrets.has(key)),
+	);
+	const resolved = mapStrings(recipe, publicValues) as Recipe;
+	resolved.env = resolveEnv(recipe.env ?? {}, values, secrets);
 
 	for (const mode of resolved.modes) {
 		if (mode.kind !== 'docker') continue;
