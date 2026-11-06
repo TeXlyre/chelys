@@ -13,6 +13,7 @@ import {
 	type ShareMode,
 } from '../../plugin-host/recipeSharing';
 import type { Recipe } from '../../plugin-host/types';
+import { withoutSecretValues } from '../../plugin-host/variableResolution';
 import IconButton from '../common/IconButton';
 import Popover from '../common/Popover';
 import { DownloadIcon, ShareIcon } from '../common/Icons';
@@ -74,7 +75,8 @@ const RecipeShareActions: React.FC<RecipeShareActionsProps> = ({
 				onClick={() =>
 					void downloadJson(
 						`${recipe.id || recipe.type}.recipe.json`,
-						JSON.stringify(recipe, null, 2),
+						// Secrets such as API keys stay on this machine.
+						JSON.stringify(withoutSecretValues(recipe), null, 2),
 					)
 				}
 			/>

@@ -33,6 +33,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 	const [values, setValues] = useState<Record<string, string>>(() =>
 		effectiveValues(recipe),
 	);
+	const [revealed, setRevealed] = useState<Set<string>>(new Set());
 	const [containerEngine, setContainerEngine] = useState<ContainerEngine | ''>(
 		() => getContainerEngineOverride(recipe.id) ?? '',
 	);
@@ -121,6 +122,30 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 									update(variable.key, e.target.checked ? 'true' : 'false')
 								}
 							/>
+						) : variable.kind === 'secret' ? (
+							<div className='recipe-secret-field'>
+								<input
+									type={revealed.has(variable.key) ? 'text' : 'password'}
+									value={values[variable.key] ?? ''}
+									onChange={(e) => update(variable.key, e.target.value)}
+									autoComplete='off'
+									spellCheck={false}
+								/>
+								<button
+									type='button'
+									className='button'
+									onClick={() =>
+										setRevealed((prev) => {
+											const next = new Set(prev);
+											if (next.has(variable.key)) next.delete(variable.key);
+											else next.add(variable.key);
+											return next;
+										})
+									}
+								>
+									{revealed.has(variable.key) ? t('Hide') : t('Show')}
+								</button>
+							</div>
 						) : (
 							<input
 								type={variable.kind === 'number' ? 'number' : 'text'}

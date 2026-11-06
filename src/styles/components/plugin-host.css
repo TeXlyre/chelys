@@ -32,6 +32,16 @@
 	border-bottom: 1px solid var(--accent-border);
 }
 
+.recipe-secret-field {
+	display: flex;
+	gap: var(--space-xs);
+}
+
+.recipe-secret-field > input {
+	flex: 1;
+	min-width: 0;
+}
+
 .recipe-form .form-actions,
 .recipe-variables .form-actions,
 .recipe-import .form-actions {
