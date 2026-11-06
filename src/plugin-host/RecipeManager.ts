@@ -22,6 +22,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getStoredSetting } from '../config';
 import { appDataDir } from '@tauri-apps/api/path';
 import { routeEndpoint } from './traefikRoutes';
+import { dockerVolumeArgs } from './dockerVolumes';
 import { materializeRecipeFiles } from './recipeWorkdir';
 import {
 	findMode,
@@ -49,6 +50,12 @@ interface InstalledRecord {
 
 const containerName = (recipeId: string): string =>
 	`chelys-${recipeId}`.replace(/[^a-zA-Z0-9_.-]/g, '-');
+
+const errorMessage = (error: unknown, fallback: string): string => {
+	if (error instanceof Error) return error.message;
+	if (typeof error === 'string' && error.trim()) return error;
+	return fallback;
+};
 
 class RecipeManager {
 	private recipes = new Map<string, Recipe>();
@@ -357,7 +364,7 @@ class RecipeManager {
 
 			this.patch(recipeId, { state: 'installed' });
 		} catch (error) {
-			const message = error instanceof Error ? error.message : 'install failed';
+			const message = errorMessage(error, 'install failed');
 			this.appendLog(recipeId, `Install failed: ${message}`);
 			this.patch(recipeId, { state: 'error', lastError: message });
 		} finally {
@@ -418,6 +425,7 @@ class RecipeManager {
 						'--rm',
 						'--name',
 						containerName(recipeId),
+						...dockerVolumeArgs(recipeId, docker.volumes),
 						...docker.runArgs,
 						docker.image,
 						...(docker.command ?? []),
@@ -433,8 +441,7 @@ class RecipeManager {
 			this.patch(recipeId, { state: 'running', lastError: null });
 			this.runStartHook(recipe);
 		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : 'failed to start';
+			const message = errorMessage(error, 'failed to start');
 			this.patch(recipeId, { state: 'error', lastError: message });
 		}
 	}
@@ -556,8 +563,7 @@ class RecipeManager {
 			this.setInstalled(recipeId, null);
 			this.patch(recipeId, { state: 'not-installed', mode: null });
 		} catch (error) {
-			const message =
-				error instanceof Error ? error.message : 'uninstall failed';
+			const message = errorMessage(error, 'uninstall failed');
 			this.patch(recipeId, { state: 'error', lastError: message });
 		}
 	}
@@ -662,15 +668,22 @@ class RecipeManager {
 					: step.command;
 			this.appendLog(recipe.id, `$ ${command} ${step.args.join(' ')}`);
 
-			const code = await processSupervisorService.runCommand(recipe.id, {
-				command,
-				args: step.args,
-				env:
-					containerEngine === 'podman' && step.command === 'docker'
-						? await this.podmanRegistryEnv(recipe.env)
-						: recipe.env,
-				cwd: recipe.cwd ?? cwd,
-			});
+			let code: number;
+			try {
+				code = await processSupervisorService.runCommand(recipe.id, {
+					command,
+					args: step.args,
+					env:
+						containerEngine === 'podman' && step.command === 'docker'
+							? await this.podmanRegistryEnv(recipe.env)
+							: recipe.env,
+					cwd: recipe.cwd ?? cwd,
+				});
+			} catch (error) {
+				throw new Error(
+					`"${step.label}" failed: ${errorMessage(error, 'could not start command')}`,
+				);
+			}
 
 			if (this.cancelling.has(recipe.id)) {
 				throw new Error('Install cancelled');
