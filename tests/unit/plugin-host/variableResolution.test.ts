@@ -5,6 +5,7 @@ import {
 	registryPullSteps,
 	resolveCommand,
 	resolveRecipe,
+	withoutSecretValues,
 } from '@src/plugin-host/variableResolution';
 import type { DockerMode, Recipe } from '@src/plugin-host/types';
 
@@ -173,6 +174,51 @@ describe('recipe variable resolution', () => {
 			args: ['--port', '7020'],
 			env: { SERVICE: 'ltex', OTHER: '${MISSING}' },
 			cwd: '/srv/ltex',
+		});
+	});
+
+	describe('secret variables', () => {
+		const withKey = (value?: string): Recipe => ({
+			id: 'agent',
+			type: 'acp',
+			name: 'Agent',
+			env: { ANTHROPIC_API_KEY: '${apiKey}', OTHER: 'x-${apiKey}' },
+			variables: [
+				{ key: 'apiKey', label: 'API key', kind: 'secret', default: '' },
+				{ key: 'wsPort', label: 'Port', kind: 'number', default: '7060' },
+			],
+			variableValues: value === undefined ? undefined : { apiKey: value, wsPort: '7061' },
+			typeConfig: { transportUrl: 'ws://localhost:${wsPort}', leak: '${apiKey}' },
+			modes: [
+				{
+					kind: 'system',
+					installSteps: [{ label: 'Echo', command: 'echo', args: ['${apiKey}'] }],
+					runCommand: { command: 'run', args: ['--key', '${apiKey}'] },
+				},
+			],
+		});
+
+		it('goes into env only, never into commands or the config block', () => {
+			const resolved = resolveRecipe(withKey('sk-test'));
+			expect(resolved.env).toEqual({ ANTHROPIC_API_KEY: 'sk-test', OTHER: 'x-sk-test' });
+			expect(resolved.typeConfig).toEqual({
+				transportUrl: 'ws://localhost:7061',
+				leak: '${apiKey}',
+			});
+			expect(JSON.stringify(resolved.modes)).not.toContain('sk-test');
+		});
+
+		it('leaves the inherited variable in place when empty', () => {
+			expect(resolveRecipe(withKey('')).env).toEqual({ OTHER: 'x-' });
+			expect(resolveRecipe(withKey()).env).toEqual({ OTHER: 'x-' });
+		});
+
+		it('is left out of a downloaded recipe', () => {
+			expect(withoutSecretValues(withKey('sk-test')).variableValues).toEqual({
+				wsPort: '7061',
+			});
+			const plain = withKey();
+			expect(withoutSecretValues(plain)).toBe(plain);
 		});
 	});
 });

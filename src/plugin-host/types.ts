@@ -61,7 +61,11 @@ export type InstallMode = SystemMode | DockerMode | ConnectMode;
 
 export type DockerInstallSource = 'build' | 'registry';
 
-export type VariableKind = 'text' | 'number' | 'boolean' | 'select';
+// A 'secret' (e.g. an API key) is only substituted into the recipe's env,
+// is masked in the UI, and is left out of downloaded recipes. Left empty, its
+// env entry is dropped so the variable inherited from Chelys's environment
+// still applies.
+export type VariableKind = 'text' | 'number' | 'boolean' | 'select' | 'secret';
 
 export interface RecipeVariable {
 	key: string;
