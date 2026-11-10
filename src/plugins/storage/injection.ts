@@ -1,5 +1,8 @@
 // src/plugins/storage/injection.ts
-import { injectConfigBlock, removeConfigBlock } from '../../plugin-host/configInjection';
+import {
+	injectConfigBlock,
+	removeConfigBlock,
+} from '../../plugin-host/configInjection';
 import type { Recipe } from '../../plugin-host/types';
 import { recipeToConfigBlock } from './shared';
 import type { StorageTypeConfig } from './types';

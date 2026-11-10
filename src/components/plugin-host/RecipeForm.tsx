@@ -564,7 +564,10 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 					</div>
 				</div>
 				{mode === 'files' && (
-					<div className='view-tabs recipe-parts ui-tab-list' data-variant='switcher'>
+					<div
+						className='view-tabs recipe-parts ui-tab-list'
+						data-variant='switcher'
+					>
 						{parts.map((part) => (
 							<button
 								key={part.name}
