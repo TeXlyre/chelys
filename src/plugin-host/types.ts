@@ -39,6 +39,7 @@ export interface DockerPlatformOverride {
 export interface DockerVolume {
 	id: string;
 	target: string;
+	name?: string;
 }
 
 export interface DockerMode {
