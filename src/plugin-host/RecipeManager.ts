@@ -22,7 +22,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { getStoredSetting } from '../config';
 import { appDataDir } from '@tauri-apps/api/path';
 import { routeEndpoint } from './traefikRoutes';
-import { dockerVolumeArgs } from './dockerVolumes';
+import { dockerVolumeArgs, dockerVolumeName } from './dockerVolumes';
 import { materializeRecipeFiles } from './recipeWorkdir';
 import {
 	findMode,
@@ -313,6 +313,44 @@ class RecipeManager {
 		await processSupervisorService.stop(recipeId);
 	}
 
+	private async verifyStorageVolumes(
+		recipe: Recipe,
+		engine: ContainerEngine,
+		initialize: boolean,
+	): Promise<void> {
+		if (recipe.type !== 'storage') return;
+		const volumes = findMode(recipe, 'docker')?.volumes ?? [];
+		for (const volume of volumes) {
+			const name = dockerVolumeName(recipe.id, volume.id, volume.name);
+			const exists = await processSupervisorService
+				.runCommand(`${recipe.id}-volume-check`, {
+					command: engine,
+					args: ['volume', 'inspect', name],
+					env: {},
+				})
+				.then((code) => code === 0)
+				.catch(() => false);
+			if (exists) continue;
+			if (!initialize) {
+				throw new Error(
+					`Storage volume "${name}" is missing or inaccessible in ${engine}. Restore the original volume and credentials before starting.`,
+				);
+			}
+			if (
+				!window.confirm(
+					`Storage volume "${name}" does not exist in ${engine}. Create a NEW empty volume? If this is a reinstall, cancel and restore the original Garage volume instead.`,
+				)
+			) {
+				throw new Error('Storage volume initialization cancelled');
+			}
+			const code = await processSupervisorService.runCommand(
+				`${recipe.id}-volume-create`,
+				{ command: engine, args: ['volume', 'create', name], env: {} },
+			);
+			if (code !== 0) throw new Error(`Could not create storage volume "${name}"`);
+		}
+	}
+
 	async install(
 		recipeId: string,
 		mode: InstallModeKind,
@@ -343,6 +381,11 @@ class RecipeManager {
 			} else if (mode === 'docker') {
 				const docker = findMode(recipe, 'docker');
 				if (!docker) throw new Error('Container mode not supported');
+				await this.verifyStorageVolumes(
+					recipe,
+					containerEngine!,
+					this.readInstalled().get(recipeId)?.mode !== 'docker',
+				);
 
 				await this.runSteps(
 					recipe,
@@ -418,6 +461,7 @@ class RecipeManager {
 				if (!docker) throw new Error('Container mode not supported');
 
 				const containerEngine = this.containerEngineForRuntime(recipeId);
+				await this.verifyStorageVolumes(recipe, containerEngine, false);
 				await processSupervisorService.spawn(recipeId, {
 					command: containerEngine,
 					args: [
