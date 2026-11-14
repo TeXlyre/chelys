@@ -1,0 +1,20 @@
+# server/chelys.service
+[Unit]
+Description=Chelys headless service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/chelys
+Environment=CHELYS_DATA_DIR=%h/.local/share/chelys
+ExecStart=/opt/chelys/chelys serve
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=%h/.local/share/chelys
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

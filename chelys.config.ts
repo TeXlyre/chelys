@@ -19,6 +19,7 @@ const config: ChelysConfig = {
 					'https://texlyre.github.io/chelys-recipes/api/recipes.json',
 				enableCodedSeeds: false,
 				collabSignalingServers: 'wss://ywebrtc.texlyre.org',
+				headlessSignalingOrigin: 'http://localhost:5173',
 				collabAutoReconnect: true,
 				closeBehavior: 'tray',
 				startOnBoot: false,
