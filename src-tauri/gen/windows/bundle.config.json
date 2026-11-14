@@ -14,7 +14,7 @@
     "fileAssociations": [],
     "protocolHandlers": [],
     "startupTask": {
-      "enabled": true
+      "enabled": false
     }
   },
   "signing": {
