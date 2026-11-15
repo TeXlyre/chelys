@@ -1,6 +1,12 @@
 // src/plugins/infrastructure/index.ts
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
 import type { Recipe } from '../../plugin-host/types';
+import {
+	systemMonitorRecipe,
+	supportsSystemMonitor,
+	latestMonitorSnapshot,
+	MONITOR_FIELDS,
+} from './systemMonitor';
 
 export const INFRASTRUCTURE_TYPE = 'infrastructure';
 
@@ -162,7 +168,21 @@ export function registerInfrastructurePlugin(): void {
 		exclusive: true,
 		label: 'Infrastructure',
 		icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>',
-		seeds: [traefikRecipe],
+		seeds: [traefikRecipe, systemMonitorRecipe],
+		inspectRecipe: (recipe, status) => {
+			if (!supportsSystemMonitor(recipe)) return null;
+			const snapshot = latestMonitorSnapshot(status);
+			return {
+				fields: MONITOR_FIELDS.map((field) => ({ ...field })),
+				snapshot: snapshot
+					? {
+							sampledAt: snapshot.sampledAt,
+							scope: snapshot.scope,
+							metrics: snapshot.metrics,
+						}
+					: null,
+			};
+		},
 		formSchema: [
 			{ key: 'name', label: 'Name', kind: 'text', placeholder: 'Traefik' },
 		],
