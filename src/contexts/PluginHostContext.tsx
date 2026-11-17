@@ -19,12 +19,14 @@ import { registerLspPlugin } from '../plugins/lsp';
 import { registerTypesetterPlugin } from '../plugins/typesetter';
 import { registerInfrastructurePlugin } from '../plugins/infrastructure';
 import { registerStoragePlugin } from '../plugins/storage';
+import { registerServicePlugin } from '../plugins/service';
 
 registerLspPlugin();
 registerTypesetterPlugin();
 registerStoragePlugin();
 registerInfrastructurePlugin();
 registerAcpPlugin();
+registerServicePlugin();
 
 interface PluginHostContextType {
 	recipes: Recipe[];

@@ -21,6 +21,49 @@ Chelys installs and runs **recipes**, which are background tools such as languag
 
 Ready-made recipes are available at [chelys-recipes](https://texlyre.github.io/chelys-recipes). Chelys automates this setup, but it is optional. If you prefer, you can run a language server yourself and point TeXlyre at its WebSocket address directly, following [Using an LSP with TeXlyre](https://texlyre.github.io/docs/lsp-with-texlyre).
 
+### Generic Services
+
+Use the `service` recipe type for application backends with a WebSocket
+interface. System, container and connect modes use the existing recipe
+lifecycle. For WebRTC, Chelys relays text and binary messages to the
+configured WebSocket endpoint.
+
+```json
+{
+  "id": "example-service",
+  "type": "service",
+  "name": "Example service",
+  "env": {},
+  "modes": [{ "kind": "connect" }],
+  "selectedMode": "connect",
+  "typeConfig": {
+    "configId": "example-gpu-01",
+    "protocol": "example/1",
+    "transportType": "webrtc",
+    "transportUrl": "ws://127.0.0.1:9070"
+  }
+}
+```
+
+Import the full recipe, install it in connect mode and start it after the
+backend is running. Use a literal, account-wide unique `configId` for each
+machine/service instance; change it only while the recipe is stopped.
+The protocol identifier is interpreted by the client, not Chelys.
+
+Clients can read descriptors under the account settings keys
+`generic-service-config:<configId>`. A descriptor contains the ID, name,
+protocol, enabled state and transport configuration. For account-mode
+WebRTC, use the existing service label `service:<configId>`, the
+account-derived room and live host advertisements to establish a session.
+A saved descriptor alone does not indicate that a service is online.
+WebSocket clients connect directly to the published URL; use a reachable,
+secured endpoint when connecting across machines. A WebRTC descriptor
+does not publish the upstream WebSocket URL.
+
+Only run trusted recipes and backends. Keep credentials in secret
+environment variables and out of published URLs. HTTP-only services
+require an application-specific WebSocket adapter for the WebRTC relay.
+
 ### Account Synchronization
 
 Your TeXlyre settings, properties, secrets, and records synchronize directly between your devices using **[Yjs](https://github.com/yjs/yjs) CRDTs** over **WebRTC** without a central server storing data. A presence indicator shows which of your devices are currently connected in Chelys.
