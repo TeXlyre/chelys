@@ -2,10 +2,18 @@
 import { t } from '@/i18n';
 import type { Setting } from '../contexts/SettingsContext';
 import { getSettingDefault } from '../config';
-import { recipeRegistry } from '../plugin-host/RecipeRegistry';
-import { recipeManager } from '../plugin-host/RecipeManager';
 import { resetPlatformCache } from '../plugin-host/platformResolution';
 import { applyCloseBehavior, applyStartOnBoot } from '../utils/systemSettings';
+import { localCommand } from '../control/localClient';
+import { flushSharedStorage } from '../runtime/storageMirror';
+
+const reinjectBackend = () => {
+	void flushSharedStorage()
+		.then(() => localCommand('recipes.reinject'))
+		.catch((error) =>
+			console.error('[Chelys] Could not update backend recipes', error),
+		);
+};
 
 export const getChelysSettings = (): Setting[] => [
 	{
@@ -16,7 +24,6 @@ export const getChelysSettings = (): Setting[] => [
 		label: t('Recipe registry URL'),
 		description: t('Endpoint used to fetch the recipe registry'),
 		defaultValue: getSettingDefault('recipeRegistryUrl'),
-		onChange: (value) => recipeRegistry.setBaseUrl(value as string),
 	},
 	{
 		id: 'enableCodedSeeds',
@@ -69,9 +76,7 @@ export const getChelysSettings = (): Setting[] => [
 			'Rewrite service URLs to a single Traefik entrypoint using the recipe identifier as a path, instead of per-recipe ports (applied on next start).',
 		),
 		defaultValue: getSettingDefault('traefikEnabled'),
-		onChange: () => {
-			void recipeManager.reinjectRunning();
-		},
+		onChange: reinjectBackend,
 	},
 	{
 		id: 'traefikBaseUrl',
@@ -83,9 +88,7 @@ export const getChelysSettings = (): Setting[] => [
 			'Scheme and host of the Traefik entrypoint, port optional, e.g. wss://chelys.traefik-host:8443. http/https are treated as ws/wss. Used when Traefik routing is on (applied on next start).',
 		),
 		defaultValue: getSettingDefault('traefikBaseUrl'),
-		onChange: () => {
-			void recipeManager.reinjectRunning();
-		},
+		onChange: reinjectBackend,
 	},
 	{
 		id: 'traefikBackendHost',
@@ -97,9 +100,7 @@ export const getChelysSettings = (): Setting[] => [
 			'Host Traefik uses to reach services on this machine. Leave as auto to use 127.0.0.1 for a system-mode Traefik and host.docker.internal for a containerised one on Windows and macOS.',
 		),
 		defaultValue: getSettingDefault('traefikBackendHost'),
-		onChange: () => {
-			void recipeManager.reinjectRunning();
-		},
+		onChange: reinjectBackend,
 	},
 	{
 		id: 'traefikRouteServerPort',
@@ -124,9 +125,7 @@ export const getChelysSettings = (): Setting[] => [
 			'Host used with recipe ports when Traefik routing is off (applied on next start).',
 		),
 		defaultValue: getSettingDefault('serviceHost'),
-		onChange: () => {
-			void recipeManager.reinjectRunning();
-		},
+		onChange: reinjectBackend,
 	},
 	{
 		id: 'dynamicPortFallback',
@@ -195,11 +194,13 @@ export const getChelysSettings = (): Setting[] => [
 		subcategory: t('Startup'),
 		type: 'select',
 		label: t('When closing the window'),
-		description: t('Minimize to the system tray or quit Chelys'),
+		description: t(
+			'Hide the desktop window in the system tray or quit the UI. The shared backend keeps running.',
+		),
 		defaultValue: getSettingDefault('closeBehavior'),
 		options: [
-			{ label: t('Minimize to tray'), value: 'tray' },
-			{ label: t('Quit Chelys'), value: 'exit' },
+			{ label: t('Hide to system tray'), value: 'tray' },
+			{ label: t('Quit desktop UI'), value: 'exit' },
 		],
 		onChange: (value) => applyCloseBehavior(value === 'exit'),
 	},
@@ -210,7 +211,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'checkbox',
 		label: t('Start on system boot'),
 		description: t(
-			'Launch Chelys automatically when you log in (starts minimized to tray)',
+			'Start the headless backend at OS login (without opening a desktop window)',
 		),
 		defaultValue: getSettingDefault('startOnBoot'),
 		onChange: (value) => {

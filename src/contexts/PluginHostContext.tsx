@@ -1,11 +1,14 @@
 // src/contexts/PluginHostContext.tsx
 import type React from 'react';
-import { type ReactNode, createContext, useEffect, useState } from 'react';
+import {
+	type ReactNode,
+	createContext,
+	useEffect,
+	useMemo,
+	useState,
+} from 'react';
 
-import { recipeManager } from '../plugin-host/RecipeManager';
-import { recipeRegistry } from '../plugin-host/RecipeRegistry';
 import { pluginTypeRegistry } from '../plugin-host/PluginTypeRegistry';
-import { reconcileRoutes } from '../plugin-host/traefikRoutes';
 import type {
 	ContainerEngine,
 	DockerInstallSource,
@@ -14,17 +17,8 @@ import type {
 	RecipeStatus,
 	RegistryEntry,
 } from '../plugin-host/types';
-import { registerAcpPlugin } from '../plugins/acp';
-import { registerLspPlugin } from '../plugins/lsp';
-import { registerTypesetterPlugin } from '../plugins/typesetter';
-import { registerInfrastructurePlugin } from '../plugins/infrastructure';
-import { registerStoragePlugin } from '../plugins/storage';
-
-registerLspPlugin();
-registerTypesetterPlugin();
-registerStoragePlugin();
-registerInfrastructurePlugin();
-registerAcpPlugin();
+import { localCommand } from '../control/localClient';
+import { registerChelysPlugins } from '../runtime/registerPlugins';
 
 interface PluginHostContextType {
 	recipes: Recipe[];
@@ -57,7 +51,7 @@ interface PluginHostContextType {
 	setContainerEngineOverride: (
 		recipeId: string,
 		engine: ContainerEngine | null,
-	) => void;
+	) => Promise<void>;
 }
 
 export const PluginHostContext = createContext<PluginHostContextType>({
@@ -68,29 +62,36 @@ export const PluginHostContext = createContext<PluginHostContextType>({
 		_recipeId: string,
 		_mode: InstallModeKind,
 		_source?: DockerInstallSource,
-	) => {},
-	cancelInstall: async () => {},
-	run: async () => {},
-	stop: async () => {},
+	) => { },
+	cancelInstall: async () => { },
+	run: async () => { },
+	stop: async () => { },
 	save: async () => {
 		throw new Error('Not implemented');
 	},
-	remove: async () => {},
-	uninstall: async () => {},
+	remove: async () => { },
+	uninstall: async () => { },
 	importRecipe: async () => {
 		throw new Error('Not implemented');
 	},
 	registry: [],
-	refreshRegistry: async () => {},
+	refreshRegistry: async () => { },
 	installFromRegistry: async () => {
 		throw new Error('Not implemented');
 	},
 	updatesAvailable: new Map(),
-	setVariables: async () => {},
+	setVariables: async () => { },
 	getContainerEngineOverride: () => null,
-	setContainerEngineOverride: () => {},
+	setContainerEngineOverride: async () => { },
 });
 
+type RecipeSnapshot = {
+	recipes: Recipe[];
+	statuses: Record<string, RecipeStatus>;
+	engines: Record<string, ContainerEngine | null>;
+};
+
+/** One recipe model for the full desktop UI, CLI and remote control. */
 export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 	children,
 }) => {
@@ -99,111 +100,149 @@ export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 	);
 	const [recipes, setRecipes] = useState<Recipe[]>([]);
 	const [registry, setRegistry] = useState<RegistryEntry[]>([]);
-	const [updatesAvailable, setUpdatesAvailable] = useState<Map<string, string>>(
-		new Map(),
-	);
+	const [engines, setEngines] = useState<
+		Record<string, ContainerEngine | null>
+	>({});
 	const [isReady, setIsReady] = useState(false);
 
-	useEffect(() => {
-		let unsubscribe: (() => void) | undefined;
-		(async () => {
-			await recipeManager.initialize();
-			const loaded = recipeManager.listRecipes();
-			setRecipes(loaded);
-			unsubscribe = recipeManager.subscribe((next) =>
-				setStatuses(new Map(next)),
-			);
-			setIsReady(true);
-			void recipeManager.reinjectRunning();
-
-			void reconcileRoutes(
-				loaded
-					.filter((r) => recipeManager.getStatus(r.id)?.state === 'running')
-					.map((r) => (r.typeConfig as { configId?: string }).configId ?? r.id),
-			);
-
-			try {
-				const entries = await recipeRegistry.list(false);
-				setRegistry(entries);
-				setUpdatesAvailable(recipeManager.checkForUpdates(entries));
-			} catch {
-				/* registry unavailable on start */
+	const refresh = async () => {
+		const snapshot = await localCommand<RecipeSnapshot>('recipes.snapshot');
+		setRecipes(snapshot.recipes);
+		setStatuses(new Map(Object.entries(snapshot.statuses)));
+		setEngines(snapshot.engines);
+		return snapshot.recipes;
+	};
+	const refreshRegistry = async () => {
+		const entries = await localCommand<RegistryEntry[]>(
+			'recipes.registry.refresh',
+		);
+		setRegistry(entries);
+	};
+	const updatesAvailable = useMemo(() => {
+		const updates = new Map<string, string>();
+		for (const recipe of recipes) {
+			const found = registry.find((entry) => entry.id === recipe.id);
+			if (
+				found?.version &&
+				recipe.version &&
+				found.version !== recipe.version
+			) {
+				updates.set(recipe.id, found.version);
 			}
-		})();
-		return () => unsubscribe?.();
+		}
+		return updates;
+	}, [registry, recipes]);
+
+	useEffect(() => {
+		let alive = true;
+		registerChelysPlugins(); // UI schema only; backend owns every recipe process and bridge.
+		void refresh()
+			.then(() => {
+				if (alive) setIsReady(true);
+			})
+			.catch((error) => console.error('[Chelys] Cannot load recipes', error));
+		void refreshRegistry().catch((error) =>
+			console.warn('[Chelys] Registry unavailable', error),
+		);
+		const timer = setInterval(() => {
+			if (alive)
+				void refresh()
+					.then(() => {
+						if (alive) setIsReady(true);
+					})
+					.catch((error) =>
+						console.warn('[Chelys] Could not refresh recipe status', error),
+					);
+		}, 2000);
+		return () => {
+			alive = false;
+			clearInterval(timer);
+		};
 	}, []);
 
-	const refresh = () => setRecipes(recipeManager.listRecipes());
-
-	const save = async (recipe: Recipe) => {
-		const saved = await recipeManager.save(recipe);
-		refresh();
+	const callAndRefresh = async (
+		method: string,
+		params: Record<string, unknown>,
+	): Promise<void> => {
+		try {
+			await localCommand(method, params);
+		} finally {
+			await refresh().catch(() => undefined);
+		}
+	};
+	const save = async (recipe: Recipe): Promise<Recipe> => {
+		const saved = await localCommand<Recipe>('recipes.save', { recipe });
+		await refresh();
 		return saved;
 	};
-
-	const remove = async (recipeId: string) => {
-		await recipeManager.remove(recipeId);
-		refresh();
-	};
-
-	const uninstall = async (recipeId: string) => {
-		await recipeManager.uninstall(recipeId);
-		refresh();
-	};
-
 	const importRecipe = async (type: string, raw: string) => {
 		const parser = pluginTypeRegistry.get(type)?.parseImport;
 		if (!parser) throw new Error('This plugin type does not support import');
 		return save(parser(raw));
 	};
-
-	const refreshRegistry = async () => {
-		const entries = await recipeRegistry.list(false);
-		setRegistry(entries);
-		setUpdatesAvailable(recipeManager.checkForUpdates(entries));
-	};
-
 	const installFromRegistry = async (
 		entry: RegistryEntry,
 		version?: string,
-	) => {
-		const saved = await recipeManager.installFromRegistry(entry, version);
-		refresh();
-		setUpdatesAvailable(recipeManager.checkForUpdates(registry));
+	): Promise<Recipe> => {
+		const saved = await localCommand<Recipe>('recipes.registry.add', {
+			id: entry.id,
+			version,
+		});
+		await refresh();
 		return saved;
 	};
-
-	const setVariables = async (
-		recipeId: string,
-		values: Record<string, string>,
+	const setContainerEngineOverride = async (
+		id: string,
+		engine: ContainerEngine | null,
 	) => {
-		await recipeManager.setVariables(recipeId, values);
-		refresh();
+		await localCommand('recipes.engine.set', { id, engine });
+		setEngines((previous) => ({ ...previous, [id]: engine }));
 	};
-
 	return (
 		<PluginHostContext.Provider
 			value={{
 				recipes,
 				statuses,
 				isReady,
-				install: recipeManager.install.bind(recipeManager),
-				cancelInstall: recipeManager.cancelInstall.bind(recipeManager),
-				run: recipeManager.run.bind(recipeManager),
-				stop: recipeManager.stop.bind(recipeManager),
+				install: async (id, mode, source) => {
+					try {
+						await callAndRefresh('recipes.install', { id, mode, source });
+					} catch (error) {
+						const missing = String(error).includes(
+							'Storage volume initialization cancelled',
+						);
+						const recipe = recipes.find((item) => item.id === id);
+						if (!missing || recipe?.type !== 'storage' || mode !== 'docker')
+							throw error;
+						if (
+							!window.confirm(
+								'The storage recipe requires empty container volumes. Initialize them now? Existing data will not be deleted.',
+							)
+						)
+							throw error;
+						await callAndRefresh('recipes.install', {
+							id,
+							mode,
+							source,
+							initializeVolumes: true,
+						});
+					}
+				},
+				cancelInstall: (id) => callAndRefresh('recipes.cancelInstall', { id }),
+				run: (id) => callAndRefresh('recipes.run', { id }),
+				stop: (id) => callAndRefresh('recipes.stop', { id }),
 				save,
-				remove,
-				uninstall,
+				remove: (id) => callAndRefresh('recipes.remove', { id }),
+				uninstall: (id) => callAndRefresh('recipes.uninstall', { id }),
 				importRecipe,
 				registry,
 				refreshRegistry,
 				installFromRegistry,
 				updatesAvailable,
-				setVariables,
-				getContainerEngineOverride:
-					recipeManager.getContainerEngineOverride.bind(recipeManager),
-				setContainerEngineOverride:
-					recipeManager.setContainerEngineOverride.bind(recipeManager),
+				setVariables: (id, values) =>
+					callAndRefresh('recipes.variables.set', { id, values }),
+				getContainerEngineOverride: (id) => engines[id] ?? null,
+				setContainerEngineOverride,
 			}}
 		>
 			{children}

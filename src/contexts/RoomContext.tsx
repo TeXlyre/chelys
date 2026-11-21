@@ -1,66 +1,50 @@
 // src/contexts/RoomContext.tsx
 import type React from 'react';
-import { type ReactNode, createContext, useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
-
 import {
-	deriveIdentity,
-	fromHex,
-	type DerivedIdentity,
-} from '@chelys/protocol';
-import { chelysAccountSyncService } from '@texlyre/services/ChelysAccountSyncService';
-import { type RoomDefaults, getStoredSetting } from '../config';
+	type ReactNode,
+	createContext,
+	useEffect,
+	useRef,
+	useState,
+} from 'react';
+import { localCommand } from '../control/localClient';
+import { flushSharedStorage } from '../runtime/storageMirror';
 import { setActiveAccountId } from '../plugin-host/activeAccount';
-import { recipeManager } from '../plugin-host/RecipeManager';
-
-interface StoredCredentials {
-	username: string;
-	password: string;
-	prf_output_hex: string;
-}
+import type { RoomDefaults } from '../config';
 
 interface RoomCredentials {
 	username: string;
 	password: string;
 	prfHex: string;
 }
-
+interface CredentialStorageStatus {
+	backend: 'keyring' | 'file';
+	warning: string | null;
+	migrated: boolean;
+}
+interface AccountStatus {
+	loggedIn: boolean;
+	accountId?: string | null;
+	username?: string | null;
+	credentialStorage?: CredentialStorageStatus | null;
+}
 interface RoomContextType {
-	identity: DerivedIdentity | null;
+	identity: { roomId: string } | null;
 	username: string;
 	credentials: RoomCredentials | null;
 	isInitializing: boolean;
+	credentialWarning: string | null;
 	login: (username: string, password: string, prfHex: string) => Promise<void>;
 	updateCredentials: (next: RoomCredentials) => Promise<void>;
 	logout: () => Promise<void>;
 }
-
-const lastRoomKey = (username: string): string =>
-	`chelys-last-room:${username}`;
-
-const migrateUserStorage = (fromId: string, toId: string): void => {
-	const fromPrefix = `texlyre-user-${fromId}-`;
-	const toPrefix = `texlyre-user-${toId}-`;
-	const keys: string[] = [];
-
-	for (let i = 0; i < localStorage.length; i++) {
-		const key = localStorage.key(i);
-		if (key?.startsWith(fromPrefix)) keys.push(key);
-	}
-
-	for (const key of keys) {
-		const target = toPrefix + key.slice(fromPrefix.length);
-		if (localStorage.getItem(target) !== null) continue;
-		const value = localStorage.getItem(key);
-		if (value !== null) localStorage.setItem(target, value);
-	}
-};
 
 export const RoomContext = createContext<RoomContextType>({
 	identity: null,
 	username: '',
 	credentials: null,
 	isInitializing: true,
+	credentialWarning: null,
 	login: async () => {
 		throw new Error('Not implemented');
 	},
@@ -76,118 +60,102 @@ export const RoomProvider: React.FC<{
 	children: ReactNode;
 	defaults: RoomDefaults;
 }> = ({ children }) => {
-	const [identity, setIdentity] = useState<DerivedIdentity | null>(null);
+	const [identity, setIdentity] = useState<{ roomId: string } | null>(null);
 	const [username, setUsername] = useState('');
 	const [credentials, setCredentials] = useState<RoomCredentials | null>(null);
 	const [isInitializing, setIsInitializing] = useState(true);
+	const [credentialWarning, setCredentialWarning] = useState<string | null>(
+		null,
+	);
+	const lastAccount = useRef<string | null>(null);
 
-	const activate = async (
-		derived: DerivedIdentity,
-		user: string,
-		creds: RoomCredentials,
-	) => {
-		setActiveAccountId(derived.roomId);
-		localStorage.setItem(lastRoomKey(user), derived.roomId);
+	const applyStatus = (status: AccountStatus) => {
+		const roomId = status.loggedIn ? (status.accountId ?? null) : null;
+		lastAccount.current = roomId;
+		setIdentity(roomId ? { roomId } : null);
+		setUsername(status.loggedIn ? (status.username ?? '') : '');
+		setActiveAccountId(roomId);
+		setCredentialWarning(status.credentialStorage?.warning ?? null);
+		if (!status.loggedIn) setCredentials(null);
 
-		const storageKey = `texlyre-user-${derived.roomId}-settings`;
-		const existing = JSON.parse(localStorage.getItem(storageKey) || '{}');
-		const sig = getStoredSetting<string>('collabSignalingServers');
-		const auto = getStoredSetting<boolean>('collabAutoReconnect');
-
-		if (
-			existing['collab-signaling-servers'] !== sig ||
-			existing['collab-auto-reconnect'] !== auto
-		) {
-			localStorage.setItem(
-				storageKey,
-				JSON.stringify({
-					...existing,
-					'collab-signaling-servers': sig,
-					'collab-auto-reconnect': auto,
-				}),
-			);
-		}
-
-		setIdentity(derived);
-		setUsername(user);
-		setCredentials(creds);
 		window.dispatchEvent(new Event('chelys-account-changed'));
-		await chelysAccountSyncService.start(
-			derived.roomId,
-			derived.roomKey,
-			derived.roomId,
-			user,
-		);
-		void recipeManager.reinjectRunning();
+	};
+
+	const loadPrivateProfile = async (status: AccountStatus) => {
+		try {
+			const stored = await localCommand<{
+				username: string;
+				prf_output_hex: string;
+			} | null>('account.credentials');
+			if (stored && stored.username === status.username) {
+				setCredentials({
+					username: stored.username,
+					password: '',
+					prfHex: stored.prf_output_hex,
+				});
+			} else setCredentials(null);
+		} catch {
+			setCredentials(null); // Authentication still works when profile secrets cannot be displayed.
+		}
 	};
 
 	useEffect(() => {
-		(async () => {
+		let alive = true;
+		const refreshAccount = async () => {
 			try {
-				const creds = await invoke<StoredCredentials | null>(
-					'load_credentials',
-				);
-				console.log(
-					'restore: load_credentials ->',
-					creds ? 'got creds' : 'null',
-				);
-				if (creds) {
-					const derived = await deriveIdentity({
-						username: creds.username,
-						password: creds.password,
-						prfOutput: fromHex(creds.prf_output_hex),
-					});
-					await activate(derived, creds.username, {
-						username: creds.username,
-						password: creds.password,
-						prfHex: creds.prf_output_hex,
-					});
+				const status = await localCommand<AccountStatus>('account.status');
+				if (!alive) return;
+				setCredentialWarning(status.credentialStorage?.warning ?? null);
+				const nextRoom = status.loggedIn ? (status.accountId ?? null) : null;
+				if (nextRoom !== lastAccount.current) {
+					applyStatus(status);
+					if (status.loggedIn) await loadPrivateProfile(status);
 				}
 			} catch (error) {
-				console.error('Failed to load credentials:', error);
+				if (alive)
+					setCredentialWarning(`Cannot connect to Chelys: ${String(error)}`);
 			} finally {
-				setIsInitializing(false);
+				if (alive) setIsInitializing(false);
 			}
-		})();
+		};
+		void refreshAccount();
+		const timer = setInterval(() => {
+			void refreshAccount();
+		}, 3000);
+		return () => {
+			alive = false;
+			clearInterval(timer);
+		};
 	}, []);
 
 	const login = async (user: string, password: string, prfHex: string) => {
-		const normalizedPrf = prfHex.trim().toLowerCase();
-		const derived = await deriveIdentity({
+		const normalized = prfHex.trim().toLowerCase();
+		if (!/^(?:[0-9a-f]{2})+$/.test(normalized))
+			throw new Error('Valid hexadecimal Chelys key required');
+		await flushSharedStorage();
+		const status = await localCommand<AccountStatus>('account.login', {
 			username: user,
 			password,
-			prfOutput: fromHex(normalizedPrf),
+			prf_output_hex: normalized,
 		});
-
-		const lastRoom = localStorage.getItem(lastRoomKey(user));
-		if (lastRoom && lastRoom !== derived.roomId) {
-			migrateUserStorage(lastRoom, derived.roomId);
-		}
-
-		await invoke('save_credentials', {
-			username: user,
-			password,
-			prfOutputHex: normalizedPrf,
-		});
-		await activate(derived, user, {
-			username: user,
-			password,
-			prfHex: normalizedPrf,
-		});
+		applyStatus(status);
+		setCredentials({ username: user, password: '', prfHex: normalized });
 	};
 
 	const updateCredentials = async (next: RoomCredentials) => {
-		await login(next.username, next.password, next.prfHex);
+		await flushSharedStorage();
+		const status = await localCommand<AccountStatus>('profile.update', {
+			username: next.username,
+			...(next.password ? { password: next.password } : {}),
+			prf_output_hex: next.prfHex,
+		});
+		applyStatus(status);
+		setCredentials({ ...next, password: '' });
 	};
 
 	const logout = async () => {
-		chelysAccountSyncService.stop();
-		await invoke('clear_credentials');
-		setIdentity(null);
-		setUsername('');
-		setCredentials(null);
-		setActiveAccountId(null);
-		window.dispatchEvent(new Event('chelys-account-changed'));
+		const status = await localCommand<AccountStatus>('account.logout');
+		applyStatus(status);
 	};
 
 	return (
@@ -197,6 +165,7 @@ export const RoomProvider: React.FC<{
 				username,
 				credentials,
 				isInitializing,
+				credentialWarning,
 				login,
 				updateCredentials,
 				logout,
