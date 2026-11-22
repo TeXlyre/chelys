@@ -44,6 +44,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 	const { registry, refreshRegistry, installFromRegistry, recipes } =
 		usePluginHost();
 	const [loadError, setLoadError] = useState<string | null>(null);
+	const [loadingRegistry, setLoadingRegistry] = useState(false);
 	const [installError, setInstallError] = useState<string | null>(null);
 	const [installing, setInstalling] = useState<string | null>(null);
 	const [query, setQuery] = useState('');
@@ -52,12 +53,20 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 	const [icons, setIcons] = useState<Record<string, string>>({});
 	const [versions, setVersions] = useState<Record<string, string>>({});
 
+	const loadRegistry = async () => {
+		setLoadingRegistry(true);
+		try {
+			await refreshRegistry();
+			setLoadError(null);
+		} catch (error) {
+			setLoadError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setLoadingRegistry(false);
+		}
+	};
+
 	useEffect(() => {
-		refreshRegistry().catch((e) =>
-			setLoadError(
-				e instanceof Error ? e.message : t('Could not load registry'),
-			),
-		);
+		void loadRegistry();
 	}, []);
 
 	const entries = useMemo(() => {
@@ -80,27 +89,33 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 		return [...registry.map((entry) => ({ ...entry, local: false })), ...local];
 	}, [registry, recipes]);
 
+	const scopedEntries = useMemo(() => {
+		if (fixedCategory)
+			return entries.filter((entry) => entry.type === fixedCategory);
+		const exclusiveTypes = new Set(pluginTypeRegistry.exclusiveTypes());
+		return entries.filter((entry) => !exclusiveTypes.has(entry.type));
+	}, [entries, fixedCategory]);
+
 	const categories = useMemo(
-		() => Array.from(new Set(entries.map((entry) => entry.type))),
-		[entries],
+		() => Array.from(new Set(scopedEntries.map((entry) => entry.type))),
+		[scopedEntries],
 	);
 
 	const filtered = useMemo(() => {
 		const q = query.toLowerCase().trim();
-		const exclusiveTypes = new Set(pluginTypeRegistry.exclusiveTypes());
-		return entries.filter((entry) => {
-			const matchesScope = fixedCategory
-				? entry.type === fixedCategory
-				: !exclusiveTypes.has(entry.type);
+		return scopedEntries.filter((entry) => {
 			const matchesQuery =
 				!q ||
 				entry.name.toLowerCase().includes(q) ||
 				(entry.description ?? '').toLowerCase().includes(q) ||
 				(entry.tags ?? []).some((tag) => tag.toLowerCase().includes(q));
-			const matchesCategory = !category || entry.type === category;
-			return matchesScope && matchesQuery && matchesCategory;
+			return matchesQuery && (!category || entry.type === category);
 		});
-	}, [entries, query, category, fixedCategory]);
+	}, [scopedEntries, query, category]);
+
+	useEffect(() => {
+		if (category && !categories.includes(category)) setCategory('');
+	}, [category, categories]);
 
 	const totalPages = Math.max(1, Math.ceil(filtered.length / RECIPES_PER_PAGE));
 
@@ -186,11 +201,11 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 				<h3>
 					{fixedCategory
 						? t('Browse {category} recipes', {
-								category: typeLabel(fixedCategory),
-							})
+							category: typeLabel(fixedCategory),
+						})
 						: t('Browse recipes')}
 				</h3>
-				<button className='button action-button' onClick={onDone}>
+				<button type='button' className='button action-button' onClick={onDone}>
 					{t('Back')}
 				</button>
 			</div>
@@ -220,7 +235,28 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 				)}
 			</div>
 
-			{loadError && <div className='recipe-error'>{loadError}</div>}
+			{loadError && (
+				<div className='recipe-error' role='alert'>
+					<p>
+						{t('Could not load registry')}: {loadError}
+					</p>
+					<button
+						type='button'
+						className='button action-button'
+						disabled={loadingRegistry}
+						onClick={() => void loadRegistry()}
+					>
+						{t('Retry')}
+					</button>
+					{entries.some((entry) => entry.local) && (
+						<small>
+							{t(
+								'Locally added recipes remain visible even if the online registry is unavailable.',
+							)}
+						</small>
+					)}
+				</div>
+			)}
 			{installError && <div className='recipe-error'>{installError}</div>}
 
 			{!loadError && filtered.length === 0 && (
@@ -291,6 +327,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 
 						<div className='recipe-actions'>
 							<button
+								type='button'
 								className='button action-button primary'
 								disabled={entry.local || installing === entry.id}
 								onClick={() => handleInstall(entry)}
@@ -340,6 +377,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 					</div>
 					<div className='pagination-controls ui-actions'>
 						<button
+							type='button'
 							className='pagination-button'
 							onClick={() => goToPage(currentPage - 1)}
 							disabled={currentPage === 1}
@@ -349,6 +387,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 						{currentPage > 2 && (
 							<>
 								<button
+									type='button'
 									className='pagination-button'
 									onClick={() => goToPage(1)}
 								>
@@ -361,6 +400,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 						)}
 						{visiblePages.map((page) => (
 							<button
+								type='button'
 								key={page}
 								className={`pagination-button ${page === currentPage ? 'active' : ''}`}
 								onClick={() => goToPage(page)}
@@ -374,6 +414,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 									<span className='pagination-ellipsis'>{t('...')}</span>
 								)}
 								<button
+									type='button'
 									className='pagination-button'
 									onClick={() => goToPage(totalPages)}
 								>
@@ -382,6 +423,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 							</>
 						)}
 						<button
+							type='button'
 							className='pagination-button'
 							onClick={() => goToPage(currentPage + 1)}
 							disabled={currentPage === totalPages}

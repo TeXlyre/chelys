@@ -106,7 +106,6 @@ const RecipeCodeMirror: React.FC<RecipeCodeMirrorProps> = ({
 		[currentVariant],
 	);
 
-	/* biome-ignore lint/correctness/useExhaustiveDependencies: Mount-only; reactive updates use compartments below. */
 	useEffect(() => {
 		if (!containerRef.current || editorViewRef.current) return;
 

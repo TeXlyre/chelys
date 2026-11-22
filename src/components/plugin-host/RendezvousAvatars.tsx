@@ -1,74 +1,53 @@
 // src/components/plugin-host/RendezvousAvatars.tsx
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import type { Awareness } from 'y-protocols/awareness';
-
-import {
-	acquireRendezvous,
-	type RendezvousLease,
-} from '@chelys/peer/RendezvousRoom';
-import { resolveSignalingServers } from '../../peer/BridgeResolution';
+import { useEffect, useState } from 'react';
+import { localCommand } from '../../control/localClient';
 import type { Recipe } from '../../plugin-host/types';
-import CollaboratorAvatars from '../common/CollaboratorAvatars';
+import CollaboratorAvatars, {
+	type CollaboratorState,
+} from '../common/CollaboratorAvatars';
 
 interface RendezvousAvatarsProps {
 	recipe: Recipe;
 	active: boolean;
 }
 
-interface SharedTransportConfig {
-	transportRoomId?: unknown;
-	signalingServers?: unknown;
-}
-
+/** Display the backend's room presence instead of opening a renderer WebRTC connection. */
 const RendezvousAvatars: React.FC<RendezvousAvatarsProps> = ({
 	recipe,
 	active,
 }) => {
-	const [awareness, setAwareness] = useState<Awareness | null>(null);
-
-	const config = recipe.typeConfig as SharedTransportConfig;
-	const roomId =
-		typeof config.transportRoomId === 'string' && config.transportRoomId.trim()
-			? config.transportRoomId.trim()
-			: null;
-	const signaling = useMemo(
-		() =>
-			resolveSignalingServers(
-				Array.isArray(config.signalingServers)
-					? config.signalingServers.filter(
-							(value): value is string => typeof value === 'string',
-						)
-					: undefined,
-			),
-		[config.signalingServers],
-	);
-
+	const [snapshot, setSnapshot] = useState<CollaboratorState[]>([]);
 	useEffect(() => {
-		if (!active || !roomId) {
-			setAwareness(null);
+		if (!active) {
+			setSnapshot([]);
 			return;
 		}
-
-		const lease: RendezvousLease = acquireRendezvous(roomId, signaling);
-		const unsubscribe = lease.subscribe((connection) => {
-			setAwareness(connection.awareness);
-		});
-
-		return () => {
-			unsubscribe();
-			lease.release();
-			setAwareness(null);
+		let alive = true;
+		const refresh = () => {
+			void localCommand<CollaboratorState[]>('recipes.collaborators', {
+				id: recipe.id,
+			})
+				.then((users) => {
+					if (alive) setSnapshot(users);
+				})
+				.catch(() => {
+					if (alive) setSnapshot([]);
+				});
 		};
-	}, [active, roomId, signaling]);
-
+		refresh();
+		const timer = window.setInterval(refresh, 3000);
+		return () => {
+			alive = false;
+			window.clearInterval(timer);
+		};
+	}, [recipe.id, active]);
 	return (
 		<div className='recipe-awareness'>
-			{awareness && (
-				<CollaboratorAvatars awareness={awareness} maxVisible={4} />
+			{snapshot.length > 0 && (
+				<CollaboratorAvatars snapshot={snapshot} maxVisible={4} />
 			)}
 		</div>
 	);
 };
-
 export default RendezvousAvatars;
