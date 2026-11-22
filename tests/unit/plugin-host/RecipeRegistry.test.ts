@@ -1,3 +1,4 @@
+// tests/unit/plugin-host/RecipeRegistry.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { recipeRegistry } from '@src/plugin-host/RecipeRegistry';
 import type { RegistryEntry } from '@src/plugin-host/types';
@@ -134,4 +135,15 @@ describe('recipe registry', () => {
 		if (docker.kind !== 'docker') throw new Error('expected docker mode');
 		expect(docker.dockerfile).toBe('FROM alpine\nRUN echo ltex\n');
 	});
+});
+
+it('rejects unknown manifest versions without silently installing the latest', async () => {
+	const fetchMock = vi.fn();
+	vi.stubGlobal('fetch', fetchMock);
+	await expect(recipeRegistry.fetchRecipe({
+		id: 'garage-storage', type: 'storage', name: 'Garage',
+		manifestUrl: 'https://registry.test/garage/latest.json',
+		versions: [{ version: '2.4.1', manifestUrl: 'https://registry.test/garage/2.4.1/recipe.json' }],
+	}, '0.0.0')).rejects.toThrow('Recipe version not found');
+	expect(fetchMock).not.toHaveBeenCalled();
 });

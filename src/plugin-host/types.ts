@@ -45,6 +45,7 @@ export interface DockerVolume {
 export interface DockerMode {
 	kind: 'docker';
 	image: string;
+	removeImageOnUninstall?: boolean;
 	buildSteps: InstallStep[];
 	runArgs: string[];
 	volumes?: DockerVolume[];
@@ -62,10 +63,6 @@ export type InstallMode = SystemMode | DockerMode | ConnectMode;
 
 export type DockerInstallSource = 'build' | 'registry';
 
-// A 'secret' (e.g. an API key) is only substituted into the recipe's env,
-// is masked in the UI, and is left out of downloaded recipes. Left empty, its
-// env entry is dropped so the variable inherited from Chelys's environment
-// still applies.
 export type VariableKind = 'text' | 'number' | 'boolean' | 'select' | 'secret';
 
 export interface RecipeVariable {
@@ -146,6 +143,19 @@ export interface FieldSchema {
 	placeholder?: string;
 }
 
+export interface RecipeInspection {
+	fields: Array<{
+		id: string;
+		label: string;
+		sensitivity: 'low' | 'medium' | 'high';
+	}>;
+	snapshot: {
+		sampledAt: string;
+		scope: string;
+		metrics: Record<string, unknown>;
+	} | null;
+}
+
 export interface PluginTypeDefinition {
 	type: string;
 	exclusive?: boolean;
@@ -155,6 +165,10 @@ export interface PluginTypeDefinition {
 	formSchema: FieldSchema[];
 	parseImport?: (raw: string) => Recipe;
 	toConfigBlock?: (recipe: Recipe) => Record<string, unknown>;
+	inspectRecipe?: (
+		recipe: Recipe,
+		status: RecipeStatus,
+	) => RecipeInspection | null;
 	onStart?: (recipe: Recipe) => void;
 	onStop?: (recipe: Recipe) => void;
 }
