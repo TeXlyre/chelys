@@ -14,7 +14,11 @@
 			"**/*.css",
 			"!external",
 			"!src-tauri",
-			"!dist",
+			"!!**/dist",
+			"!!release",
+			"!!src-tauri/target",
+			"!!native/**/target",
+			"!!src-tauri/binaries",
 			"!public",
 			"!showcase"
 		]
@@ -179,6 +183,20 @@
 				"rules": {
 					"complexity": {
 						"noImportantStyles": "off"
+					}
+				}
+			}
+		},
+		{
+			"includes": [
+				"src/plugins/infrastructure/index.ts",
+				"src/plugins/lsp/recipes/ltex/index.ts",
+				"src/plugin-host/RecipeManager.ts"
+			],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noTemplateCurlyInString": "off"
 					}
 				}
 			}
