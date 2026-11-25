@@ -1,5 +1,6 @@
 // src/components/settings/SettingControl.tsx
 import type React from 'react';
+import { useId } from 'react';
 
 import { t } from '@/i18n';
 import type { Setting } from '../../contexts/SettingsContext';
@@ -19,6 +20,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 	const value =
 		setting.value !== undefined ? setting.value : setting.defaultValue;
 	const disabled = Boolean(setting.disabled);
+	const controlId = useId();
 
 	const handleChange = (newValue: unknown) => {
 		if (disabled) return;
@@ -43,8 +45,9 @@ const SettingControl: React.FC<SettingControlProps> = ({
 			case 'select':
 				return (
 					<div className='select-control'>
-						<label>{setting.label}</label>
+						<label htmlFor={controlId}>{setting.label}</label>
 						<select
+							id={controlId}
 							value={String(value)}
 							disabled={disabled}
 							onChange={(e) => handleChange(e.target.value)}
@@ -61,8 +64,9 @@ const SettingControl: React.FC<SettingControlProps> = ({
 			case 'text':
 				return (
 					<div className='text-control'>
-						<label>{setting.label}</label>
+						<label htmlFor={controlId}>{setting.label}</label>
 						<input
+							id={controlId}
 							type='text'
 							value={String(value)}
 							dir='ltr'
@@ -75,8 +79,9 @@ const SettingControl: React.FC<SettingControlProps> = ({
 			case 'number':
 				return (
 					<div className='number-control'>
-						<label>{setting.label}</label>
+						<label htmlFor={controlId}>{setting.label}</label>
 						<input
+							id={controlId}
 							type='number'
 							value={Number(value)}
 							min={setting.min}
@@ -91,8 +96,9 @@ const SettingControl: React.FC<SettingControlProps> = ({
 			case 'color':
 				return (
 					<div className='color-control'>
-						<label>{setting.label}</label>
+						<label htmlFor={controlId}>{setting.label}</label>
 						<input
+							id={controlId}
 							type='color'
 							value={String(value)}
 							disabled={disabled}

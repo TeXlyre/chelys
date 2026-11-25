@@ -1,3 +1,4 @@
+// src/components/settings/ThemeToggle.tsx
 // src/components/app/ThemeToggle.tsx
 import type React from 'react';
 import { useState } from 'react';
@@ -26,6 +27,7 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({ className = '' }) => {
 
 	return (
 		<button
+			type='button'
 			className={className}
 			onClick={toggle}
 			title={t('Switch to {theme}', {

@@ -1,3 +1,4 @@
+// src/components/profile/UserDropdown.tsx
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -37,6 +38,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 	return (
 		<div className='user-dropdown-container' ref={dropdownRef}>
 			<button
+				type='button'
 				className='user-dropdown-button'
 				onClick={() => setIsOpen(!isOpen)}
 				aria-expanded={isOpen}
@@ -49,6 +51,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 			{isOpen && (
 				<div className='user-dropdown-menu ui-menu' data-layout='column'>
 					<button
+						type='button'
 						className='dropdown-item ui-menu-item'
 						onClick={() => {
 							setIsOpen(false);
@@ -60,6 +63,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 					</button>
 					<div className='dropdown-separator ui-menu-divider' />
 					<button
+						type='button'
 						className='dropdown-item ui-menu-item'
 						onClick={() => {
 							setIsOpen(false);

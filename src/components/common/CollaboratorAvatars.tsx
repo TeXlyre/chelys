@@ -5,7 +5,7 @@ import type { Awareness } from 'y-protocols/awareness';
 
 import Popover from './Popover';
 
-interface CollaboratorUser {
+export interface CollaboratorUser {
 	id?: string;
 	username: string;
 	name?: string;
@@ -14,20 +14,22 @@ interface CollaboratorUser {
 	colorLight?: string;
 }
 
-interface CollaboratorState {
+export interface CollaboratorState {
 	clientId: number;
 	user: CollaboratorUser;
 	isLocal: boolean;
 }
 
 interface CollaboratorAvatarsProps {
-	awareness: Awareness;
+	awareness?: Awareness;
+	snapshot?: CollaboratorState[];
 	maxVisible?: number;
 	excludeLocal?: boolean;
 }
 
 const CollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
 	awareness,
+	snapshot,
 	maxVisible = 4,
 	excludeLocal = false,
 }) => {
@@ -36,6 +38,10 @@ const CollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
 	const rowRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
+		if (!awareness) {
+			setCollaborators(snapshot ?? []);
+			return;
+		}
 		const update = () => {
 			const states = awareness.getStates();
 			const result: CollaboratorState[] = [];
@@ -66,7 +72,7 @@ const CollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
 		return () => {
 			awareness.off('change', update);
 		};
-	}, [awareness, excludeLocal]);
+	}, [awareness, snapshot, excludeLocal]);
 
 	if (collaborators.length === 0) return null;
 
@@ -112,10 +118,7 @@ const CollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
 									collab.user.colorLight || collab.user.color,
 							} as React.CSSProperties
 						}
-						title={
-							(collab.user.name || collab.user.username) +
-							(collab.isLocal ? ' (You)' : '')
-						}
+						title={`${collab.user.name || collab.user.username}${collab.isLocal ? ' (You)' : ''}`}
 					>
 						{getInitial(collab.user)}
 					</div>

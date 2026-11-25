@@ -8,6 +8,9 @@ import Modal from '../common/Modal';
 import { UserIcon } from '../common/Icons';
 import AccountIdentitySection from './AccountIdentitySection';
 import LocalStorageDataSection from './LocalStorageDataSection';
+import ControlAccessSection from './ControlAccessSection';
+import CredentialStorageWarning from '../common/CredentialStorageWarning';
+import BackgroundServerSection from './BackgroundServerSection';
 
 interface ProfileModalProps {
 	isOpen: boolean;
@@ -16,7 +19,7 @@ interface ProfileModalProps {
 
 const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
 	const { identity } = useRoom();
-	const [tab, setTab] = useState<'account' | 'data'>('account');
+	const [tab, setTab] = useState<'account' | 'data' | 'access'>('account');
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [success, setSuccess] = useState<string | null>(null);
@@ -27,35 +30,48 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
 			onClose={onClose}
 			title={t('Account Settings')}
 			icon={UserIcon}
-			size='large'
+			size={tab === 'access' ? 'wide' : 'large'}
 		>
 			<div className='view-tabs ui-tab-list' data-variant='switcher'>
 				<button
+					type='button'
 					className={`tab-button ui-tab ${tab === 'account' ? 'active' : ''}`}
 					onClick={() => setTab('account')}
 				>
 					{t('Account')}
 				</button>
 				<button
+					type='button'
 					className={`tab-button ui-tab ${tab === 'data' ? 'active' : ''}`}
 					onClick={() => setTab('data')}
 				>
 					{t('Data')}
 				</button>
+				<button
+					type='button'
+					className={`tab-button ui-tab ${tab === 'access' ? 'active' : ''}`}
+					onClick={() => setTab('access')}
+				>
+					{t('Remote Control')}
+				</button>
 			</div>
 
-			<br />
-
+			<CredentialStorageWarning />
 			{error && <div className='error-message'>{error}</div>}
 			{success && <div className='success-message'>{success}</div>}
 
 			{tab === 'account' ? (
-				<AccountIdentitySection
-					isSubmitting={isSubmitting}
-					setIsSubmitting={setIsSubmitting}
-					onError={setError}
-					onSuccess={setSuccess}
-				/>
+				<>
+					<AccountIdentitySection
+						isSubmitting={isSubmitting}
+						setIsSubmitting={setIsSubmitting}
+						onError={setError}
+						onSuccess={setSuccess}
+					/>
+					<BackgroundServerSection />
+				</>
+			) : tab === 'access' ? (
+				identity && <ControlAccessSection />
 			) : (
 				identity && (
 					<LocalStorageDataSection

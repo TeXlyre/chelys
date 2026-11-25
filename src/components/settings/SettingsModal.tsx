@@ -143,15 +143,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 		);
 		const parts = text.split(regex);
 
-		return parts.map((part, index) =>
-			regex.test(part) ? (
-				<mark key={index} className='search-highlight'>
+		let offset = 0;
+		return parts.map((part, index) => {
+			const start = offset;
+			offset += part.length;
+			return index % 2 === 1 ? (
+				<mark key={`${start}-${part}`} className='search-highlight'>
 					{part}
 				</mark>
 			) : (
 				part
-			),
-		);
+			);
+		});
 	};
 
 	const renderTitle = () => {
@@ -241,7 +244,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 						<span>
 							{t('You have unsaved changes that require page refresh')}
 						</span>
-						<button className='button primary' onClick={handleSaveChanges}>
+						<button
+							type='button'
+							className='button primary'
+							onClick={handleSaveChanges}
+						>
 							{t('Save Changes')}
 						</button>
 					</div>
@@ -258,6 +265,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 							/>
 							{searchQuery && (
 								<button
+									type='button'
 									aria-label={t('Clear search')}
 									className='clear-search-button'
 									onClick={() => setSearchQuery('')}
