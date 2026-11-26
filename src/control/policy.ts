@@ -45,12 +45,14 @@ export interface RequestOrigin {
 	transport: 'local' | 'webrtc' | 'websocket';
 	peerKind?: 'chelys' | 'texlyre';
 	apiKey?: string;
+	/** Dedicated sessions never inherit account-peer trust. */
+	dedicated?: boolean;
 }
 const STORAGE_PREFIX = 'chelys-control-access:';
 const listeners = new Set<() => void>();
 const encodeHex = (bytes: Uint8Array): string =>
 	Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-const keyHash = async (key: string): Promise<string> =>
+export const keyHash = async (key: string): Promise<string> =>
 	encodeHex(
 		new Uint8Array(
 			await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)),
@@ -92,6 +94,11 @@ export const accessPolicy = {
 		if (!['disabled', 'peers', 'keys'].includes(mode))
 			throw new Error('Invalid access mode');
 		write({ ...read(), mode });
+	},
+	/** Backend-only key material; never returned by an RPC. */
+	dedicatedKeys(): Array<{ id: string; hash: string }> {
+		const config = read();
+		return config.mode === 'keys' ? config.keys.map(({ id, hash }) => ({ id, hash })) : [];
 	},
 	listKeys(): Array<Omit<KeyRecord, 'hash'>> {
 		return read().keys.map(({ hash: _hash, ...value }) => value);
@@ -149,6 +156,8 @@ export const accessPolicy = {
 		const config = read();
 		if (config.mode === 'disabled')
 			throw new Error('Remote control is disabled');
+		if (origin.dedicated && config.mode !== 'keys')
+			throw new Error('Dedicated remote control requires API-key mode');
 		if (config.mode === 'peers') {
 			if (
 				permission === 'infrastructure.manage' ||
@@ -183,9 +192,12 @@ export const accessPolicy = {
 			throw new Error('A Chelys API key is required');
 		}
 		const hash = await keyHash(origin.apiKey);
+		// The account or access policy may have changed while hashing.
+		const current = read();
+		if (current.mode !== 'keys') throw new Error('API-key mode is no longer active');
 
 		let allowed = false;
-		for (const record of config.keys) {
+		for (const record of current.keys) {
 			const allowedFields = record.fields;
 			let difference = 0;
 			for (let i = 0; i < 64; i++)

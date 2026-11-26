@@ -294,3 +294,16 @@ test('recipe install selects Podman image pull or Dockerfile build and registers
 		initializeVolumes: false,
 	});
 });
+
+test('CLI copies a dedicated invitation and saves it using the existing peers namespace', async () => {
+	const invitation = 'chelys-webrtc:example';
+	const copied = await runAgainstMock(['--local', 'access', 'keys', 'invitation', 'key-id'], () => ({ invitation }));
+	assert.equal(copied.code, 0, copied.stderr);
+	assert.deepEqual(copied.requests.at(-1).params, { id: 'key-id' });
+	assert.equal(copied.requests.at(-1).method, 'access.keys.invitation');
+	assert.match(copied.stdout, /chelys-webrtc:example/);
+	const saved = await runAgainstMock(['peers', 'connect', 'other-chelys', invitation]);
+	assert.equal(saved.code, 0, saved.stderr);
+	assert.deepEqual(saved.requests.at(-1).params, { alias: 'other-chelys', url: invitation });
+	assert.equal(saved.requests.at(-1).method, 'peers.connect');
+});

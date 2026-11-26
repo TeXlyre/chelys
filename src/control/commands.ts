@@ -8,6 +8,8 @@ import {
 	detectArch,
 } from '../plugin-host/platformResolution';
 import { accessPolicy, type Permission, type RequestOrigin } from './policy';
+import { makeInvitation } from './dedicated';
+import { resolveSignalingServers } from '../peer/BridgeResolution';
 import { accountStores, STORE_NAMES, type StoreName } from './stores';
 import { chelysSettings } from './settings';
 import { getPlainSecret, setPlainSecret } from './secrets';
@@ -467,9 +469,10 @@ export class ChelysControl {
 			case 'peers.list':
 				return listAvailablePeers();
 			case 'peers.connect':
-				addPeerEndpoint(
+				await addPeerEndpoint(
 					asString(p.alias, 'Alias'),
-					asString(p.url, 'WebSocket URL'),
+					asString(p.url, 'Connection invitation or WebSocket URL'),
+					typeof p.apiKey === 'string' ? p.apiKey : undefined,
 				);
 				return { connected: true };
 			case 'peers.disconnect':
@@ -686,6 +689,11 @@ export class ChelysControl {
 					p.permissions as Permission[],
 					p.fields as string[] | undefined,
 				);
+			case 'access.keys.invitation': {
+				const record = accessPolicy.dedicatedKeys().find(key => key.id === asString(p.id, 'Key ID'));
+				if (!record) throw new Error('Enable API-key mode and select an existing key');
+				return { invitation: await makeInvitation(record.hash, resolveSignalingServers()) };
+			}
 			case 'access.keys.revoke':
 				accessPolicy.revokeKey(asString(p.id, 'Key ID'));
 				return { revoked: true };

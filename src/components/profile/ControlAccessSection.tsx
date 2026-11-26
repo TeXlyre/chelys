@@ -106,7 +106,7 @@ export default function ControlAccessSection() {
 								[
 									'keys',
 									'API key permissions',
-									'A generated key is required and authorizes selected actions only.',
+									'A generated key is required and authorizes selected actions only. Share an invitation to connect across accounts.',
 								],
 							] as const
 						).map(([value, label, detail]) => (
@@ -139,7 +139,7 @@ export default function ControlAccessSection() {
 							<h3>Access keys</h3>
 							<p className='field-hint'>
 								Keys are displayed once. Keep them secure; revocation takes
-								effect immediately.
+								effect immediately. Invitations allow other accounts to find this instance through WebRTC, but do not grant access without the matching key. Share the key separately.
 							</p>
 							{keys.map((key) => (
 								<div key={key.id} className='control-access-key'>
@@ -152,41 +152,27 @@ export default function ControlAccessSection() {
 												: ''}
 										</small>
 									</div>
-									{confirmRevoke === key.id ? (
-										<div className='control-toolbar'>
-											<button
-												type='button'
-												className='button secondary'
-												onClick={() => setConfirmRevoke(null)}
-											>
-												Cancel
-											</button>
-											<button
-												type='button'
-												className='button primary'
-												disabled={busy}
-												onClick={() =>
-													void perform(async () => {
-														await localCommand('access.keys.revoke', {
-															id: key.id,
-														});
+									<div className='control-toolbar'>
+										{confirmRevoke === key.id ? (
+											<>
+												<button type='button' className='button secondary' onClick={() => setConfirmRevoke(null)}>Cancel</button>
+												<button type='button' className='button primary' disabled={busy}
+													onClick={() => void perform(async () => {
+														await localCommand('access.keys.revoke', { id: key.id });
 														setConfirmRevoke(null);
-													})
-												}
-											>
-												Confirm revoke
-											</button>
-										</div>
-									) : (
-										<button
-											type='button'
-											className='button secondary'
-											disabled={busy}
-											onClick={() => setConfirmRevoke(key.id)}
-										>
-											Revoke
-										</button>
-									)}
+													})}>Confirm revoke</button>
+											</>
+										) : (
+											<>
+												<button type='button' className='button secondary' disabled={busy}
+													onClick={() => void perform(async () => {
+														const result = await localCommand<{ invitation: string }>('access.keys.invitation', { id: key.id });
+														await navigator.clipboard.writeText(result.invitation);
+													})}>Copy invitation</button>
+												<button type='button' className='button secondary' disabled={busy} onClick={() => setConfirmRevoke(key.id)}>Revoke</button>
+											</>
+										)}
+									</div>
 								</div>
 							))}
 							<div className='form-group ui-field'>
