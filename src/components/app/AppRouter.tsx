@@ -1,4 +1,5 @@
 // src/components/app/AppRouter.tsx
+import { t } from '@/i18n';
 import type React from 'react';
 
 import { useRoom } from '../../hooks/useRoom';
@@ -7,7 +8,7 @@ import DashboardApp from './DashboardApp';
 
 const AppRouter: React.FC = () => {
 	const { identity, isInitializing } = useRoom();
-	if (isInitializing) return <p className='loading'>Loading…</p>;
+	if (isInitializing) return <p className='loading'>{t('Loading...')}</p>;
 	return identity ? <DashboardApp /> : <ChelysLogin />;
 };
 

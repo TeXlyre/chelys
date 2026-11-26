@@ -60,5 +60,14 @@ export function getInstanceId(): string {
 
 /** Lifecycle operations may pull multi-gigabyte images. Keep ordinary RPC deadlines short. */
 export function commandTimeout(method: string): number {
-    return ['recipes.install', 'recipes.uninstall', 'recipes.run', 'recipes.restart', 'recipes.stop', 'recipes.remove'].includes(method) ? 30 * 60_000 : 30_000;
+	return [
+		'recipes.install',
+		'recipes.uninstall',
+		'recipes.run',
+		'recipes.restart',
+		'recipes.stop',
+		'recipes.remove',
+	].includes(method)
+		? 30 * 60_000
+		: 30_000;
 }

@@ -178,10 +178,30 @@ test('invalid settings and empty origin leave other WebSocket connections untouc
 });
 
 test('saved WebRTC invitations supply their signaling Origin without modifying direct endpoints', () => {
-	const invite = 'chelys-webrtc:' + Buffer.from(JSON.stringify({ room: 'test-room', signaling: ['wss://other.example/signal'] })).toString('base64');
-	const WebSocket = createSignalingWebSocket(FakeWebSocket, storage({
-		'chelys-peer-endpoints': JSON.stringify({ remote: invite, direct: 'wss://direct.example/control' }),
-	}), origin);
-	assert.equal(new WebSocket('wss://other.example/signal').options.origin, origin());
-	assert.equal(new WebSocket('wss://direct.example/control').options, undefined);
+	const invite =
+		'chelys-webrtc:' +
+		Buffer.from(
+			JSON.stringify({
+				room: 'test-room',
+				signaling: ['wss://other.example/signal'],
+			}),
+		).toString('base64');
+	const WebSocket = createSignalingWebSocket(
+		FakeWebSocket,
+		storage({
+			'chelys-peer-endpoints': JSON.stringify({
+				remote: invite,
+				direct: 'wss://direct.example/control',
+			}),
+		}),
+		origin,
+	);
+	assert.equal(
+		new WebSocket('wss://other.example/signal').options.origin,
+		origin(),
+	);
+	assert.equal(
+		new WebSocket('wss://direct.example/control').options,
+		undefined,
+	);
 });

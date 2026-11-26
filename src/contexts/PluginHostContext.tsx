@@ -20,9 +20,15 @@ import type {
 import { localCommand } from '../control/localClient';
 import { registerChelysPlugins } from '../runtime/registerPlugins';
 
-export interface MemberStatus { reference: string; recipeId: string; local: boolean; name: string; state: string }
+export interface MemberStatus {
+	reference: string;
+	recipeId: string;
+	local: boolean;
+	name: string;
+	state: string;
+}
 interface PluginHostContextType {
-    members: Record<string, MemberStatus[]>;
+	members: Record<string, MemberStatus[]>;
 	recipes: Recipe[];
 	statuses: Map<string, RecipeStatus>;
 	isReady: boolean;
@@ -65,31 +71,31 @@ export const PluginHostContext = createContext<PluginHostContextType>({
 		_recipeId: string,
 		_mode: InstallModeKind,
 		_source?: DockerInstallSource,
-	) => { },
-	cancelInstall: async () => { },
-	run: async () => { },
-	stop: async () => { },
+	) => {},
+	cancelInstall: async () => {},
+	run: async () => {},
+	stop: async () => {},
 	save: async () => {
 		throw new Error('Not implemented');
 	},
-	remove: async () => { },
-	uninstall: async () => { },
+	remove: async () => {},
+	uninstall: async () => {},
 	importRecipe: async () => {
 		throw new Error('Not implemented');
 	},
 	registry: [],
-	refreshRegistry: async () => { },
+	refreshRegistry: async () => {},
 	installFromRegistry: async () => {
 		throw new Error('Not implemented');
 	},
 	updatesAvailable: new Map(),
-	setVariables: async () => { },
+	setVariables: async () => {},
 	getContainerEngineOverride: () => null,
-	setContainerEngineOverride: async () => { },
+	setContainerEngineOverride: async () => {},
 });
 
 type RecipeSnapshot = {
-    members: Record<string, MemberStatus[]>;
+	members: Record<string, MemberStatus[]>;
 	recipes: Recipe[];
 	statuses: Record<string, RecipeStatus>;
 	engines: Record<string, ContainerEngine | null>;

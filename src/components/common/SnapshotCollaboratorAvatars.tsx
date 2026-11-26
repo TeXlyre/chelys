@@ -1,4 +1,5 @@
 // src/components/common/SnapshotCollaboratorAvatars.tsx
+import { t } from '@/i18n';
 import type React from 'react';
 import { useRef, useState } from 'react';
 
@@ -30,7 +31,9 @@ const SnapshotCollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
 	maxVisible = 4,
 	excludeLocal = false,
 }) => {
-	const collaborators = excludeLocal ? snapshot.filter((item) => !item.isLocal) : snapshot;
+	const collaborators = excludeLocal
+		? snapshot.filter((item) => !item.isLocal)
+		: snapshot;
 	const [expanded, setExpanded] = useState(false);
 	const rowRef = useRef<HTMLDivElement>(null);
 
@@ -46,7 +49,9 @@ const SnapshotCollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
 		<div className='collab-avatar-tooltip'>
 			<div className='collab-avatar-tooltip-name'>
 				{collab.user.name || collab.user.username}
-				{collab.isLocal && <span className='collab-avatar-you'>(You)</span>}
+				{collab.isLocal && (
+					<span className='collab-avatar-you'>{t('(You)')}</span>
+				)}
 			</div>
 			{collab.user.email && (
 				<a
@@ -78,7 +83,7 @@ const SnapshotCollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
 									collab.user.colorLight || collab.user.color,
 							} as React.CSSProperties
 						}
-						title={`${collab.user.name || collab.user.username}${collab.isLocal ? ' (You)' : ''}`}
+						title={`${collab.user.name || collab.user.username}${collab.isLocal ? ` ${t('(You)')}` : ''}`}
 					>
 						{getInitial(collab.user)}
 					</div>

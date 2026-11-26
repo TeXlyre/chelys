@@ -1,3 +1,4 @@
+// tests/unit/control/dedicated.test.ts
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActiveAccountId } from '@src/plugin-host/activeAccount';
 import { accessPolicy, keyHash } from '@src/control/policy';

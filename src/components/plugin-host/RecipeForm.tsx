@@ -237,7 +237,7 @@ const partsToRecipe = (parts: RecipePart[], fallbackId: string): Recipe => {
 const RecipeForm: React.FC<RecipeFormProps> = ({
 	recipe,
 	initialView = 'guided',
-    category,
+	category,
 	onDone,
 }) => {
 	const { save } = usePluginHost();
@@ -246,8 +246,13 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 	const dockerMode = recipe ? dockerOf(recipe) : undefined;
 
 	const [mode, setMode] = useState<'guided' | 'files'>(initialView);
-	const [type, setType] = useState(recipe?.type ?? category ?? types[0]?.type ?? 'lsp');
+	const [type, setType] = useState(
+		recipe?.type ?? category ?? types[0]?.type ?? 'lsp',
+	);
 	const [name, setName] = useState(recipe?.name ?? '');
+	const [functionalCategory, setFunctionalCategory] = useState(
+		recipe?.category ?? '',
+	);
 	const [runCommand, setRunCommand] = useState(
 		systemMode?.runCommand.command ?? '',
 	);
@@ -395,7 +400,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 	};
 
 	const buildModes = (): InstallMode[] => {
-        if (type === 'service') return [{ kind: 'connect' }];
+		if (type === 'service') return [{ kind: 'connect' }];
 		const system: InstallMode = {
 			...(systemMode ?? { kind: 'system' as const }),
 			kind: 'system',
@@ -439,6 +444,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 			id: recipe?.id ?? '',
 			type,
 			name: name || 'Untitled recipe',
+			category: functionalCategory.trim() || undefined,
 			env: type === 'service' ? {} : parseEnv(),
 			modes: buildModes(),
 			typeConfig: buildTypeConfig(),
@@ -544,7 +550,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						type={field.kind === 'number' ? 'number' : 'text'}
 						dir='ltr'
 						value={value}
-						placeholder={field.placeholder}
+						placeholder={field.placeholder ? t(field.placeholder) : undefined}
 						onChange={(e) =>
 							setTypeValues((prev) => ({
 								...prev,
@@ -553,8 +559,15 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						}
 					/>
 				)}
-				{type === 'service' && field.key === 'members' && <ServiceMemberPicker value={value} onChange={next => setTypeValues(prev => ({ ...prev, members: next }))} />}
-                {field.help && <small>{t(field.help)}</small>}
+				{type === 'service' && field.key === 'members' && (
+					<ServiceMemberPicker
+						value={value}
+						onChange={(next) =>
+							setTypeValues((prev) => ({ ...prev, members: next }))
+						}
+					/>
+				)}
+				{field.help && <small>{t(field.help)}</small>}
 			</div>
 		);
 	};
@@ -594,8 +607,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 				)}
 			</div>
 
-			{error && <div className='error-message'>{error}</div>}
-			{recipe?.notes && <div className='info-message'>{recipe.notes}</div>}
+			{error && <div className='error-message'>{t(error)}</div>}
+			{recipe?.notes && <div className='info-message'>{t(recipe.notes)}</div>}
 
 			{mode === 'files' ? (
 				selected?.image ? (
@@ -654,7 +667,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						>
 							{types.map((definition) => (
 								<option key={definition.type} value={definition.type}>
-									{definition.label}
+									{t(definition.label)}
 								</option>
 							))}
 						</select>
@@ -663,11 +676,21 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						<label htmlFor='recipe-name'>{t('Name')}</label>
 						<input
 							id='recipe-name'
+							dir='auto'
 							value={name}
 							onChange={(e) => setName(e.target.value)}
 						/>
 					</div>
 
+					<div className='form-group ui-field'>
+						<label htmlFor='recipe-category'>{t('Category')}</label>
+						<input
+							id='recipe-category'
+							dir='auto'
+							value={functionalCategory}
+							onChange={(e) => setFunctionalCategory(e.target.value)}
+						/>
+					</div>
 					{schema.length > 0 && (
 						<>
 							<h4 className='recipe-form-section'>{t('Configuration')}</h4>
@@ -677,84 +700,96 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						</>
 					)}
 
-					{type !== 'service' && <>
-					<h4 className='recipe-form-section'>{t('Runtime')}</h4>
-					<div className='form-group ui-field'>
-						<label htmlFor='recipe-run-command'>{t('Run command')}</label>
-						<input
-							id='recipe-run-command'
-							value={runCommand}
-							onChange={(e) => setRunCommand(e.target.value)}
-							placeholder='lsp-ws-proxy'
-						/>
-					</div>
-					<div className='form-group ui-field'>
-						<label htmlFor='recipe-run-args'>{t('Run arguments')}</label>
-						<input
-							id='recipe-run-args'
-							value={runArgs}
-							onChange={(e) => setRunArgs(e.target.value)}
-							placeholder='-l 127.0.0.1:7020 -- ./bin/server'
-						/>
-					</div>
-					<div className='form-group ui-field'>
-						<label htmlFor='recipe-install-steps'>{t('Install steps')}</label>
-						<textarea
-							id='recipe-install-steps'
-							rows={5}
-							spellCheck={false}
-							value={installText}
-							onChange={(e) => setInstallText(e.target.value)}
-							placeholder={t('One per line: Label :: command arg1 arg2')}
-						/>
-						<small>
-							{t('Each step runs in order. Review commands before installing.')}
-						</small>
-					</div>
-					<div className='form-group ui-field'>
-						<label htmlFor='recipe-uninstall-steps'>
-							{t('Uninstall steps')}
-						</label>
-						<textarea
-							id='recipe-uninstall-steps'
-							rows={3}
-							spellCheck={false}
-							value={uninstallText}
-							onChange={(e) => setUninstallText(e.target.value)}
-							placeholder={t('One per line: Label :: command arg1 arg2')}
-						/>
-					</div>
-					<div className='form-group ui-field'>
-						<label htmlFor='recipe-docker-image'>{t('Docker image')}</label>
-						<input
-							id='recipe-docker-image'
-							value={dockerImage}
-							onChange={(e) => setDockerImage(e.target.value)}
-							placeholder='traefik:3.7.8'
-						/>
-						<small>
-							{t(
-								'Container image used in Docker mode. Leave empty to remove Docker mode.',
-							)}
-						</small>
-					</div>
-					<div className='form-group ui-field'>
-						<label htmlFor='recipe-env'>{t('Environment variables')}</label>
-						<textarea
-							id='recipe-env'
-							rows={3}
-							spellCheck={false}
-							value={envText}
-							onChange={(e) => setEnvText(e.target.value)}
-							placeholder='JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64'
-						/>
-						<small>
-							{t(
-								'One per line as KEY=value. Passed to install and run commands.',
-							)}
-						</small>
-					</div>
-                    </>}
+					{type !== 'service' && (
+						<>
+							<h4 className='recipe-form-section'>{t('Runtime')}</h4>
+							<div className='form-group ui-field'>
+								<label htmlFor='recipe-run-command'>{t('Run command')}</label>
+								<input
+									id='recipe-run-command'
+									dir='ltr'
+									value={runCommand}
+									onChange={(e) => setRunCommand(e.target.value)}
+									placeholder='lsp-ws-proxy'
+								/>
+							</div>
+							<div className='form-group ui-field'>
+								<label htmlFor='recipe-run-args'>{t('Run arguments')}</label>
+								<input
+									id='recipe-run-args'
+									dir='ltr'
+									value={runArgs}
+									onChange={(e) => setRunArgs(e.target.value)}
+									placeholder='-l 127.0.0.1:7020 -- ./bin/server'
+								/>
+							</div>
+							<div className='form-group ui-field'>
+								<label htmlFor='recipe-install-steps'>
+									{t('Install steps')}
+								</label>
+								<textarea
+									id='recipe-install-steps'
+									dir='ltr'
+									rows={5}
+									spellCheck={false}
+									value={installText}
+									onChange={(e) => setInstallText(e.target.value)}
+									placeholder={t('One per line: Label :: command arg1 arg2')}
+								/>
+								<small>
+									{t(
+										'Each step runs in order. Review commands before installing.',
+									)}
+								</small>
+							</div>
+							<div className='form-group ui-field'>
+								<label htmlFor='recipe-uninstall-steps'>
+									{t('Uninstall steps')}
+								</label>
+								<textarea
+									id='recipe-uninstall-steps'
+									dir='ltr'
+									rows={3}
+									spellCheck={false}
+									value={uninstallText}
+									onChange={(e) => setUninstallText(e.target.value)}
+									placeholder={t('One per line: Label :: command arg1 arg2')}
+								/>
+							</div>
+							<div className='form-group ui-field'>
+								<label htmlFor='recipe-docker-image'>{t('Docker image')}</label>
+								<input
+									id='recipe-docker-image'
+									dir='ltr'
+									value={dockerImage}
+									onChange={(e) => setDockerImage(e.target.value)}
+									placeholder='traefik:3.7.8'
+								/>
+								<small>
+									{t(
+										'Container image used in Docker mode. Leave empty to remove Docker mode.',
+									)}
+								</small>
+							</div>
+							<div className='form-group ui-field'>
+								<label htmlFor='recipe-env'>{t('Environment variables')}</label>
+								<textarea
+									id='recipe-env'
+									dir='ltr'
+									rows={3}
+									spellCheck={false}
+									value={envText}
+									onChange={(e) => setEnvText(e.target.value)}
+									placeholder='JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64'
+								/>
+								<small>
+									{t(
+										'One per line as KEY=value. Passed to install and run commands.',
+									)}
+								</small>
+							</div>
+						</>
+					)}
 				</>
 			)}
 

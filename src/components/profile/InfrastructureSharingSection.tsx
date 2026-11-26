@@ -1,4 +1,5 @@
 // src/components/profile/InfrastructureSharingSection.tsx
+import { t } from '@/i18n';
 import { useEffect, useState } from 'react';
 import { localCommand } from '../../control/localClient';
 import type { ShareMode } from '../../control/sharing';
@@ -76,7 +77,7 @@ export default function InfrastructureSharingSection() {
 		setMessage('');
 		try {
 			await localCommand('recipes.share.set', { id: selected, mode, fields });
-			setMessage('Sharing policy saved');
+			setMessage(t('Sharing policy saved'));
 		} catch (caught) {
 			setError(caught instanceof Error ? caught.message : String(caught));
 		} finally {
@@ -86,20 +87,20 @@ export default function InfrastructureSharingSection() {
 
 	return (
 		<section className='control-sharing ui-stack' data-gap='sm'>
-			<h3>Infrastructure inspection sharing</h3>
+			<h3>{t('Infrastructure inspection sharing')}</h3>
 			<p className='field-hint'>
-				All telemetry stays private until you explicitly allow specific
-				categories. These settings control information leaving this instance;
-				they do not grant permission to install, run or edit infrastructure
-				recipes. Energy sensors and process details may disclose sensitive
-				machine information.
+				{t(
+					'All telemetry stays private until you explicitly allow specific categories. These settings control information leaving this instance; they do not grant permission to install, run or edit infrastructure recipes. Energy sensors and process details may disclose sensitive machine information.',
+				)}
 			</p>
 			{recipes.length === 0 ? (
-				<p className='field-hint'>No recipes currently support inspection.</p>
+				<p className='field-hint'>
+					{t('No recipes currently support inspection.')}
+				</p>
 			) : (
 				<>
 					<div className='form-group ui-field'>
-						<label htmlFor='chelys-inspection-recipe'>Recipe</label>
+						<label htmlFor='chelys-inspection-recipe'>{t('Recipe')}</label>
 						<select
 							id='chelys-inspection-recipe'
 							value={selected}
@@ -115,7 +116,7 @@ export default function InfrastructureSharingSection() {
 					{share && (
 						<>
 							<fieldset className='control-access-modes'>
-								<legend>Who can inspect these metrics?</legend>
+								<legend>{t('Who can inspect these metrics?')}</legend>
 								{(
 									[
 										[
@@ -144,14 +145,14 @@ export default function InfrastructureSharingSection() {
 											onChange={() => setMode(value)}
 										/>
 										<span>
-											<strong>{label}</strong>
-											<small>{hint}</small>
+											<strong>{t(label)}</strong>
+											<small>{t(hint)}</small>
 										</span>
 									</label>
 								))}
 							</fieldset>
 							<fieldset className='control-access-permissions'>
-								<legend>Allowed measurement categories</legend>
+								<legend>{t('Allowed measurement categories')}</legend>
 								{share.availableFields.map((field) => (
 									<label key={field.id}>
 										<input
@@ -167,8 +168,12 @@ export default function InfrastructureSharingSection() {
 											}
 										/>
 										<span>
-											{field.label}{' '}
-											<small>({field.sensitivity} sensitivity)</small>
+											{t(field.label)}{' '}
+											<small>
+												{t('({level} sensitivity)', {
+													level: t(field.sensitivity),
+												})}
+											</small>
 										</span>
 									</label>
 								))}
@@ -182,7 +187,7 @@ export default function InfrastructureSharingSection() {
 									}
 									onClick={() => void save()}
 								>
-									Save sharing policy
+									{t('Save sharing policy')}
 								</button>
 							</div>
 						</>
@@ -191,7 +196,7 @@ export default function InfrastructureSharingSection() {
 			)}
 			{error && (
 				<p className='error-message' role='alert'>
-					{error}
+					{t(error)}
 				</p>
 			)}
 			{message && (

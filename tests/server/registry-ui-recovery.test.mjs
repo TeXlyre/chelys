@@ -15,7 +15,10 @@ test('recipe browse category options use the same exclusive-type scope as recipe
 		source,
 		/entries\.filter\(\(entry\) => !exclusiveTypes\.has\(entry\.type\)\)/,
 	);
-	assert.match(source, /scopedEntries\.map\(\(entry\) => entry\.type\)/);
+	assert.match(
+		source,
+		/scopedEntries\.map\(\(entry\) => recipeCategory\(entry, typeLabel\)\)/,
+	);
 	assert.match(source, /return scopedEntries\.filter\(/);
 	assert.doesNotMatch(
 		source,

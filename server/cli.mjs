@@ -38,7 +38,7 @@ const usage = `Chelys CLI — one command grammar for local and remote peers
   chelys recipes metrics ID [--fields cpu,memory,gpu]   On-demand recipe inspection
   chelys recipes share ID {show|set MODE --fields ...}  Local-only sharing policy
   chelys recipes {install ID MODE [--source registry|build] [--engine docker|podman]|uninstall ID|run ID|stop ID|restart ID|check ID|cancel ID}
-  chelys recipes set ID FIELD JSON          Fields: name, notes, cwd, typeConfig.KEY, variableValues.KEY
+  chelys recipes set ID FIELD JSON          Fields: name, category, notes, cwd, typeConfig.KEY, variableValues.KEY
   chelys recipes env {list ID|get ID KEY|set ID KEY VALUE|delete ID KEY}
   chelys access {show|mode disabled|mode peers|mode keys}
   chelys access keys {list|create NAME PERMISSION[,PERMISSION...] [--fields cpu,memory]|invitation ID|revoke ID}
@@ -254,7 +254,21 @@ async function secretPrompt(prompt) {
 		input.on('data', onData);
 	});
 }
-async function send(request, timeoutMs = ['recipes.install','recipes.uninstall','recipes.run','recipes.restart','recipes.stop','recipes.remove'].includes(request.method === 'peers.call' ? request.params?.method : request.method) ? 30 * 60_000 + 60_000 : 35_000) {
+async function send(
+	request,
+	timeoutMs = [
+		'recipes.install',
+		'recipes.uninstall',
+		'recipes.run',
+		'recipes.restart',
+		'recipes.stop',
+		'recipes.remove',
+	].includes(
+		request.method === 'peers.call' ? request.params?.method : request.method,
+	)
+		? 30 * 60_000 + 60_000
+		: 35_000,
+) {
 	return new Promise((resolve, reject) => {
 		const socket = net.createConnection(socketPath);
 		let buffer = '';
@@ -421,9 +435,9 @@ function decode(positional, options) {
 					initializeVolumes: options['initialize-volumes'] === true,
 				});
 			if (sub === 'connection') return rpc('recipes.connection', { id: third });
-            if (sub === 'check') return rpc('recipes.service.check', { id: third });
-            if (sub === 'cancel') return rpc('recipes.cancelInstall', { id: third });
-            if (sub === 'uninstall') return rpc('recipes.uninstall', { id: third });
+			if (sub === 'check') return rpc('recipes.service.check', { id: third });
+			if (sub === 'cancel') return rpc('recipes.cancelInstall', { id: third });
+			if (sub === 'uninstall') return rpc('recipes.uninstall', { id: third });
 			if (sub === 'run') return rpc('recipes.run', { id: third });
 			if (sub === 'stop') return rpc('recipes.stop', { id: third });
 			if (sub === 'restart') return rpc('recipes.restart', { id: third });
@@ -637,15 +651,16 @@ async function command(argv) {
 				return { stopping: false, message: 'Backend already stopped' };
 			throw error;
 		});
-		console.log(options.json ? JSON.stringify(result) : JSON.stringify(result, null, 2));
+		console.log(
+			options.json ? JSON.stringify(result) : JSON.stringify(result, null, 2),
+		);
 		return;
 	}
 	if (primary === 'runtime' && positional[1] === 'show') {
 		if (options.peer || positional.length !== 2)
 			throw new Error('Use chelys runtime show (local-only)');
 		const active = await send(rpc('instance.runtime'), 600).catch((error) => {
-			if (error.code === 'ENOENT' || error.code === 'ECONNREFUSED')
-				return null;
+			if (error.code === 'ENOENT' || error.code === 'ECONNREFUSED') return null;
 			throw error;
 		});
 		const result = {
@@ -654,7 +669,9 @@ async function command(argv) {
 			kind: active?.kind ?? null,
 			pid: active?.pid ?? null,
 		};
-		console.log(options.json ? JSON.stringify(result) : JSON.stringify(result, null, 2));
+		console.log(
+			options.json ? JSON.stringify(result) : JSON.stringify(result, null, 2),
+		);
 		return;
 	}
 	if (primary === 'runtime' && positional[1] === 'preference') {
@@ -681,7 +698,10 @@ async function command(argv) {
 		return;
 	}
 	if (primary === 'serve') {
-		if (ownerPreference() === 'desktop' && (process.env.CHELYS_DESKTOP_MANAGED !== '1' || options.detach))
+		if (
+			ownerPreference() === 'desktop' &&
+			(process.env.CHELYS_DESKTOP_MANAGED !== '1' || options.detach)
+		)
 			throw new Error(
 				'Desktop ownership is selected; open Chelys or run chelys runtime preference automatic to allow headless startup.',
 			);

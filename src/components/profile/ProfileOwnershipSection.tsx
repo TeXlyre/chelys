@@ -1,3 +1,5 @@
+// src/components/profile/ProfileOwnershipSection.tsx
+import { t } from '@/i18n';
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { disable, isEnabled } from '@tauri-apps/plugin-autostart';
@@ -11,9 +13,12 @@ type OwnerStatus = {
 };
 
 const descriptions: Record<OwnerMode, string> = {
-	automatic: 'Attach to an existing backend, or start one that continues running after the desktop closes.',
-	desktop: 'Only the desktop starts the backend; it stops when the desktop quits. The CLI can still connect while it is running.',
-	headless: 'Allow the daemon to start independently and remain running without the desktop.',
+	automatic:
+		'Attach to an existing backend, or start one that continues running after the desktop closes.',
+	desktop:
+		'Start and stop the backend with the desktop. The CLI can connect while the backend is running.',
+	headless:
+		'Allow the daemon to start independently and remain running without the desktop.',
 };
 
 export default function ProfileOwnershipSection({
@@ -37,7 +42,9 @@ export default function ProfileOwnershipSection({
 			setBusy(false);
 		}
 	}, []);
-	useEffect(() => { void refresh(); }, [refresh]);
+	useEffect(() => {
+		void refresh();
+	}, [refresh]);
 	const applyMode = async () => {
 		setBusy(true);
 		setError(null);
@@ -45,7 +52,7 @@ export default function ProfileOwnershipSection({
 		try {
 			await invoke('instance_restart');
 			await refresh();
-			setNotice('Backend restarted with the selected mode.');
+			setNotice(t('Backend restarted with the selected mode.'));
 		} catch (caught) {
 			setError(String(caught));
 		} finally {
@@ -63,15 +70,22 @@ export default function ProfileOwnershipSection({
 				try {
 					if (await isEnabled()) await disable();
 				} catch (caught) {
-					setError(`Preference saved, but OS autostart could not be disabled: ${String(caught)}`);
+					setError(
+						t(
+							'Preference saved, but OS autostart could not be disabled: {error}',
+							{ error: String(caught) },
+						),
+					);
 				}
 			}
 			onChange?.(mode);
-			setNotice(next.active === 'unavailable'
-				? 'Preference saved. Retry the connection to start the backend.'
-				: next.restartRequired
-					? 'Preference saved. Apply the new mode to restart the backend.'
-					: 'Preference saved.');
+			setNotice(
+				next.active === 'unavailable'
+					? t('Preference saved. Retry the connection to start the backend.')
+					: next.restartRequired
+						? t('Preference saved. Apply the new mode to restart the backend.')
+						: t('Preference saved.'),
+			);
 		} catch (caught) {
 			setError(String(caught));
 		} finally {
@@ -80,34 +94,70 @@ export default function ProfileOwnershipSection({
 	};
 	return (
 		<section className='settings-group profile-ownership'>
-			<h4>Profile runtime owner</h4>
-			<label htmlFor='profile-runtime-owner'>Preferred startup mode</label>
+			<h4>{t('Profile runtime owner')}</h4>
+			<label htmlFor='profile-runtime-owner'>
+				{t('Preferred startup mode')}
+			</label>
 			<select
 				id='profile-runtime-owner'
 				value={status?.preference ?? 'automatic'}
 				disabled={busy || !status}
 				onChange={(event) => void change(event.target.value as OwnerMode)}
 			>
-				<option value='automatic'>Automatic (recommended)</option>
-				<option value='desktop'>Desktop-managed</option>
-				<option value='headless'>Headless daemon</option>
+				<option value='automatic'>{t('Automatic (recommended)')}</option>
+				<option value='desktop'>{t('Desktop-managed')}</option>
+				<option value='headless'>{t('Headless daemon')}</option>
 			</select>
-			<p className='setting-description'>{descriptions[status?.preference ?? 'automatic']}</p>
 			<p className='setting-description'>
-				Backend: <strong>{status?.active === 'unavailable' || !status ? 'Not running' : status.active === 'desktop' ? 'Desktop-managed' : 'Headless'}</strong>
+				{t(descriptions[status?.preference ?? 'automatic'])}
 			</p>
-			{!compact && <p className='setting-description'>All modes share one backend, with the same recipes, CLI and remote connections.</p>}
-			{status?.issue && <p className='error-message' role='alert'>{status.issue}</p>}
+			<p className='setting-description'>
+				{t('Backend:')}{' '}
+				<strong>
+					{status?.active === 'unavailable' || !status
+						? t('Not running')
+						: status.active === 'desktop'
+							? t('Desktop-managed')
+							: t('Headless')}
+				</strong>
+			</p>
+			{!compact && (
+				<p className='setting-description'>
+					{t(
+						'All modes share one backend, with the same recipes, CLI and remote connections.',
+					)}
+				</p>
+			)}
+			{status?.issue && (
+				<p className='error-message' role='alert'>
+					{t(status.issue)}
+				</p>
+			)}
 			{status?.restartRequired && (
-				<p className='setting-description' role='status'>The current backend uses a different startup mode.</p>
+				<p className='setting-description' role='status'>
+					{t('The current backend uses a different startup mode.')}
+				</p>
 			)}
 			{!compact && status?.restartRequired && (
-				<button type='button' className='secondary' disabled={busy} onClick={() => void applyMode()}>
-					Apply mode and restart backend
+				<button
+					type='button'
+					className='secondary'
+					disabled={busy}
+					onClick={() => void applyMode()}
+				>
+					{t('Apply mode and restart backend')}
 				</button>
 			)}
-			{notice && <p className='setting-description' role='status'>{notice}</p>}
-			{error && <p className='error-message' role='alert'>{error}</p>}
+			{notice && (
+				<p className='setting-description' role='status'>
+					{notice}
+				</p>
+			)}
+			{error && (
+				<p className='error-message' role='alert'>
+					{t(error)}
+				</p>
+			)}
 		</section>
 	);
 }

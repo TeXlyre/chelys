@@ -1,3 +1,4 @@
+// src-tauri/src/tray.rs
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconEvent},

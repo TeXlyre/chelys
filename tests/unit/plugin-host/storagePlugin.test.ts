@@ -1,3 +1,4 @@
+// tests/unit/plugin-host/storagePlugin.test.ts
 import { describe, expect, it } from 'vitest';
 import type { Recipe } from '@src/plugin-host/types';
 import {

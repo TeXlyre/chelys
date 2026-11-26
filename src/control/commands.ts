@@ -61,7 +61,7 @@ const PERMISSION_BY_METHOD: Record<string, Permission> = {
 	'recipes.variables.set': 'recipes.edit',
 	'recipes.engine.set': 'recipes.edit',
 	'recipes.inspect': 'recipes.read',
-    'recipes.connection': 'recipes.connect',
+	'recipes.connection': 'recipes.connect',
 	'recipes.logs': 'recipes.logs',
 	'recipes.metrics': 'recipes.telemetry.read',
 	'recipes.run': 'recipes.run',
@@ -145,14 +145,34 @@ function readonlyRecipe(recipe: Recipe): Record<string, unknown> {
 		id: recipe.id,
 		name: recipe.name,
 		type: recipe.type,
+		category: recipe.category,
+		typeLabel: pluginTypeRegistry.get(recipe.type)?.label ?? recipe.type,
 		version: recipe.version,
 		modes: recipe.modes.map((mode) => mode.kind),
 		inspectable: Boolean(inspection),
 		inspectionFields: inspection?.fields ?? [],
 		state: status?.state ?? 'not-installed',
-        installed: recipeManager.isInstalled(recipe.id),
-        ...(recipe.type === 'service' ? { members: recipeManager.serviceMemberStatuses(recipe), groupActive: status.state === 'running' || status.groupActive === true } : {}),
-        ...(recipe.type === 'endpoint' ? { protocol: typeof recipe.typeConfig.protocol === 'string' ? recipe.typeConfig.protocol : undefined, providers: Array.isArray(recipe.typeConfig.providers) ? recipe.typeConfig.providers.filter(value => typeof value === 'string') : undefined } : {}),
+		installed: recipeManager.isInstalled(recipe.id),
+		...(recipe.type === 'service'
+			? {
+					members: recipeManager.serviceMemberStatuses(recipe),
+					groupActive:
+						status.state === 'running' || status.groupActive === true,
+				}
+			: {}),
+		...(recipe.type === 'endpoint'
+			? {
+					protocol:
+						typeof recipe.typeConfig.protocol === 'string'
+							? recipe.typeConfig.protocol
+							: undefined,
+					providers: Array.isArray(recipe.typeConfig.providers)
+						? recipe.typeConfig.providers.filter(
+								(value) => typeof value === 'string',
+							)
+						: undefined,
+				}
+			: {}),
 		mode: status?.mode ?? null,
 	};
 }
@@ -214,7 +234,7 @@ function mutateRecipe(
 	if (['id', 'source', 'type', 'modes'].includes(parts[0]))
 		throw new Error('Immutable or managed recipe field');
 	if (parts.length === 1) {
-		if (!['name', 'notes', 'cwd', 'backend'].includes(field))
+		if (!['name', 'category', 'notes', 'cwd', 'backend'].includes(field))
 			throw new Error('Unsupported recipe field');
 		if (!remove && typeof value !== 'string')
 			throw new Error('String expected');
@@ -230,7 +250,7 @@ function mutateRecipe(
 		parts.length !== 2
 	) {
 		throw new Error(
-			'Use name, notes, cwd, backend or typeConfig.KEY, env.KEY, variableValues.KEY',
+			'Use name, category, notes, cwd, backend or typeConfig.KEY, env.KEY, variableValues.KEY',
 		);
 	}
 	if (parts[0] !== 'typeConfig' && !remove && typeof value !== 'string')
@@ -270,7 +290,9 @@ export class ChelysControl {
 		listener: (method: string, id: string) => void,
 	): void {
 		this.onRecipeCommand = listener;
-        recipeManager.setServiceMemberStartedListener(id => this.notifyRecipe('recipes.run', id));
+		recipeManager.setServiceMemberStartedListener((id) =>
+			this.notifyRecipe('recipes.run', id),
+		);
 	}
 	private notifyRecipe(method: string, id: string): void {
 		if (
@@ -307,9 +329,9 @@ export class ChelysControl {
 				'recipes.env.set',
 				'recipes.env.delete',
 				'recipes.env.get',
-                'recipes.cancelInstall',
-                'recipes.variables.set',
-                'recipes.engine.set',
+				'recipes.cancelInstall',
+				'recipes.variables.set',
+				'recipes.engine.set',
 			]);
 			const selectedRecipe =
 				typeof p.id === 'string'
@@ -331,13 +353,16 @@ export class ChelysControl {
 			if (!permission) throw deniedRemote;
 			await accessPolicy.authorize(origin, permission);
 		}
-        // A service may perform operations on its members, but cannot confer
-        // permissions the caller does not have. Remote references are read-only.
-        const memberAuthorization = (permission: 'recipes.install' | 'recipes.run') => async (type: string, registering: boolean) => {
-            await accessPolicy.authorize(origin, permission);
-            if (registering) await accessPolicy.authorize(origin, 'recipes.edit');
-            if (type === 'infrastructure') await accessPolicy.authorize(origin, 'infrastructure.manage');
-        };
+		// A service may perform operations on its members, but cannot confer
+		// permissions the caller does not have. Remote references are read-only.
+		const memberAuthorization =
+			(permission: 'recipes.install' | 'recipes.run') =>
+			async (type: string, registering: boolean) => {
+				await accessPolicy.authorize(origin, permission);
+				if (registering) await accessPolicy.authorize(origin, 'recipes.edit');
+				if (type === 'infrastructure')
+					await accessPolicy.authorize(origin, 'infrastructure.manage');
+			};
 		const id = () => asString(p.id, 'Recipe ID');
 		const key = () => asString(p.key, 'Key');
 		const registerRecipe = async (): Promise<Recipe> => {
@@ -417,12 +442,20 @@ export class ChelysControl {
 					recipeManager.getStatus(recipe.id)?.state === 'running',
 				);
 			}
-            case 'recipes.service.check':
-                await recipeManager.refreshServiceMembers(id());
-                return { checked: true };
-            case 'recipes.snapshot':
-                return {
-                    members: Object.fromEntries(recipeManager.listRecipes().filter(recipe => recipe.type === 'service').map(recipe => [recipe.id, recipeManager.serviceMemberStatuses(recipe)])),
+			case 'recipes.service.check':
+				await recipeManager.refreshServiceMembers(id());
+				return { checked: true };
+			case 'recipes.snapshot':
+				return {
+					members: Object.fromEntries(
+						recipeManager
+							.listRecipes()
+							.filter((recipe) => recipe.type === 'service')
+							.map((recipe) => [
+								recipe.id,
+								recipeManager.serviceMemberStatuses(recipe),
+							]),
+					),
 					recipes: recipeManager.listRecipes(),
 					statuses: Object.fromEntries(
 						recipeManager
@@ -566,9 +599,32 @@ export class ChelysControl {
 					canInstallRecipes,
 					canRunRecipes,
 					canManageInfrastructure,
-                    permissions: Object.fromEntries(await Promise.all(([
-                        'recipes.read', 'recipes.connect', 'recipes.edit', 'recipes.install', 'recipes.run', 'recipes.remove', 'recipes.logs', 'recipes.telemetry.read', 'infrastructure.manage', 'infrastructure.logs', 'chelys.settings.read', 'chelys.settings.write'
-                    ] as Permission[]).map(async permission => [permission, await accessPolicy.authorize(origin, permission).then(() => true, () => false)]))),
+					permissions: Object.fromEntries(
+						await Promise.all(
+							(
+								[
+									'recipes.read',
+									'recipes.connect',
+									'recipes.edit',
+									'recipes.install',
+									'recipes.run',
+									'recipes.remove',
+									'recipes.logs',
+									'recipes.telemetry.read',
+									'infrastructure.manage',
+									'infrastructure.logs',
+									'chelys.settings.read',
+									'chelys.settings.write',
+								] as Permission[]
+							).map(async (permission) => [
+								permission,
+								await accessPolicy.authorize(origin, permission).then(
+									() => true,
+									() => false,
+								),
+							]),
+						),
+					),
 				};
 			}
 			case 'machine.inspect':
@@ -717,9 +773,17 @@ export class ChelysControl {
 					p.fields as string[] | undefined,
 				);
 			case 'access.keys.invitation': {
-				const record = accessPolicy.dedicatedKeys().find(key => key.id === asString(p.id, 'Key ID'));
-				if (!record) throw new Error('Enable API-key mode and select an existing key');
-				return { invitation: await makeInvitation(record.hash, resolveSignalingServers()) };
+				const record = accessPolicy
+					.dedicatedKeys()
+					.find((key) => key.id === asString(p.id, 'Key ID'));
+				if (!record)
+					throw new Error('Enable API-key mode and select an existing key');
+				return {
+					invitation: await makeInvitation(
+						record.hash,
+						resolveSignalingServers(),
+					),
+				};
 			}
 			case 'access.keys.revoke':
 				accessPolicy.revokeKey(asString(p.id, 'Key ID'));
@@ -732,24 +796,58 @@ export class ChelysControl {
 					status: safeStatus(id(), remote),
 				};
 			}
-            case 'recipes.connection': {
-                const descriptor = await recipeManager.connectionDescriptor(id());
-                const transport = asObject(descriptor.transportConfig);
-                const safeUrl = (value: unknown, secure = false): boolean => {
-                    if (typeof value !== 'string') return false;
-                    try { const url = new URL(value); return (secure ? url.protocol === 'wss:' : ['ws:', 'wss:'].includes(url.protocol)) && !url.username && !url.password && !url.search && !url.hash; } catch { return false; }
-                };
-                if (transport.type === 'webrtc') {
-                    const room = transport.roomId;
-                    const account = getActiveAccountId();
-                    if (typeof room !== 'string' || !room.trim() || (account && (room === account || room.startsWith(account + ':')))) throw Error('This endpoint uses the account room. Join that account or configure a separate execution room on the host.');
-                    const signaling = resolveSignalingServers(transport.signaling as string[] | undefined);
-                    if (!signaling.length || !signaling.every(url => safeUrl(url))) throw Error('Configure a shareable signaling server without credentials first');
-                    return { ...descriptor, transportConfig: { type: 'webrtc', roomId: room, signaling } };
-                }
-                if (transport.type === 'websocket' && safeUrl(transport.url, true)) return { ...descriptor, transportConfig: { type: 'websocket', url: transport.url } };
-                throw Error('An independently reachable secured WebSocket (wss:) or explicitly configured execution room is required');
-            }
+			case 'recipes.connection': {
+				const descriptor = await recipeManager.connectionDescriptor(id());
+				const transport = asObject(descriptor.transportConfig);
+				const safeUrl = (value: unknown, secure = false): boolean => {
+					if (typeof value !== 'string') return false;
+					try {
+						const url = new URL(value);
+						return (
+							(secure
+								? url.protocol === 'wss:'
+								: ['ws:', 'wss:'].includes(url.protocol)) &&
+							!url.username &&
+							!url.password &&
+							!url.search &&
+							!url.hash
+						);
+					} catch {
+						return false;
+					}
+				};
+				if (transport.type === 'webrtc') {
+					const room = transport.roomId;
+					const account = getActiveAccountId();
+					if (
+						typeof room !== 'string' ||
+						!room.trim() ||
+						(account && (room === account || room.startsWith(`${account}:`)))
+					)
+						throw Error(
+							'This endpoint uses the account room. Join that account or configure a separate execution room on the host.',
+						);
+					const signaling = resolveSignalingServers(
+						transport.signaling as string[] | undefined,
+					);
+					if (!signaling.length || !signaling.every((url) => safeUrl(url)))
+						throw Error(
+							'Configure a shareable signaling server without credentials first',
+						);
+					return {
+						...descriptor,
+						transportConfig: { type: 'webrtc', roomId: room, signaling },
+					};
+				}
+				if (transport.type === 'websocket' && safeUrl(transport.url, true))
+					return {
+						...descriptor,
+						transportConfig: { type: 'websocket', url: transport.url },
+					};
+				throw Error(
+					'An independently reachable secured WebSocket (wss:) or explicitly configured execution room is required',
+				);
+			}
 			case 'recipes.logs':
 				return {
 					id: id(),
@@ -838,9 +936,17 @@ export class ChelysControl {
 					!pluginTypeRegistry.get(recipe.type)
 				)
 					throw new Error('Unsupported recipe type');
-				if (typeof recipe.id !== 'string' || !/^[A-Za-z0-9_.-]{1,128}$/.test(recipe.id) || ['.', '..'].includes(recipe.id) || typeof recipe.name !== 'string' || !recipe.name.trim() || !Array.isArray(recipe.modes)) throw new Error('Invalid recipe');
-                asObject(recipe.env);
-                asObject(recipe.typeConfig);
+				if (
+					typeof recipe.id !== 'string' ||
+					!/^[A-Za-z0-9_.-]{1,128}$/.test(recipe.id) ||
+					['.', '..'].includes(recipe.id) ||
+					typeof recipe.name !== 'string' ||
+					!recipe.name.trim() ||
+					!Array.isArray(recipe.modes)
+				)
+					throw new Error('Invalid recipe');
+				asObject(recipe.env);
+				asObject(recipe.typeConfig);
 				return readonlyRecipe(await recipeManager.save(recipe));
 			}
 			case 'recipes.remove':
@@ -869,8 +975,12 @@ export class ChelysControl {
 				const recipe = recipeById(recipeId);
 				if (remote && recipe.type === 'infrastructure')
 					await accessPolicy.authorize(origin, 'infrastructure.manage');
-				await recipeManager.authorizeServiceMembers(recipeId, 'install', memberAuthorization('recipes.install'));
-                if (p.engine)
+				await recipeManager.authorizeServiceMembers(
+					recipeId,
+					'install',
+					memberAuthorization('recipes.install'),
+				);
+				if (p.engine)
 					recipeManager.setContainerEngineOverride(
 						recipeId,
 						p.engine as 'docker' | 'podman',
@@ -879,7 +989,10 @@ export class ChelysControl {
 					recipeId,
 					p.mode as InstallModeKind,
 					p.source as DockerInstallSource | undefined,
-					{ initializeVolumes: p.initializeVolumes === true, authorizeMember: memberAuthorization('recipes.install') },
+					{
+						initializeVolumes: p.initializeVolumes === true,
+						authorizeMember: memberAuthorization('recipes.install'),
+					},
 				);
 				success(recipeId);
 				return safeStatus(recipeId, remote);
@@ -890,7 +1003,11 @@ export class ChelysControl {
 				this.notifyRecipe(method, id());
 				return safeStatus(id(), remote);
 			case 'recipes.run':
-                await recipeManager.authorizeServiceMembers(id(), 'run', memberAuthorization('recipes.run'));
+				await recipeManager.authorizeServiceMembers(
+					id(),
+					'run',
+					memberAuthorization('recipes.run'),
+				);
 				await recipeManager.run(id(), memberAuthorization('recipes.run'));
 				success(id());
 				this.notifyRecipe(method, id());
@@ -900,7 +1017,11 @@ export class ChelysControl {
 				this.notifyRecipe(method, id());
 				return safeStatus(id(), remote);
 			case 'recipes.restart':
-                await recipeManager.authorizeServiceMembers(id(), 'run', memberAuthorization('recipes.run'));
+				await recipeManager.authorizeServiceMembers(
+					id(),
+					'run',
+					memberAuthorization('recipes.run'),
+				);
 				await recipeManager.stop(id());
 				await recipeManager.run(id(), memberAuthorization('recipes.run'));
 				success(id());
@@ -920,10 +1041,16 @@ export class ChelysControl {
 			case 'recipes.env.list':
 				return Object.keys(recipeById(id()).env);
 			case 'recipes.registry.list':
-				return recipeRegistry.list(p.refresh !== true);
 			case 'recipes.registry.refresh':
-				recipeRegistry.clearCache();
-				return recipeRegistry.list(false);
+				if (method === 'recipes.registry.refresh') recipeRegistry.clearCache();
+				return (
+					await recipeRegistry.list(
+						method === 'recipes.registry.list' && p.refresh !== true,
+					)
+				).map((entry) => ({
+					...entry,
+					typeLabel: pluginTypeRegistry.get(entry.type)?.label ?? entry.type,
+				}));
 			case 'recipes.env.get':
 				return recipeById(id()).env[key()] ?? null;
 			case 'recipes.env.set': {

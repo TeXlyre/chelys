@@ -2,14 +2,16 @@
 import type React from 'react';
 import { useEffect, useState } from 'react';
 
-import { t } from '@/i18n';
+import { t, getLanguage, languages, setLanguage } from '@/i18n';
 import { useSettings } from '../../hooks/useSettings';
 import { DEFERRED_UPDATE_TYPES } from '../../contexts/SettingsContext';
 import type { Setting } from '../../contexts/SettingsContext';
 import { SettingsIcon } from '../common/Icons';
 import Modal from '@texlyre/components/common/Modal';
 import SettingControl from './SettingControl';
-import BackendOwnershipSection, { runtimeSearchTerms } from './BackendOwnershipSection';
+import BackendOwnershipSection, {
+	runtimeSearchTerms,
+} from './BackendOwnershipSection';
 
 interface SettingsModalProps {
 	isOpen: boolean;
@@ -55,17 +57,44 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 	useEffect(() => {
 		const result = searchSettings(searchQuery);
+		const appearance = t('Appearance');
+		const language = t('Language');
+		if (
+			!searchQuery.trim() ||
+			[appearance, language, t('Interface language')].some((label) =>
+				label.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+			)
+		) {
+			const section = result.categories.find(
+				(item) => item.category === appearance,
+			);
+			if (section)
+				section.subcategories = [
+					...new Set([...section.subcategories, language]),
+				];
+			else
+				result.categories.unshift({
+					category: appearance,
+					subcategories: [language],
+				});
+		}
 		// Native runtime controls have no account-backed setting IDs.
 		const runtimeCategory = t('System');
 		const runtimeSubcategory = t('Runtime');
 		if (
-			searchQuery.trim() && runtimeSearchTerms.some((label) =>
+			searchQuery.trim() &&
+			runtimeSearchTerms.some((label) =>
 				t(label).toLowerCase().includes(searchQuery.trim().toLowerCase()),
 			)
 		) {
-			const system = result.categories.find((item) => item.category === runtimeCategory);
+			const system = result.categories.find(
+				(item) => item.category === runtimeCategory,
+			);
 			if (!system) {
-				result.categories.push({ category: runtimeCategory, subcategories: [runtimeSubcategory] });
+				result.categories.push({
+					category: runtimeCategory,
+					subcategories: [runtimeSubcategory],
+				});
 			} else if (!system.subcategories.includes(runtimeSubcategory)) {
 				system.subcategories.push(runtimeSubcategory);
 			}
@@ -192,7 +221,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 	};
 
 	const settings = getSettingsByCategory(activeCategory, activeSubcategory);
-	const showRuntime = activeCategory === t('System') && activeSubcategory === t('Runtime');
+	const showLanguage =
+		activeCategory === t('Appearance') && activeSubcategory === t('Language');
+	const showRuntime =
+		activeCategory === t('System') && activeSubcategory === t('Runtime');
 
 	const getDependencyValue = (setting: Setting) => {
 		const dependency = setting.dependsOn;
@@ -304,7 +336,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 									data-border='none'
 									data-padding='sd'
 									data-selected={activeCategory === category}
-									data-accent={activeCategory === category ? 'start' : undefined}
+									data-accent={
+										activeCategory === category ? 'start' : undefined
+									}
 									onClick={() => {
 										setActiveCategory(category);
 										setActiveSubcategory(subcategories[0]);
@@ -336,8 +370,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 						{filteredData.categories.length === 0 && searchQuery && (
 							<div className='no-results'>
-								{t('No settings found matching "')}
-								{searchQuery}"
+								{t('No settings found matching "{query}"', {
+									query: searchQuery,
+								})}
 							</div>
 						)}
 					</div>
@@ -346,6 +381,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 						<h3>{renderTitle()}</h3>
 						<div className='settings-group'>
 							{showRuntime && <BackendOwnershipSection />}
+							{showLanguage && (
+								<SettingControl
+									setting={{
+										id: 'interface-language',
+										category: t('Appearance'),
+										type: 'select',
+										label: t('Interface language'),
+										description: t('Select the interface language'),
+										defaultValue: getLanguage(),
+										options: languages.map((lang) => ({
+											label: `${lang.nativeName} (${lang.name})`,
+											value: lang.code,
+										})),
+										disabled: hasPendingChanges,
+									}}
+									onLocalUpdate={(value) => void setLanguage(String(value))}
+								/>
+							)}
 							{settings.map((setting) => {
 								const disabled = !isDependencyMet(setting);
 								const nested = shouldNestSetting(setting);
@@ -381,7 +434,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 									</div>
 								);
 							})}
-							{settings.length === 0 && !showRuntime && (
+							{settings.length === 0 && !showRuntime && !showLanguage && (
 								<div className='no-settings'>
 									{t('No settings available in this category.')}
 								</div>

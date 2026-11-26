@@ -1,3 +1,4 @@
+// tests/unit/plugin-host/platformResolution.test.ts
 import { describe, expect, it } from 'vitest';
 import {
 	applyPlatform,

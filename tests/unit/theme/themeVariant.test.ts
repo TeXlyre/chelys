@@ -1,3 +1,4 @@
+// tests/unit/theme/themeVariant.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import config from '../../../chelys.config';
 import { themes } from '../../../external/texlyre/extras/themes/shared/colors';

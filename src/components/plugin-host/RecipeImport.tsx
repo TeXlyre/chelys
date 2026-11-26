@@ -145,7 +145,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 					>
 						{types.map((definition) => (
 							<option key={definition.type} value={definition.type}>
-								{definition.label}
+								{t(definition.label)}
 							</option>
 						))}
 					</select>
@@ -204,7 +204,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 				</button>
 			</div>
 
-			{error && <div className='error-message'>{error}</div>}
+			{error && <div className='error-message'>{t(error)}</div>}
 
 			{source === 'url' && (
 				<div className='form-group ui-field'>

@@ -1,3 +1,4 @@
+// tests/unit/peer/BridgeResolution.test.ts
 import { afterEach, describe, expect, it } from 'vitest';
 import {
 	resolveSignalingServers,

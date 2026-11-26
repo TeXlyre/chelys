@@ -11,20 +11,31 @@ import '@texlyre/styles/components/collaborator-avatars.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke } from '@tauri-apps/api/core';
+import { initializeLanguage } from './i18n';
 import { applyThemeVariant, getInitialVariant } from './theme/themeVariant';
+
+await initializeLanguage();
 
 const target = document.getElementById('root');
 if (!target) throw new Error('Chelys root element not found');
 document.documentElement.setAttribute('data-layout', 'texlyre-wide');
 document.documentElement.setAttribute('data-theme-plugin', 'texlyre');
 applyThemeVariant(getInitialVariant());
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-	if (getInitialVariant() === 'system') applyThemeVariant('system');
-});
+window
+	.matchMedia('(prefers-color-scheme: dark)')
+	.addEventListener('change', () => {
+		if (getInitialVariant() === 'system') applyThemeVariant('system');
+	});
 const root = createRoot(target);
 const showRecovery = async (reason?: string) => {
-	const { default: BackendRecovery } = await import('./components/profile/BackendRecovery');
-	root.render(<StrictMode><BackendRecovery reason={reason} /></StrictMode>);
+	const { default: BackendRecovery } = await import(
+		'./components/profile/BackendRecovery'
+	);
+	root.render(
+		<StrictMode>
+			<BackendRecovery reason={reason} />
+		</StrictMode>,
+	);
 };
 try {
 	const mode = await invoke<'attached' | 'unavailable'>('instance_mode');
@@ -33,9 +44,14 @@ try {
 	} else {
 		const { initializeSharedStorage } = await import('./runtime/storageMirror');
 		await initializeSharedStorage();
+		await initializeLanguage();
 		applyThemeVariant(getInitialVariant());
 		const { App } = await import('./App');
-		root.render(<StrictMode><App /></StrictMode>);
+		root.render(
+			<StrictMode>
+				<App />
+			</StrictMode>,
+		);
 	}
 } catch (error) {
 	await showRecovery(String(error));

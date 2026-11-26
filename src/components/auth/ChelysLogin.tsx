@@ -70,7 +70,7 @@ const ChelysLogin: React.FC = () => {
 
 				<div className='auth-form-container'>
 					<h2>{t('Log in to Chelys')}</h2>
-					{error && <div className='auth-error'>{error}</div>}
+					{error && <div className='auth-error'>{t(error)}</div>}
 					<CredentialStorageWarning />
 					<form
 						onSubmit={handleSubmit}
@@ -167,7 +167,7 @@ const ChelysLogin: React.FC = () => {
 						>
 							{t('Chelys Releases')}
 						</a>{' '}
-						{`v${__APP_VERSION__}`}
+						<bdi dir='ltr'>{`v${__APP_VERSION__}`}</bdi>
 					</span>
 				</p>
 			</footer>

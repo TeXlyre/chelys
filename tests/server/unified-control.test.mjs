@@ -68,7 +68,10 @@ test('account key and room transitions are backend-owned and do not return passw
 test('Tauri holds UI-only functions and proxies all recipe state through the daemon', () => {
 	const native = read('src-tauri/src/lib.rs');
 	const instance = read('src-tauri/src/instance.rs');
-	assert.match(instance, /command\(&state\.socket, &method, params\)\s*\.await/);
+	assert.match(
+		instance,
+		/command\(&state\.socket, &method, params\)\s*\.await/,
+	);
 	assert.match(instance, /spawn_backend/);
 	assert.doesNotMatch(
 		instance,

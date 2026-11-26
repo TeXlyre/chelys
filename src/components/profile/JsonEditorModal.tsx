@@ -132,7 +132,7 @@ const JsonEditorModal: React.FC<JsonEditorModalProps> = ({
 			size='wide'
 		>
 			<div className='json-editor'>
-				{parseError && <div className='error-message'>{parseError}</div>}
+				{parseError && <div className='error-message'>{t(parseError)}</div>}
 				<textarea
 					className='json-editor-textarea mono'
 					value={text}

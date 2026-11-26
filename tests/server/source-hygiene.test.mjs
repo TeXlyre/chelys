@@ -23,29 +23,32 @@ const sourceFiles = function* (directory = root) {
 			continue;
 		const full = path.join(directory, item.name);
 		if (item.isDirectory()) yield* sourceFiles(full);
-		else if (item.isFile() && /\.(mjs|js|ts|tsx|rs)$/.test(item.name))
+		else if (item.isFile() && /\.(mjs|js|ts|tsx|rs|sh)$/.test(item.name))
 			yield full;
 	}
 };
 
-test('source files have no repeated leading repository-path comment', () => {
+test('source files have exactly one leading repository-path comment', () => {
 	for (const filename of sourceFiles()) {
 		const relative = path.relative(root, filename).split(path.sep).join('/');
 		const lines = fs.readFileSync(filename, 'utf8').split(/\r?\n/);
-		const pathComment = `// ${relative}`;
+		const pathComment = `${filename.endsWith('.sh') ? '#' : '//'} ${relative}`;
 		const first = lines[0].startsWith('#!') ? 1 : 0;
 		assert.notEqual(
 			lines[first],
 			lines[first + 1],
 			`Duplicate leading line in ${relative}`,
 		);
-		if (lines[first] === pathComment) {
-			assert.notEqual(
-				lines[first + 1],
-				pathComment,
-				`Repeated repository header in ${relative}`,
-			);
-		}
+		assert.equal(
+			lines[first],
+			pathComment,
+			`Missing repository header in ${relative}`,
+		);
+		assert.notEqual(
+			lines[first + 1],
+			pathComment,
+			`Repeated repository header in ${relative}`,
+		);
 	}
 });
 
@@ -68,7 +71,7 @@ test('Biome treats packaged and compiled runtime copies as build products', () =
 test('peer inventory uses an accessible named section and installed UI buttons have explicit types', () => {
 	assert.match(
 		read('src/components/profile/PeerControlSection.tsx'),
-		/<section\s+className='control-peer-list'\s+aria-label='Discovered and saved Chelys peers'/,
+		/<section\s+className='control-peer-list'\s+aria-label=\{t\(['"]Discovered and saved Chelys peers['"]\)\}/,
 	);
 	for (const file of [
 		'src/components/app/DashboardApp.tsx',

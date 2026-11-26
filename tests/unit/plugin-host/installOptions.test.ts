@@ -1,3 +1,4 @@
+// tests/unit/plugin-host/installOptions.test.ts
 import { describe, expect, it } from 'vitest';
 import { bulkInstallOptions, canBulkInstall, recipeInstallOptions } from '@src/plugin-host/installOptions';
 import type { Recipe, InstallMode, RecipeRuntimeState } from '@src/plugin-host/types';

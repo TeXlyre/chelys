@@ -174,7 +174,9 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({
 					: {};
 				localStorageSettingsRef.current = parsed;
 				if (Object.hasOwn(parsed, 'themeVariant')) {
-					getChelysSettings().find((setting) => setting.id === 'themeVariant')?.onChange?.(parsed.themeVariant);
+					getChelysSettings()
+						.find((setting) => setting.id === 'themeVariant')
+						?.onChange?.(parsed.themeVariant);
 				}
 				setSettings((current) =>
 					current.map((setting) =>

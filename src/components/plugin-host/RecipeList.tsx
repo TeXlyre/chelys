@@ -4,6 +4,8 @@ import { useCallback, useState, useEffect, useRef } from 'react';
 
 import { t } from '@/i18n';
 import { usePluginHost } from '../../hooks/usePluginHost';
+import { recipeStateLabels } from '../../plugin-host/recipeStateLabels';
+import { recipeCategory } from '../../plugin-host/recipeCategory';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
 import {
 	findMode,
@@ -34,19 +36,12 @@ import { localCommand } from '../../control/localClient';
 import RecipeShareActions from './RecipeShareActions';
 import RendezvousAvatars from './RendezvousAvatars';
 import RecipeVariables from './RecipeVariables';
-import { bulkInstallOptions, canBulkInstall, recipeInstallOptions } from '../../plugin-host/installOptions';
+import {
+	bulkInstallOptions,
+	canBulkInstall,
+	recipeInstallOptions,
+} from '../../plugin-host/installOptions';
 import PositionedDropdown from '@texlyre/components/common/PositionedDropdown';
-
-const STATE_LABELS: Record<RecipeRuntimeState, string> = {
-	'not-installed': 'Not installed',
-	installing: 'Installing…',
-	installed: 'Installed',
-	starting: 'Starting…',
-	running: 'Running',
-	stopping: 'Stopping…',
-	stopped: 'Stopped',
-	error: 'Error',
-};
 
 interface RecipeListProps {
 	category?: string;
@@ -71,8 +66,23 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 	} = usePluginHost();
 
 	const exclusiveTypes = new Set(pluginTypeRegistry.exclusiveTypes());
-	const visibleRecipes = recipes.filter((r) =>
+	const [functionalCategory, setFunctionalCategory] = useState('');
+	const scopedRecipes = recipes.filter((r) =>
 		category ? r.type === category : !exclusiveTypes.has(r.type),
+	);
+	const categoryOf = (recipe: Recipe) =>
+		recipeCategory(
+			recipe,
+			(type) => pluginTypeRegistry.get(type)?.label ?? type,
+		);
+	const categories = [...new Set(scopedRecipes.map(categoryOf))].sort((a, b) =>
+		t(a).localeCompare(t(b)),
+	);
+	const activeCategory = categories.includes(functionalCategory)
+		? functionalCategory
+		: '';
+	const visibleRecipes = scopedRecipes.filter(
+		(recipe) => !activeCategory || categoryOf(recipe) === activeCategory,
 	);
 	const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
 	const [editingView, setEditingView] = useState<'guided' | 'files'>('guided');
@@ -83,8 +93,8 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 	const [bulkAnchor, setBulkAnchor] = useState<HTMLElement | null>(null);
 	const [bulkRunning, setBulkRunning] = useState(false);
 	const [bulkResult, setBulkResult] = useState('');
-    const [checking, setChecking] = useState<string | null>(null);
-    const [checkError, setCheckError] = useState('');
+	const [checking, setChecking] = useState<string | null>(null);
+	const [checkError, setCheckError] = useState('');
 	const bulkLock = useRef(false);
 	const latest = useRef({ recipes, statuses });
 	latest.current = { recipes, statuses };
@@ -99,7 +109,11 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 	}, []);
 
 	const busyView =
-		editing !== null || browsing || importing || configuring !== null || bulkRunning;
+		editing !== null ||
+		browsing ||
+		importing ||
+		configuring !== null ||
+		bulkRunning;
 	useEffect(() => {
 		onBusyChange?.(busyView);
 	}, [busyView, onBusyChange]);
@@ -140,8 +154,8 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 		['installed', 'stopped'].includes(stateOf(r.id)),
 	);
 	const stoppable = selectedRecipes.filter((r) => stateOf(r.id) === 'running');
-	const installable = selectedRecipes.filter(
-		(r) => canBulkInstall(r, stateOf(r.id)),
+	const installable = selectedRecipes.filter((r) =>
+		canBulkInstall(r, stateOf(r.id)),
 	);
 
 	const runSelected = () => {
@@ -164,9 +178,20 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 		const failed: string[] = [];
 		try {
 			for (const { recipe } of group.targets) {
-				const current = latest.current.recipes.find((item) => item.id === recipe.id);
-				const option = current && recipeInstallOptions(current).find((item) => item.id === group.id);
-				if (!current || !option || !canBulkInstall(current, latest.current.statuses.get(recipe.id)?.state ?? 'not-installed')) {
+				const current = latest.current.recipes.find(
+					(item) => item.id === recipe.id,
+				);
+				const option =
+					current &&
+					recipeInstallOptions(current).find((item) => item.id === group.id);
+				if (
+					!current ||
+					!option ||
+					!canBulkInstall(
+						current,
+						latest.current.statuses.get(recipe.id)?.state ?? 'not-installed',
+					)
+				) {
 					failed.push(recipe.name);
 					continue;
 				}
@@ -178,7 +203,9 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 				}
 			}
 		} finally {
-			setBulkResult(`${t('Installed')} ${installed}/${group.targets.length}${failed.length ? ` · ${t('Failed or skipped')}: ${failed.join(', ')}` : ''}`);
+			setBulkResult(
+				`${t('Installed')} ${installed}/${group.targets.length}${failed.length ? ` · ${t('Failed or skipped')}: ${failed.join(', ')}` : ''}`,
+			);
 			setBulkRunning(false);
 			bulkLock.current = false;
 		}
@@ -217,7 +244,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 		return (
 			<RecipeForm
 				recipe={editing === 'new' ? null : editing}
-                category={category}
+				category={category}
 				initialView={editingView}
 				onDone={() => setEditing(null)}
 			/>
@@ -263,72 +290,110 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 					</button>
 				</div>
 
-				{!selectionMode ? (
-					<button
-						type='button'
-						className='button secondary smaller'
-						onClick={() => setSelectionMode(true)}
-						disabled={visibleRecipes.length === 0}
-					>
-						{t('Select recipes')}
-					</button>
-				) : (
-					<div className='recipe-selection-controls'>
-						<button
-							type='button'
-							className='button secondary smaller'
-							disabled={bulkRunning}
-							onClick={selectAll}
+				<div className='recipe-list-controls'>
+					{categories.length > 1 && (
+						<select
+							className='ui-field-control recipe-category-filter'
+							title={t('Filter by category')}
+							aria-label={t('Category')}
+							value={activeCategory}
+							disabled={bulkRunning || selectionMode}
+							onChange={(e) => {
+								setFunctionalCategory(e.target.value);
+								setSelected(new Set());
+							}}
 						>
-							{selected.size === visibleRecipes.length
-								? t('Deselect All')
-								: t('Select All')}
-						</button>
-						<button
-							type='button'
-							className='button primary smaller'
-							onClick={runSelected}
-							disabled={bulkRunning || runnable.length === 0}
-						>
-							{t('Run')} ({runnable.length})
-						</button>
-						<button
-							type='button'
-							className='button smaller'
-							onClick={(event) => setBulkAnchor(bulkAnchor ? null : event.currentTarget)}
-							aria-expanded={!!bulkAnchor}
-							disabled={bulkRunning || installable.length === 0}
-						>
-							{t('Install')} ({installable.length}) <ChevronDownIcon />
-						</button>
-						<PositionedDropdown isOpen={!!bulkAnchor && !bulkRunning} triggerElement={bulkAnchor} onClose={() => setBulkAnchor(null)}>
-							{groups.map((group) => (
-								<button key={group.id} type='button' className='ui-menu-item' onClick={() => void installSelected(group)}>
-									{t(group.label)} ({group.targets.length}/{installable.length})
-								</button>
+							<option value=''>{t('All Categories')}</option>
+							{categories.map((label) => (
+								<option key={label} value={label}>
+									{t(label)}
+								</option>
 							))}
-						</PositionedDropdown>
-						<button
-							type='button'
-							className='button danger smaller'
-							onClick={stopSelected}
-							disabled={bulkRunning || stoppable.length === 0}
-						>
-							{t('Stop')} ({stoppable.length})
-						</button>
+						</select>
+					)}
+					{!selectionMode ? (
 						<button
 							type='button'
 							className='button secondary smaller'
-							disabled={bulkRunning}
-							onClick={exitSelection}
+							onClick={() => setSelectionMode(true)}
+							disabled={visibleRecipes.length === 0}
 						>
-							{t('Cancel')}
+							{t('Select recipes')}
 						</button>
-					</div>
-				)}
+					) : (
+						<div className='recipe-selection-controls'>
+							<button
+								type='button'
+								className='button secondary smaller'
+								disabled={bulkRunning}
+								onClick={selectAll}
+							>
+								{selected.size === visibleRecipes.length
+									? t('Deselect All')
+									: t('Select All')}
+							</button>
+							<button
+								type='button'
+								className='button primary smaller'
+								onClick={runSelected}
+								disabled={bulkRunning || runnable.length === 0}
+							>
+								{t('Run')} ({runnable.length})
+							</button>
+							<button
+								type='button'
+								className='button smaller'
+								onClick={(event) =>
+									setBulkAnchor(bulkAnchor ? null : event.currentTarget)
+								}
+								aria-expanded={!!bulkAnchor}
+								disabled={bulkRunning || installable.length === 0}
+							>
+								{t('Install')} ({installable.length}) <ChevronDownIcon />
+							</button>
+							<PositionedDropdown
+								isOpen={!!bulkAnchor && !bulkRunning}
+								triggerElement={bulkAnchor}
+								onClose={() => setBulkAnchor(null)}
+							>
+								{groups.map((group) => (
+									<button
+										key={group.id}
+										type='button'
+										className='ui-menu-item'
+										onClick={() => void installSelected(group)}
+									>
+										{t(group.label)} ({group.targets.length}/
+										{installable.length})
+									</button>
+								))}
+							</PositionedDropdown>
+							<button
+								type='button'
+								className='button danger smaller'
+								onClick={stopSelected}
+								disabled={bulkRunning || stoppable.length === 0}
+							>
+								{t('Stop')} ({stoppable.length})
+							</button>
+							<button
+								type='button'
+								className='button secondary smaller'
+								disabled={bulkRunning}
+								onClick={exitSelection}
+							>
+								{t('Cancel')}
+							</button>
+						</div>
+					)}
+				</div>
 			</div>
 
-			{selectionMode && (bulkRunning || bulkResult) && <p role='status'>{bulkRunning ? t('Installing recipes…') : bulkResult}</p>}
+			{selectionMode && (bulkRunning || bulkResult) && (
+				<p role='status'>
+					{bulkRunning ? t('Installing recipes…') : bulkResult}
+				</p>
+			)}
 			{visibleRecipes.length === 0 && (
 				<p className='no-recipes'>
 					{t('No recipes yet. Add one to install and run a local server.')}
@@ -339,13 +404,15 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 				const status = statuses.get(recipe.id);
 				const state = status?.state ?? 'not-installed';
 				const definition = pluginTypeRegistry.get(recipe.type);
-				const typeLabel = definition?.label ?? recipe.type;
 				const icon = recipe.icon ?? definition?.icon;
 				const busy = state === 'installing';
 				const starting = state === 'starting';
 				const stopping = state === 'stopping';
 				const isService = recipe.type === 'service';
-                const installed = state === 'installed' || state === 'stopped' || (isService && state === 'error' && status?.mode === 'connect');
+				const installed =
+					state === 'installed' ||
+					state === 'stopped' ||
+					(isService && state === 'error' && status?.mode === 'connect');
 				const running = state === 'running' || !!status?.groupActive;
 				const modeKinds = recipe.modes.map((m) => m.kind);
 				const hasVariables = !!recipe.variables && recipe.variables.length > 0;
@@ -355,7 +422,9 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 				const docker = findMode(recipe, 'docker');
 				const configurable = hasVariables || !!docker;
 				const options = recipeInstallOptions(recipe);
-				const pullable = options.some((option) => option.id === 'docker-build') && options.some((option) => option.id === 'docker-registry');
+				const pullable =
+					options.some((option) => option.id === 'docker-build') &&
+					options.some((option) => option.id === 'docker-registry');
 
 				const beginInstall = (
 					mode: InstallModeKind,
@@ -380,6 +449,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 									<input
 										type='checkbox'
 										className='recipe-select'
+										aria-label={t('Select {name}', { name: recipe.name })}
 										checked={selected.has(recipe.id)}
 										disabled={bulkRunning}
 										onChange={() => toggleSelected(recipe.id)}
@@ -403,7 +473,9 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 										{t('Update → v{version}', { version: updateVersion })}
 									</span>
 								)}
-								<span className='recipe-type-badge'>{typeLabel}</span>
+								<span className='recipe-type-badge'>
+									{t(categoryOf(recipe))}
+								</span>
 								{status?.mode && !isService && (
 									<span className='recipe-mode-badge'>
 										{t(modeLabel(status.mode))}
@@ -413,25 +485,82 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 							<div className='recipe-card-status'>
 								<RendezvousAvatars recipe={recipe} active={running} />
 								<span className={`recipe-state recipe-state-${state}`}>
-									{t(STATE_LABELS[state])}
+									{t(recipeStateLabels[state])}
 								</span>
 							</div>
 						</div>
 
-                        {isService && <div className='recipe-members'>
-                            {(members[recipe.id] ?? []).map(member => {
-                                const count = Object.values(members).filter(group => group.some(other => other.local === member.local && (member.local ? other.recipeId === member.recipeId : other.reference === member.reference))).length;
-                                return <div key={member.reference} className='recipe-card-main'>
-                                    <div className='recipe-card-info'><span>{member.name}</span><small title={member.reference}>{member.local ? t('Local') : member.reference.split('/')[0]}</small>{count > 1 && <small>{t('Shared')} · {count}</small>}</div>
-                                    <small className={`recipe-state recipe-state-${member.state}`}>{member.local ? (STATE_LABELS[member.state as RecipeRuntimeState] ?? member.state) : `${member.state}${member.state === 'running' ? ' (last checked)' : ''}`}</small>
-                                </div>;
-                            })}
-                            <small>{t('Stopping or removing a service leaves its plugins running.')}</small>
-                            {(members[recipe.id] ?? []).some(member => !member.local) && <button type='button' className='button' disabled={checking !== null || busy || locked} onClick={() => { setChecking(recipe.id); setCheckError(''); void localCommand('recipes.service.check', { id: recipe.id }).catch(error => setCheckError(String(error))).finally(() => setChecking(null)); }}>{checking === recipe.id ? t('Checking…') : t('Check members')}</button>}
-                            {checkError && <small role='alert'>{checkError}</small>}
-                        </div>}
+						{isService && (
+							<div className='recipe-members'>
+								{(members[recipe.id] ?? []).map((member) => {
+									const count = Object.values(members).filter((group) =>
+										group.some(
+											(other) =>
+												other.local === member.local &&
+												(member.local
+													? other.recipeId === member.recipeId
+													: other.reference === member.reference),
+										),
+									).length;
+									return (
+										<div key={member.reference} className='recipe-card-main'>
+											<div className='recipe-card-info'>
+												<span>{member.name}</span>
+												<small title={member.reference}>
+													{member.local
+														? t('Local')
+														: member.reference.split('/')[0]}
+												</small>
+												{count > 1 && (
+													<small>
+														{t('Shared')} · {count}
+													</small>
+												)}
+											</div>
+											<small
+												className={`recipe-state recipe-state-${member.state}`}
+											>
+												{!member.local && member.state === 'running'
+													? t('Running (last checked)')
+													: t(
+															recipeStateLabels[
+																member.state as RecipeRuntimeState
+															] ?? member.state,
+														)}
+											</small>
+										</div>
+									);
+								})}
+								<small>
+									{t(
+										'Stopping or removing a service leaves its plugins running.',
+									)}
+								</small>
+								{(members[recipe.id] ?? []).some((member) => !member.local) && (
+									<button
+										type='button'
+										className='button'
+										disabled={checking !== null || busy || locked}
+										onClick={() => {
+											setChecking(recipe.id);
+											setCheckError('');
+											void localCommand('recipes.service.check', {
+												id: recipe.id,
+											})
+												.catch((error) => setCheckError(String(error)))
+												.finally(() => setChecking(null));
+										}}
+									>
+										{checking === recipe.id
+											? t('Checking...')
+											: t('Check members')}
+									</button>
+								)}
+								{checkError && <small role='alert'>{t(checkError)}</small>}
+							</div>
+						)}
 						{status?.lastError && (
-							<div className='recipe-error'>{status.lastError}</div>
+							<div className='recipe-error'>{t(status.lastError)}</div>
 						)}
 
 						{choosingMode === recipe.id && (
@@ -441,17 +570,66 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 								</span>
 								{modeKinds.map((kind) =>
 									kind === 'docker' && pullable && docker ? (
-										<div key={kind} className='ui-menu-anchor' data-width='content'>
-											<div className='ui-button-group ui-split-button' data-variant='joined'>
-												<button type='button' className='button ui-split-main' onClick={() => beginInstall('docker')}>{t(modeLabel('docker'))}</button>
-												<button type='button' className='button ui-split-toggle' aria-expanded={installMenu === recipe.id} title={t('Container install options')} onClick={(event) => {
-													setInstallAnchor(installMenu === recipe.id ? null : event.currentTarget);
-													setInstallMenu(installMenu === recipe.id ? null : recipe.id);
-												}}><ChevronDownIcon /></button>
+										<div
+											key={kind}
+											className='ui-menu-anchor'
+											data-width='content'
+										>
+											<div
+												className='ui-button-group ui-split-button'
+												data-variant='joined'
+											>
+												<button
+													type='button'
+													className='button ui-split-main'
+													onClick={() => beginInstall('docker')}
+												>
+													{t(modeLabel('docker'))}
+												</button>
+												<button
+													type='button'
+													className='button ui-split-toggle'
+													aria-expanded={installMenu === recipe.id}
+													title={t('Container install options')}
+													onClick={(event) => {
+														setInstallAnchor(
+															installMenu === recipe.id
+																? null
+																: event.currentTarget,
+														);
+														setInstallMenu(
+															installMenu === recipe.id ? null : recipe.id,
+														);
+													}}
+												>
+													<ChevronDownIcon />
+												</button>
 											</div>
-											<PositionedDropdown isOpen={installMenu === recipe.id} triggerElement={installAnchor} onClose={() => { setInstallMenu(null); setInstallAnchor(null); }}>
-												<button type='button' className='ui-menu-item' onClick={() => beginInstall('docker')}><TerminalIcon /><span>{t('Build image locally')}</span></button>
-												<button type='button' className='ui-menu-item' title={docker.image} onClick={() => beginInstall('docker', 'registry')}><DownloadIcon /><span>{t('Pull container image')}</span></button>
+											<PositionedDropdown
+												isOpen={installMenu === recipe.id}
+												triggerElement={installAnchor}
+												onClose={() => {
+													setInstallMenu(null);
+													setInstallAnchor(null);
+												}}
+											>
+												<button
+													type='button'
+													className='ui-menu-item'
+													onClick={() => beginInstall('docker')}
+												>
+													<TerminalIcon />
+													<span>{t('Build image locally')}</span>
+												</button>
+												<button
+													type='button'
+													className='ui-menu-item'
+													title={docker.image}
+													onClick={() => beginInstall('docker', 'registry')}
+												>
+													<DownloadIcon />
+													<span>{t('Pull container image')}</span>
+												</button>
 											</PositionedDropdown>
 										</div>
 									) : (
@@ -524,7 +702,9 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 								<button
 									type='button'
 									className='button primary'
-									disabled={bulkRunning || busy || starting || stopping || !installed}
+									disabled={
+										bulkRunning || busy || starting || stopping || !installed
+									}
 									onClick={() => run(recipe.id)}
 								>
 									{starting ? (

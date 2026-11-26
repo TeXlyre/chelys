@@ -80,6 +80,10 @@ Chelys uses TeXlyre's Wide theme, shared controls, and colour palettes directly 
 
 Choose a palette under **Settings → Appearance → Colour theme**; the header and login toggle use the `themeToggle.light` and `themeToggle.dark` targets in `chelys.config.ts`. The preference is stored in Chelys settings, independently of TeXlyre settings. System follows the OS colour mode.
 
+### Recipe categories
+
+A recipe may declare an optional top-level `category` string in its manifest and registry entry. Chelys uses it for browsing and display, falling back to the registered recipe type label when absent. The `type` field still controls runtime behaviour, permissions and placement under Plugins, Services, Storage or Infrastructure. Categories are metadata, not new plugin types.
+
 ### Endpoints and services
 
 An `endpoint` recipe runs an independent application backend using its existing system, Docker or connect mode. It declares `typeConfig.protocol`, `transportType` (`webrtc` or `websocket`), and `transportUrl`. Each running endpoint advertises `generic-plugin-config:<machine UUID>.<recipe ID>` with its protocol and transport. WebRTC uses the existing `endpoint:<machine UUID>.<recipe ID>` label and account room; the private upstream URL is not advertised. Use a reachable secured URL for direct WebSocket clients.

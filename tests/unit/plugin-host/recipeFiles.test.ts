@@ -1,3 +1,4 @@
+// tests/unit/plugin-host/recipeFiles.test.ts
 import { describe, expect, it } from 'vitest';
 import {
 	decodeRecipeText,

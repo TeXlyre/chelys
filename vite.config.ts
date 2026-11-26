@@ -1,3 +1,4 @@
+// vite.config.ts
 import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
@@ -23,7 +24,7 @@ export default defineConfig({
 	envPrefix: ['VITE_', 'TAURI_'],
 	resolve: {
 		alias: {
-			'@/i18n': path.resolve(__dirname, './src/i18n-shim.ts'),
+			'@/i18n': path.resolve(__dirname, './src/i18n.ts'),
 			'@/logging': path.resolve(__dirname, './external/texlyre/src/logging.ts'),
 			'@texlyre': path.resolve(__dirname, './external/texlyre/src'),
 			'@chelys': path.resolve(__dirname, './external/texlyre/src/chelys'),

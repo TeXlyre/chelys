@@ -1,4 +1,5 @@
 // src/components/profile/ControlAccessSection.tsx
+import { t } from '@/i18n';
 import { useEffect, useState } from 'react';
 import { localCommand } from '../../control/localClient';
 import PeerControlSection from './PeerControlSection';
@@ -67,30 +68,28 @@ export default function ControlAccessSection() {
 					className={`tab-button ui-tab ${view === 'peers' ? 'active' : ''}`}
 					onClick={() => setView('peers')}
 				>
-					Peers
+					{t('Peers')}
 				</button>
 				<button
 					type='button'
 					className={`tab-button ui-tab ${view === 'access' ? 'active' : ''}`}
 					onClick={() => setView('access')}
 				>
-					Access &amp; keys
+					{t('Access & keys')}
 				</button>
 			</div>
 			{view === 'peers' ? (
 				<PeerControlSection />
 			) : (
 				<>
-					<h3>Incoming remote access</h3>
+					<h3>{t('Incoming remote access')}</h3>
 					<p className='field-hint'>
-						Recipe management is available to verified account peers. Remote
-						edits to Chelys settings, TeXlyre data and the instance profile
-						require API-key mode and explicit read/write permissions. Account
-						login, credentials, access policies and peer endpoint configuration
-						always remain local.
+						{t(
+							'Recipe management is available to verified account peers. Remote edits to Chelys settings, TeXlyre data and the instance profile require API-key mode and explicit read/write permissions. Account login, credentials, access policies and peer endpoint configuration always remain local.',
+						)}
 					</p>
 					<fieldset className='control-access-modes'>
-						<legend>Who can control this instance?</legend>
+						<legend>{t('Who can control this instance?')}</legend>
 						{(
 							[
 								[
@@ -123,70 +122,108 @@ export default function ControlAccessSection() {
 									}
 								/>
 								<span>
-									<strong>{label}</strong>
-									<small>{detail}</small>
+									<strong>{t(label)}</strong>
+									<small>{t(detail)}</small>
 								</span>
 							</label>
 						))}
 					</fieldset>
 					{error && (
 						<p className='error-message' role='alert'>
-							{error}
+							{t(error)}
 						</p>
 					)}
 					{mode === 'keys' && (
 						<>
-							<h3>Access keys</h3>
+							<h3>{t('Access keys')}</h3>
 							<p className='field-hint'>
-								Keys are displayed once. Keep them secure; revocation takes
-								effect immediately. Invitations allow other accounts to find this instance through WebRTC, but do not grant access without the matching key. Share the key separately.
+								{t(
+									'Keys are displayed once. Keep them secure; revocation takes effect immediately. Invitations allow other accounts to find this instance through WebRTC, but do not grant access without the matching key. Share the key separately.',
+								)}
 							</p>
 							{keys.map((key) => (
 								<div key={key.id} className='control-access-key'>
 									<div>
 										<strong>{key.name}</strong>
 										<small>
-											{key.permissions.join(', ')}
+											{key.permissions
+												.map((permission) => t(permission))
+												.join(', ')}
 											{key.fields?.length
-												? ` · fields: ${key.fields.join(', ')}`
+												? ` · ${t('Fields: {fields}', { fields: key.fields.join(', ') })}`
 												: ''}
 										</small>
 									</div>
 									<div className='control-toolbar'>
 										{confirmRevoke === key.id ? (
 											<>
-												<button type='button' className='button secondary' onClick={() => setConfirmRevoke(null)}>Cancel</button>
-												<button type='button' className='button primary' disabled={busy}
-													onClick={() => void perform(async () => {
-														await localCommand('access.keys.revoke', { id: key.id });
-														setConfirmRevoke(null);
-													})}>Confirm revoke</button>
+												<button
+													type='button'
+													className='button secondary'
+													onClick={() => setConfirmRevoke(null)}
+												>
+													{t('Cancel')}
+												</button>
+												<button
+													type='button'
+													className='button primary'
+													disabled={busy}
+													onClick={() =>
+														void perform(async () => {
+															await localCommand('access.keys.revoke', {
+																id: key.id,
+															});
+															setConfirmRevoke(null);
+														})
+													}
+												>
+													{t('Confirm revoke')}
+												</button>
 											</>
 										) : (
 											<>
-												<button type='button' className='button secondary' disabled={busy}
-													onClick={() => void perform(async () => {
-														const result = await localCommand<{ invitation: string }>('access.keys.invitation', { id: key.id });
-														await navigator.clipboard.writeText(result.invitation);
-													})}>Copy invitation</button>
-												<button type='button' className='button secondary' disabled={busy} onClick={() => setConfirmRevoke(key.id)}>Revoke</button>
+												<button
+													type='button'
+													className='button secondary'
+													disabled={busy}
+													onClick={() =>
+														void perform(async () => {
+															const result = await localCommand<{
+																invitation: string;
+															}>('access.keys.invitation', { id: key.id });
+															await navigator.clipboard.writeText(
+																result.invitation,
+															);
+														})
+													}
+												>
+													{t('Copy invitation')}
+												</button>
+												<button
+													type='button'
+													className='button secondary'
+													disabled={busy}
+													onClick={() => setConfirmRevoke(key.id)}
+												>
+													{t('Revoke')}
+												</button>
 											</>
 										)}
 									</div>
 								</div>
 							))}
 							<div className='form-group ui-field'>
-								<label htmlFor='chelys-control-key-name'>Key name</label>
+								<label htmlFor='chelys-control-key-name'>{t('Key name')}</label>
 								<input
 									id='chelys-control-key-name'
 									value={name}
 									disabled={busy}
 									onChange={(event) => setName(event.target.value)}
-									placeholder='Automation'
+									placeholder={t('Automation')}
 								/>
 							</div>
 							<fieldset className='control-access-permissions'>
-								<legend>Permissions</legend>
+								<legend>{t('Permissions')}</legend>
 								{PERMISSIONS.map((permission) => (
 									<label key={permission}>
 										<input
@@ -201,25 +238,28 @@ export default function ControlAccessSection() {
 												)
 											}
 										/>
-										{permission}
+										{t(permission)}
 									</label>
 								))}
 							</fieldset>
 							{permissions.includes('recipes.telemetry.read') && (
 								<div className='form-group ui-field'>
 									<label htmlFor='chelys-key-fields'>
-										Restrict telemetry categories (optional)
+										{t('Restrict telemetry categories (optional)')}
 									</label>
 									<input
 										id='chelys-key-fields'
 										value={keyFields}
 										disabled={busy}
-										placeholder='cpu,memory (blank = all categories shared by this instance)'
+										placeholder={t(
+											'cpu,memory (blank = all categories shared by this instance)',
+										)}
 										onChange={(event) => setKeyFields(event.target.value)}
 									/>
 									<small className='field-hint'>
-										This restriction is additional to the recipe's sharing
-										policy.
+										{t(
+											"This restriction is additional to the recipe's sharing policy.",
+										)}
 									</small>
 								</div>
 							)}
@@ -252,12 +292,14 @@ export default function ControlAccessSection() {
 										})
 									}
 								>
-									Generate key
+									{t('Generate key')}
 								</button>
 							</div>
 							{createdKey && (
 								<div className='warning-message'>
-									<p>Copy this key now. It will not be displayed again.</p>
+									<p>
+										{t('Copy this key now. It will not be displayed again.')}
+									</p>
 									<code className='control-access-generated'>{createdKey}</code>
 									<button
 										type='button'
@@ -266,14 +308,14 @@ export default function ControlAccessSection() {
 											void navigator.clipboard.writeText(createdKey)
 										}
 									>
-										Copy key
+										{t('Copy key')}
 									</button>
 									<button
 										type='button'
 										className='button secondary'
 										onClick={() => setCreatedKey(null)}
 									>
-										Dismiss
+										{t('Dismiss')}
 									</button>
 								</div>
 							)}

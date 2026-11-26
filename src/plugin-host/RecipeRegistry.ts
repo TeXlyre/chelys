@@ -2,6 +2,7 @@
 import { nanoid } from 'nanoid';
 
 import { getStoredSetting } from '../config';
+import { normalizeRecipeCategory } from './recipeCategory';
 import type { DockerMode, Recipe, RecipeVersion, RegistryEntry } from './types';
 
 interface RegistryIndex {
@@ -40,43 +41,76 @@ class RecipeRegistry {
 	}
 
 	async list(useCache = true): Promise<RegistryEntry[]> {
-        const urls = [...new Set(this.getBaseUrl().split(/[,\n]/).map(url => url.trim()).filter(Boolean))];
-        const cacheKey = JSON.stringify(urls);
-        if (useCache && this.indexCache && this.indexCacheKey === cacheKey) return this.indexCache;
-        if (!urls.length) return [];
-        const responses = await Promise.allSettled(urls.map(url => this.fetchIndex(url)));
-        const entries = new Map<string, RegistryEntry>();
-        let successes = 0;
-        for (const response of responses) {
-            if (response.status === 'rejected') { console.warn('[RecipeRegistry] Registry unavailable:', response.reason); continue; }
-            successes++;
-            // The first configured registry owns a given recipe ID.
-            for (const entry of response.value) if (!entries.has(entry.id)) entries.set(entry.id, entry);
-        }
-        if (!successes) throw new Error('No configured recipe registry is reachable');
-        const result = [...entries.values()];
-        // Do not cache partial failures, so a later refresh can restore them.
-        this.indexCache = successes === urls.length ? result : null;
-        this.indexCacheKey = cacheKey;
-        return result;
-    }
+		const urls = [
+			...new Set(
+				this.getBaseUrl()
+					.split(/[,\n]/)
+					.map((url) => url.trim())
+					.filter(Boolean),
+			),
+		];
+		const cacheKey = JSON.stringify(urls);
+		if (useCache && this.indexCache && this.indexCacheKey === cacheKey)
+			return this.indexCache;
+		if (!urls.length) return [];
+		const responses = await Promise.allSettled(
+			urls.map((url) => this.fetchIndex(url)),
+		);
+		const entries = new Map<string, RegistryEntry>();
+		let successes = 0;
+		for (const response of responses) {
+			if (response.status === 'rejected') {
+				console.warn('[RecipeRegistry] Registry unavailable:', response.reason);
+				continue;
+			}
+			successes++;
+			// The first configured registry owns a given recipe ID.
+			for (const entry of response.value)
+				if (!entries.has(entry.id)) entries.set(entry.id, entry);
+		}
+		if (!successes)
+			throw new Error('No configured recipe registry is reachable');
+		const result = [...entries.values()];
+		// Do not cache partial failures, so a later refresh can restore them.
+		this.indexCache = successes === urls.length ? result : null;
+		this.indexCacheKey = cacheKey;
+		return result;
+	}
 
-    private async fetchIndex(url: string): Promise<RegistryEntry[]> {
-        const response = await fetch(url, { cache: 'no-cache' });
-        if (!response.ok) throw new Error(`Registry returned ${response.status}`);
-        const data = (await response.json()) as RegistryIndex;
-        return Array.isArray(data.categories) ? data.categories.flatMap(category => (category.recipes ?? []).map(entry => {
-            const versions = normalizeVersions(entry);
-            return {
-                id: entry.id, type: entry.type, name: entry.name, icon: entry.icon, iconUrl: entry.iconUrl,
-                version: entry.version ?? versions[0]?.version, description: entry.description, tags: entry.tags ?? [],
-                ...(typeof entry.protocol === 'string' ? { protocol: entry.protocol } : {}),
-                ...(Array.isArray(entry.providers) ? { providers: entry.providers } : {}),
-                ...(Array.isArray(entry.members) ? { members: entry.members } : {}),
-                manifestUrl: entry.manifestUrl ?? versions[0]?.manifestUrl, versions,
-            };
-        })) : [];
-    }
+	private async fetchIndex(url: string): Promise<RegistryEntry[]> {
+		const response = await fetch(url, { cache: 'no-cache' });
+		if (!response.ok) throw new Error(`Registry returned ${response.status}`);
+		const data = (await response.json()) as RegistryIndex;
+		return Array.isArray(data.categories)
+			? data.categories.flatMap((category) =>
+					(category.recipes ?? []).map((entry) => {
+						const versions = normalizeVersions(entry);
+						return {
+							id: entry.id,
+							type: entry.type,
+							name: entry.name,
+							icon: entry.icon,
+							iconUrl: entry.iconUrl,
+							category: normalizeRecipeCategory(entry.category),
+							version: entry.version ?? versions[0]?.version,
+							description: entry.description,
+							tags: entry.tags ?? [],
+							...(typeof entry.protocol === 'string'
+								? { protocol: entry.protocol }
+								: {}),
+							...(Array.isArray(entry.providers)
+								? { providers: entry.providers }
+								: {}),
+							...(Array.isArray(entry.members)
+								? { members: entry.members }
+								: {}),
+							manifestUrl: entry.manifestUrl ?? versions[0]?.manifestUrl,
+							versions,
+						};
+					}),
+				)
+			: [];
+	}
 
 	async fetchRecipe(entry: RegistryEntry, version?: string): Promise<Recipe> {
 		const selected = version
@@ -90,10 +124,21 @@ class RecipeRegistry {
 			throw new Error(`Could not fetch "${entry.name}" (${response.status})`);
 		}
 		const manifest = (await response.json()) as Recipe;
-        if ((manifest.id && manifest.id !== entry.id) || manifest.type !== entry.type) throw new Error('Manifest does not match registry recipe identity or type');
+		if (
+			(manifest.id && manifest.id !== entry.id) ||
+			manifest.type !== entry.type
+		)
+			throw new Error(
+				'Manifest does not match registry recipe identity or type',
+			);
 		const recipe: Recipe = {
 			...manifest,
 			id: manifest.id || entry.id || nanoid(),
+			category:
+				normalizeRecipeCategory(manifest.category) ??
+				(version && version !== entry.version
+					? undefined
+					: normalizeRecipeCategory(entry.category)),
 			icon: manifest.icon ?? entry.icon,
 			iconUrl: manifest.iconUrl ?? entry.iconUrl,
 			version: manifest.version ?? version ?? entry.version,

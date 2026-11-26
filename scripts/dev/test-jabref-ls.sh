@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scripts/dev/test-jabref-ls.sh
 set -euo pipefail
 
 WS_PORT="${WS_PORT:-7021}"

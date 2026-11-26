@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { t } from '@/i18n';
 import { usePluginHost } from '../../hooks/usePluginHost';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
+import { recipeCategory } from '../../plugin-host/recipeCategory';
 import { sanitizeIconMarkup } from '../../plugin-host/recipeIcon';
 import type { RegistryEntry, RecipeVersion } from '../../plugin-host/types';
 import { SearchIcon } from '../common/Icons';
@@ -77,6 +78,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 				id: recipe.id,
 				type: recipe.type,
 				name: recipe.name,
+				category: recipe.category,
 				description: recipe.notes,
 				version: recipe.version,
 				icon: recipe.icon,
@@ -96,8 +98,13 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 		return entries.filter((entry) => !exclusiveTypes.has(entry.type));
 	}, [entries, fixedCategory]);
 
+	const typeLabel = (type: string) =>
+		pluginTypeRegistry.get(type)?.label ?? type;
 	const categories = useMemo(
-		() => Array.from(new Set(scopedEntries.map((entry) => entry.type))),
+		() =>
+			Array.from(
+				new Set(scopedEntries.map((entry) => recipeCategory(entry, typeLabel))),
+			).sort((a, b) => t(a).localeCompare(t(b))),
 		[scopedEntries],
 	);
 
@@ -108,8 +115,14 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 				!q ||
 				entry.name.toLowerCase().includes(q) ||
 				(entry.description ?? '').toLowerCase().includes(q) ||
+				recipeCategory(entry, typeLabel).toLowerCase().includes(q) ||
+				t(recipeCategory(entry, typeLabel)).toLowerCase().includes(q) ||
+				typeLabel(entry.type).toLowerCase().includes(q) ||
 				(entry.tags ?? []).some((tag) => tag.toLowerCase().includes(q));
-			return matchesQuery && (!category || entry.type === category);
+			return (
+				matchesQuery &&
+				(!category || recipeCategory(entry, typeLabel) === category)
+			);
 		});
 	}, [scopedEntries, query, category]);
 
@@ -178,9 +191,6 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 		if (page >= 1 && page <= totalPages) setCurrentPage(page);
 	};
 
-	const typeLabel = (type: string) =>
-		pluginTypeRegistry.get(type)?.label ?? type;
-
 	const visiblePages = useMemo(() => {
 		const maxVisible = 5;
 		let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
@@ -201,8 +211,8 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 				<h3>
 					{fixedCategory
 						? t('Browse {category} recipes', {
-							category: typeLabel(fixedCategory),
-						})
+								category: t(typeLabel(fixedCategory)),
+							})
 						: t('Browse recipes')}
 				</h3>
 				<button type='button' className='button action-button' onClick={onDone}>
@@ -220,15 +230,16 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 						placeholder={t('Search recipes…')}
 					/>
 				</div>
-				{!fixedCategory && categories.length > 1 && (
+				{categories.length > 1 && (
 					<select
+						aria-label={t('Category')}
 						value={category}
 						onChange={(e) => handleCategoryChange(e.target.value)}
 					>
-						<option value=''>{t('All types')}</option>
-						{categories.map((type) => (
-							<option key={type} value={type}>
-								{typeLabel(type)}
+						<option value=''>{t('All Categories')}</option>
+						{categories.map((label) => (
+							<option key={label} value={label}>
+								{t(label)}
 							</option>
 						))}
 					</select>
@@ -238,7 +249,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 			{loadError && (
 				<div className='recipe-error' role='alert'>
 					<p>
-						{t('Could not load registry')}: {loadError}
+						{t('Could not load registry')}: {t(loadError)}
 					</p>
 					<button
 						type='button'
@@ -257,7 +268,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 					)}
 				</div>
 			)}
-			{installError && <div className='recipe-error'>{installError}</div>}
+			{installError && <div className='recipe-error'>{t(installError)}</div>}
 
 			{!loadError && filtered.length === 0 && (
 				<p className='no-recipes'>
@@ -299,11 +310,11 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 								<span className='recipe-name'>{entry.name}</span>
 								{entry.version && (
 									<span className='recipe-version-badge'>
-										latest: v{entry.version}
+										{t('Latest: v{version}', { version: entry.version })}
 									</span>
 								)}
 								<span className='recipe-type-badge'>
-									{typeLabel(entry.type)}
+									{t(recipeCategory(entry, typeLabel))}
 								</span>
 								{entry.local && (
 									<span className='recipe-version-badge'>{t('Local')}</span>
@@ -312,14 +323,16 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 						</div>
 
 						{entry.description && (
-							<p className='recipe-browser-description'>{entry.description}</p>
+							<p className='recipe-browser-description'>
+								{t(entry.description)}
+							</p>
 						)}
 
 						{entry.tags && entry.tags.length > 0 && (
 							<div className='recipe-browser-tags'>
 								{entry.tags.map((tag) => (
 									<span key={tag} className='recipe-browser-tag'>
-										{tag}
+										{t(tag)}
 									</span>
 								))}
 							</div>
@@ -335,7 +348,7 @@ const RecipeBrowser: React.FC<RecipeBrowserProps> = ({
 								{installing === entry.id ? (
 									<>
 										<span className='loading-spinner inline' />
-										{t('Adding…')}
+										{t('Adding...')}
 									</>
 								) : entry.local ? (
 									t('Available locally')

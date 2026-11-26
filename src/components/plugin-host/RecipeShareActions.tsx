@@ -81,69 +81,71 @@ const RecipeShareActions: React.FC<RecipeShareActionsProps> = ({
 				}
 			/>
 
-			{recipe.type !== 'service' && <div className='recipe-share' ref={anchorRef}>
-				<IconButton
-					icon={<ShareIcon />}
-					label={t('Share')}
-					tooltip={t('Choose a transport and hand this recipe to TeXlyre.')}
-					variant={share.state === 'warning' ? 'warn' : undefined}
-					onClick={() => setOpen(!open)}
-				/>
+			{recipe.type !== 'service' && (
+				<div className='recipe-share' ref={anchorRef}>
+					<IconButton
+						icon={<ShareIcon />}
+						label={t('Share')}
+						tooltip={t('Choose a transport and hand this recipe to TeXlyre.')}
+						variant={share.state === 'warning' ? 'warn' : undefined}
+						onClick={() => setOpen(!open)}
+					/>
 
-				<Popover
-					anchor={anchorRef}
-					open={open}
-					className='recipe-share-menu'
-					side='start'
-					clampHeight
-					onClose={() => setOpen(false)}
-				>
-					<span className='recipe-share-menu-title'>{t('Transport')}</span>
-					{(Object.keys(MODE_LABELS) as ShareMode[]).map((option) => (
+					<Popover
+						anchor={anchorRef}
+						open={open}
+						className='recipe-share-menu'
+						side='start'
+						clampHeight
+						onClose={() => setOpen(false)}
+					>
+						<span className='recipe-share-menu-title'>{t('Transport')}</span>
+						{(Object.keys(MODE_LABELS) as ShareMode[]).map((option) => (
+							<button
+								type='button'
+								key={option}
+								className={`recipe-share-option${mode === option ? ' active' : ''}`}
+								disabled={transportLocked}
+								onClick={() => void save(applyShareMode(recipe, option))}
+							>
+								<strong>{t(MODE_LABELS[option])}</strong>
+								<small>{t(MODE_HINTS[option])}</small>
+							</button>
+						))}
+
+						{transportLocked && (
+							<p className='recipe-share-note'>
+								{t('Stop the recipe to change its transport.')}
+							</p>
+						)}
+						{!transportLocked && share.message && (
+							<p className='recipe-share-note'>{t(share.message)}</p>
+						)}
+
+						<span className='recipe-share-menu-title'>
+							{t('TeXlyre configuration')}
+						</span>
 						<button
 							type='button'
-							key={option}
-							className={`recipe-share-option${mode === option ? ' active' : ''}`}
-							disabled={transportLocked}
-							onClick={() => void save(applyShareMode(recipe, option))}
+							className='recipe-share-action'
+							disabled={blocked}
+							onClick={() => void handleCopy()}
 						>
-							<strong>{t(MODE_LABELS[option])}</strong>
-							<small>{t(MODE_HINTS[option])}</small>
+							{copied ? t('Copied!') : t('Copy to clipboard')}
 						</button>
-					))}
-
-					{transportLocked && (
-						<p className='recipe-share-note'>
-							{t('Stop the recipe to change its transport.')}
-						</p>
-					)}
-					{!transportLocked && share.message && (
-						<p className='recipe-share-note'>{share.message}</p>
-					)}
-
-					<span className='recipe-share-menu-title'>
-						{t('TeXlyre configuration')}
-					</span>
-					<button
-						type='button'
-						className='recipe-share-action'
-						disabled={blocked}
-						onClick={() => void handleCopy()}
-					>
-						{copied ? t('Copied!') : t('Copy to clipboard')}
-					</button>
-					<button
-						type='button'
-						className='recipe-share-action'
-						disabled={blocked}
-						onClick={() =>
-							share.json && void downloadJson(share.fileName, share.json)
-						}
-					>
-						{t('Download for TeXlyre')}
-					</button>
-				</Popover>
-			</div>}
+						<button
+							type='button'
+							className='recipe-share-action'
+							disabled={blocked}
+							onClick={() =>
+								share.json && void downloadJson(share.fileName, share.json)
+							}
+						>
+							{t('Download for TeXlyre')}
+						</button>
+					</Popover>
+				</div>
+			)}
 		</>
 	);
 };

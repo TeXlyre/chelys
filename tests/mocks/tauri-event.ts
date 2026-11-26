@@ -1,3 +1,4 @@
+// tests/mocks/tauri-event.ts
 export type UnlistenFn = () => void;
 
 type Handler = (event: { payload: unknown }) => void;

@@ -26,11 +26,15 @@ export const getChelysSettings = (): Setting[] => [
 	{
 		id: 'themeVariant',
 		category: t('Appearance'),
+		subcategory: t('Theme'),
 		type: 'select',
-		label: t('Colour theme'),
-		description: t('Choose the colour palette used by Chelys.'),
+		label: t('Variant'),
+		description: t('Select the theme variant (color palette)'),
 		defaultValue: getInitialVariant(),
-		options: themeOptions.map((option) => ({ ...option, label: t(option.label) })),
+		options: themeOptions.map((option) => ({
+			...option,
+			label: t(option.label),
+		})),
 		liveUpdate: true,
 		validate: (value) => normalizeVariant(value) === value,
 		onChange: setThemeVariant,
@@ -41,7 +45,9 @@ export const getChelysSettings = (): Setting[] => [
 		subcategory: t('Registry'),
 		type: 'text',
 		label: t('Recipe registry URLs'),
-		description: t('Comma-separated recipe registry URLs. The first registry takes precedence for duplicate recipe IDs.'),
+		description: t(
+			'Comma-separated recipe registry URLs (first registry takes precedence)',
+		),
 		defaultValue: getSettingDefault('recipeRegistryUrl'),
 	},
 	{
@@ -58,10 +64,8 @@ export const getChelysSettings = (): Setting[] => [
 		category: t('Collaboration'),
 		subcategory: t('Connection'),
 		type: 'text',
-		label: t('Signaling servers'),
-		description: t(
-			'Comma-separated WebRTC signaling server URLs (applied on next login)',
-		),
+		label: t('Signaling servers (WebRTC)'),
+		description: t('Comma-separated list of Yjs WebRTC signaling server URLs'),
 		defaultValue: getSettingDefault('collabSignalingServers'),
 	},
 	{
@@ -69,8 +73,10 @@ export const getChelysSettings = (): Setting[] => [
 		category: t('Collaboration'),
 		subcategory: t('Connection'),
 		type: 'checkbox',
-		label: t('Auto-reconnect'),
-		description: t('Automatically reconnect to peers (applied on next login)'),
+		label: t('Auto-reconnect on disconnect'),
+		description: t(
+			'Automatically attempt to reconnect when the connection is lost',
+		),
 		defaultValue: getSettingDefault('collabAutoReconnect'),
 		liveUpdate: false,
 	},
@@ -92,7 +98,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'checkbox',
 		label: t('Route services through Traefik'),
 		description: t(
-			'Rewrite service URLs to a single Traefik entrypoint using the recipe identifier as a path, instead of per-recipe ports (applied on next start).',
+			'Route recipe endpoints through a single Traefik entrypoint using recipe identifiers as paths',
 		),
 		defaultValue: getSettingDefault('traefikEnabled'),
 		onChange: reinjectBackend,
@@ -104,7 +110,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'text',
 		label: t('Traefik base URL'),
 		description: t(
-			'Scheme and host of the Traefik entrypoint, port optional, e.g. wss://chelys.traefik-host:8443. http/https are treated as ws/wss. Used when Traefik routing is on (applied on next start).',
+			'Traefik entrypoint URL with an optional port (HTTP and HTTPS are converted to WebSocket URLs)',
 		),
 		defaultValue: getSettingDefault('traefikBaseUrl'),
 		onChange: reinjectBackend,
@@ -116,7 +122,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'text',
 		label: t('Traefik backend host'),
 		description: t(
-			'Host Traefik uses to reach services on this machine. Leave as auto to use 127.0.0.1 for a system-mode Traefik and host.docker.internal for a containerised one on Windows and macOS.',
+			'Host Traefik uses to reach local recipes (auto selects the appropriate host for the platform and installation mode)',
 		),
 		defaultValue: getSettingDefault('traefikBackendHost'),
 		onChange: reinjectBackend,
@@ -128,7 +134,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'number',
 		label: t('Route table port'),
 		description: t(
-			'Port Chelys serves the Traefik routing table on. Chelys picks a free port automatically if this one is unavailable. Applied on restart; Traefik must be restarted afterwards.',
+			'Port for the Traefik routing table (a free port is selected if unavailable). Restart Chelys and Traefik after changing this setting',
 		),
 		defaultValue: getSettingDefault('traefikRouteServerPort'),
 		min: 1024,
@@ -141,7 +147,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'text',
 		label: t('Service host'),
 		description: t(
-			'Host used with recipe ports when Traefik routing is off (applied on next start).',
+			'Host used with recipe ports when Traefik routing is disabled',
 		),
 		defaultValue: getSettingDefault('serviceHost'),
 		onChange: reinjectBackend,
@@ -153,7 +159,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'checkbox',
 		label: t('Fall back to a free port'),
 		description: t(
-			'When a configured port is already taken or reserved by the system, pick a free one instead of failing. Applies to recipe ports and to the Traefik route table port, and takes effect the next time each service starts.',
+			'Select a free port when a configured recipe or Traefik routing table port is unavailable',
 		),
 		defaultValue: getSettingDefault('dynamicPortFallback'),
 	},
@@ -164,12 +170,12 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'select',
 		label: t('Default container engine'),
 		description: t(
-			'Container engine used when installing recipes that do not override it.',
+			'Container engine used when installing recipes without an engine override',
 		),
 		defaultValue: getSettingDefault('defaultContainerEngine'),
 		options: [
-			{ label: 'Docker', value: 'docker' },
-			{ label: 'Podman', value: 'podman' },
+			{ label: t('Docker'), value: 'docker' },
+			{ label: t('Podman'), value: 'podman' },
 		],
 	},
 	{
@@ -179,7 +185,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'text',
 		label: t('Podman unqualified search registries'),
 		description: t(
-			'Comma-separated registries used by Podman to resolve unqualified image names, in order. Leave empty to use Podman configuration.',
+			'Comma-separated registries used by Podman to resolve unqualified image names (leave empty to use Podman configuration)',
 		),
 		defaultValue: getSettingDefault('podmanUnqualifiedSearchRegistries'),
 		dependsOn: { id: 'defaultContainerEngine', value: 'podman', nest: true },
@@ -193,7 +199,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'select',
 		label: t('Recipe operating system'),
 		description: t(
-			'Use Auto unless Chelys detects the wrong platform for system recipes.',
+			'Operating system used to resolve platform-specific system recipes',
 		),
 		defaultValue: getSettingDefault('recipePlatformOverride'),
 		options: [
@@ -214,7 +220,7 @@ export const getChelysSettings = (): Setting[] => [
 		type: 'select',
 		label: t('When closing the window'),
 		description: t(
-			'Hide the desktop window in the system tray or quit the desktop. Desktop-managed backends stop on quit; other backends keep running.',
+			'Choose whether to hide the window or quit Chelys. Only desktop-managed backends stop when the desktop quits',
 		),
 		defaultValue: getSettingDefault('closeBehavior'),
 		options: [

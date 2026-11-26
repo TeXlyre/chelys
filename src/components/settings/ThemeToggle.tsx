@@ -1,3 +1,4 @@
+// src/components/settings/ThemeToggle.tsx
 import type React from 'react';
 import { t } from '@/i18n';
 import { getActiveAccountId } from '../../plugin-host/activeAccount';

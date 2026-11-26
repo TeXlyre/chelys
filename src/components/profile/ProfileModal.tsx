@@ -56,18 +56,16 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
 			</div>
 
 			<CredentialStorageWarning />
-			{error && <div className='error-message'>{error}</div>}
+			{error && <div className='error-message'>{t(error)}</div>}
 			{success && <div className='success-message'>{success}</div>}
 
 			{tab === 'account' ? (
-				<>
-					<AccountIdentitySection
-						isSubmitting={isSubmitting}
-						setIsSubmitting={setIsSubmitting}
-						onError={setError}
-						onSuccess={setSuccess}
-					/>
-				</>
+				<AccountIdentitySection
+					isSubmitting={isSubmitting}
+					setIsSubmitting={setIsSubmitting}
+					onError={setError}
+					onSuccess={setSuccess}
+				/>
 			) : tab === 'access' ? (
 				identity && <ControlAccessSection />
 			) : (

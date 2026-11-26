@@ -1,3 +1,4 @@
+// tests/server/rpc-socket.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
@@ -6,10 +7,17 @@ import { createLocalServer } from '../../server/rpc-socket.mjs';
 
 test('disconnected RPC client cannot crash the server or prevent subsequent requests', async () => {
 	let release, started;
-	const pending = new Promise(resolve => { release = resolve; });
-	const entered = new Promise(resolve => { started = resolve; });
-	const server = createLocalServer(async message => {
-		if (message === 'slow') { started(); await pending; }
+	const pending = new Promise((resolve) => {
+		release = resolve;
+	});
+	const entered = new Promise((resolve) => {
+		started = resolve;
+	});
+	const server = createLocalServer(async (message) => {
+		if (message === 'slow') {
+			started();
+			await pending;
+		}
 		return { ok: true, result: message };
 	});
 	server.listen(0, '127.0.0.1');
@@ -26,12 +34,17 @@ test('disconnected RPC client cannot crash the server or prevent subsequent requ
 		const next = connect();
 		let result = '';
 		next.setEncoding('utf8');
-		next.on('data', chunk => { result += chunk; });
+		next.on('data', (chunk) => {
+			result += chunk;
+		});
 		await once(next, 'connect');
 		next.write('next\n');
 		await once(next, 'end');
 		assert.deepEqual(JSON.parse(result), { ok: true, result: 'next' });
-	} finally { release(); await new Promise(resolve => server.close(resolve)); }
+	} finally {
+		release();
+		await new Promise((resolve) => server.close(resolve));
+	}
 });
 
 test('socket EPIPE is handled even when emitted asynchronously', async () => {
@@ -42,7 +55,7 @@ test('socket EPIPE is handled even when emitted asynchronously', async () => {
 	const client = net.connect(server.address().port, '127.0.0.1');
 	const [socket] = await accepted;
 	socket.destroy(Object.assign(new Error('broken pipe'), { code: 'EPIPE' }));
-	await new Promise(resolve => socket.once('close', resolve));
+	await new Promise((resolve) => socket.once('close', resolve));
 	client.destroy();
-	await new Promise(resolve => server.close(resolve));
+	await new Promise((resolve) => server.close(resolve));
 });

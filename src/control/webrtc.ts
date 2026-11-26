@@ -12,11 +12,29 @@ import {
 import type { HostTransport } from '@chelys/types/transport';
 import { readSignalingServers } from '@chelys/peer/TransportResolution';
 import { accessPolicy, keyHash } from './policy';
-import { acquireRendezvous, type RendezvousLease } from '@chelys/peer/RendezvousRoom';
+import {
+	acquireRendezvous,
+	type RendezvousLease,
+} from '@chelys/peer/RendezvousRoom';
 import { resolveSignalingServers } from '../peer/BridgeResolution';
-import { controlKey, dedicatedRoom, DEDICATED_LABEL, CONTROL_HELLO, newChallenge, seal, unseal, validApiKey, MAX_RESPONSE } from './dedicated';
+import {
+	controlKey,
+	dedicatedRoom,
+	DEDICATED_LABEL,
+	CONTROL_HELLO,
+	newChallenge,
+	seal,
+	unseal,
+	validApiKey,
+	MAX_RESPONSE,
+} from './dedicated';
 import { chelysControl } from './commands';
-import { CONTROL_LABEL_PREFIX, handleRpc, getInstanceId, commandTimeout } from './protocol';
+import {
+	CONTROL_LABEL_PREFIX,
+	handleRpc,
+	getInstanceId,
+	commandTimeout,
+} from './protocol';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -26,16 +44,20 @@ class RemoteControlHost {
 	private unsubscribePolicy: (() => void) | null = null;
 	private connection: ChelysAccountConnection | null = null;
 	private registry: SessionHostRegistry | null = null;
-	private dedicated = new Map<string, {
-		lease: RendezvousLease;
-		unsubscribe: () => void;
-		registry: SessionHostRegistry | null;
-		hash: string;
-		signaling: string;
-	}>();
+	private dedicated = new Map<
+		string,
+		{
+			lease: RendezvousLease;
+			unsubscribe: () => void;
+			registry: SessionHostRegistry | null;
+			hash: string;
+			signaling: string;
+		}
+	>();
 	private generation = 0;
 	private readonly settingsChanged = (event: Event) => {
-		if ((event as CustomEvent).detail?.id === 'collabSignalingServers') this.reconcileDedicated();
+		if ((event as CustomEvent).detail?.id === 'collabSignalingServers')
+			this.reconcileDedicated();
 	};
 
 	start(): void {
@@ -94,9 +116,12 @@ class RemoteControlHost {
 
 	private reconcileDedicated(): void {
 		const generation = ++this.generation;
-		void this.startDedicated(generation).catch(error => {
+		void this.startDedicated(generation).catch((error) => {
 			if (generation === this.generation)
-				console.warn('[Chelys] Dedicated control unavailable:', error instanceof Error ? error.message : String(error));
+				console.warn(
+					'[Chelys] Dedicated control unavailable:',
+					error instanceof Error ? error.message : String(error),
+				);
 		});
 	}
 
@@ -105,7 +130,11 @@ class RemoteControlHost {
 		const signature = JSON.stringify(signaling);
 		const records = signaling.length ? accessPolicy.dedicatedKeys() : [];
 		for (const [id, entry] of this.dedicated) {
-			if (entry.signaling === signature && records.some(record => record.id === id && record.hash === entry.hash)) continue;
+			if (
+				entry.signaling === signature &&
+				records.some((record) => record.id === id && record.hash === entry.hash)
+			)
+				continue;
 			this.dedicated.delete(id);
 			entry.unsubscribe();
 			entry.registry?.stop();
@@ -117,52 +146,88 @@ class RemoteControlHost {
 			const key = await controlKey(record.hash);
 			if (generation !== this.generation) return;
 			// A listening room is healthy even when no client is connected.
-			const lease = acquireRendezvous(room, signaling, undefined, { recoverPeerless: false });
+			const lease = acquireRendezvous(room, signaling, undefined, {
+				recoverPeerless: false,
+			});
 			const entry = {
-				lease, unsubscribe: () => {}, registry: null as SessionHostRegistry | null,
-				hash: record.hash, signaling: signature,
+				lease,
+				unsubscribe: () => {},
+				registry: null as SessionHostRegistry | null,
+				hash: record.hash,
+				signaling: signature,
 			};
 			this.dedicated.set(record.id, entry);
-			entry.unsubscribe = lease.subscribe(connection => {
+			entry.unsubscribe = lease.subscribe((connection) => {
 				entry.registry?.stop();
 				if (this.dedicated.get(record.id) !== entry) return;
 				entry.registry = new SessionHostRegistry({
-					connection, baseRoomId: room, label: DEDICATED_LABEL, signaling,
+					connection,
+					baseRoomId: room,
+					label: DEDICATED_LABEL,
+					signaling,
 					allowChelysRequesters: true,
 					recoverPeerless: false,
-					onChannel: channel => this.attachDedicated(channel, record.id, record.hash, key),
+					onChannel: (channel) =>
+						this.attachDedicated(channel, record.id, record.hash, key),
 				});
 				entry.registry.start();
 			});
 		}
 	}
 
-	private attachDedicated(channel: HostTransport, id: string, hash: string, key: CryptoKey): void {
+	private attachDedicated(
+		channel: HostTransport,
+		id: string,
+		hash: string,
+		key: CryptoKey,
+	): void {
 		const challenge = newChallenge();
 		let state: 'hello' | 'request' | 'finished' = 'hello';
 		let timer = setTimeout(() => channel.close(), 30_000);
 		channel.onClose(() => clearTimeout(timer));
-		channel.onMessage(payload => {
-			const raw = typeof payload === 'string' ? payload : decoder.decode(payload);
+		channel.onMessage((payload) => {
+			const raw =
+				typeof payload === 'string' ? payload : decoder.decode(payload);
 			if (state === 'hello' && raw === CONTROL_HELLO) {
 				state = 'request';
 				channel.send(challenge);
 				return;
 			}
-			if (state !== 'request') { channel.close(); return; }
+			if (state !== 'request') {
+				channel.close();
+				return;
+			}
 			state = 'finished';
 			void (async () => {
 				const message = await unseal(key, challenge, 'request', raw);
-				const response = await handleRpc(message, async request => {
-					if (!validApiKey(request.apiKey) || await keyHash(request.apiKey) !== hash ||
-						!accessPolicy.dedicatedKeys().some(record => record.id === id && record.hash === hash))
+				const response = await handleRpc(message, async (request) => {
+					if (
+						!validApiKey(request.apiKey) ||
+						(await keyHash(request.apiKey)) !== hash ||
+						!accessPolicy
+							.dedicatedKeys()
+							.some((record) => record.id === id && record.hash === hash)
+					)
 						throw new Error('Invalid or revoked dedicated API key');
 					clearTimeout(timer);
-                    timer = setTimeout(() => channel.close(), commandTimeout(request.method) + 5_000);
-                    return chelysControl.execute(request, { transport: 'webrtc', dedicated: true, apiKey: request.apiKey });
+					timer = setTimeout(
+						() => channel.close(),
+						commandTimeout(request.method) + 5_000,
+					);
+					return chelysControl.execute(request, {
+						transport: 'webrtc',
+						dedicated: true,
+						apiKey: request.apiKey,
+					});
 				});
 				let text = JSON.stringify(response);
-				if (text.length > MAX_RESPONSE) text = JSON.stringify({ v: 1, id: response.id, ok: false, error: 'Response too large' });
+				if (text.length > MAX_RESPONSE)
+					text = JSON.stringify({
+						v: 1,
+						id: response.id,
+						ok: false,
+						error: 'Response too large',
+					});
 				channel.send(await seal(key, challenge, 'response', text));
 			})().catch(() => channel.close());
 		});

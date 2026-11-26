@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# scripts/dev/test-tinymist.sh
 set -euo pipefail
 
 WS_PORT="${WS_PORT:-7030}"

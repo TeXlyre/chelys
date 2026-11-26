@@ -1,3 +1,4 @@
+// tests/unit/plugin-host/recipeSharing.test.ts
 import { beforeAll, describe, expect, it } from 'vitest';
 import { pluginTypeRegistry } from '@src/plugin-host/PluginTypeRegistry';
 import {

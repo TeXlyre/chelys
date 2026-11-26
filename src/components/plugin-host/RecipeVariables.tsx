@@ -93,12 +93,10 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 									defaultContainerEngine === 'podman' ? 'Podman' : 'Docker',
 							})}
 						</option>
-						<option value='docker'>Docker</option>
-						<option value='podman'>Podman</option>
+						<option value='docker'>{t('Docker')}</option>
+						<option value='podman'>{t('Podman')}</option>
 					</select>
-					<small>
-						{t('Overrides the default container engine on the next install.')}
-					</small>
+					<small>{t('Container engine used to install this recipe.')}</small>
 				</div>
 			)}
 
@@ -135,6 +133,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 								<input
 									id={`${fieldPrefix}-${variable.key}`}
 									type={revealed.has(variable.key) ? 'text' : 'password'}
+									dir='ltr'
 									value={values[variable.key] ?? ''}
 									onChange={(e) => update(variable.key, e.target.value)}
 									autoComplete='off'
@@ -159,6 +158,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 							<input
 								id={`${fieldPrefix}-${variable.key}`}
 								type={variable.kind === 'number' ? 'number' : 'text'}
+								dir={variable.kind === 'number' ? 'ltr' : 'auto'}
 								value={values[variable.key] ?? ''}
 								onChange={(e) => update(variable.key, e.target.value)}
 								disabled={portLocked}
@@ -181,6 +181,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 					<input
 						id={`${fieldPrefix}-traefik`}
 						type='text'
+						dir='ltr'
 						value={traefikUrl}
 						readOnly
 					/>

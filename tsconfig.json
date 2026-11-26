@@ -15,7 +15,7 @@
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true,
 		"paths": {
-			"@/i18n": ["./src/i18n-shim.ts"],
+			"@/i18n": ["./src/i18n.ts"],
 			"@/logging": ["./external/texlyre/src/logging.ts"],
 			"@texlyre/*": ["./external/texlyre/src/*"],
 			"@chelys/*": ["./external/texlyre/src/chelys/*"],

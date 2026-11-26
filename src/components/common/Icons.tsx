@@ -57,4 +57,3 @@ export const UninstallIcon: React.FC = () => (
 		<line x1='14' y1='12' x2='10' y2='16' />
 	</svg>
 );
-

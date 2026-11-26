@@ -25,7 +25,10 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 			<button
 				type='button'
 				className='user-dropdown-button'
-				onClick={(event) => { setAnchor(event.currentTarget); setIsOpen(!isOpen); }}
+				onClick={(event) => {
+					setAnchor(event.currentTarget);
+					setIsOpen(!isOpen);
+				}}
 				aria-expanded={isOpen}
 				aria-haspopup='true'
 			>
@@ -33,30 +36,34 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 				<span>{username}</span>
 			</button>
 
-			<PositionedDropdown isOpen={isOpen} triggerElement={anchor} onClose={() => setIsOpen(false)}>
-					<button
-						type='button'
-						className='dropdown-item ui-menu-item'
-						onClick={() => {
-							setIsOpen(false);
-							onOpenProfile();
-						}}
-					>
-						<EditIcon />
-						{t('Account Settings')}
-					</button>
-					<div className='dropdown-separator ui-menu-divider' />
-					<button
-						type='button'
-						className='dropdown-item ui-menu-item'
-						onClick={() => {
-							setIsOpen(false);
-							onLogout();
-						}}
-					>
-						<LogoutIcon />
-						<span>{t('Logout')}</span>
-					</button>
+			<PositionedDropdown
+				isOpen={isOpen}
+				triggerElement={anchor}
+				onClose={() => setIsOpen(false)}
+			>
+				<button
+					type='button'
+					className='dropdown-item ui-menu-item'
+					onClick={() => {
+						setIsOpen(false);
+						onOpenProfile();
+					}}
+				>
+					<EditIcon />
+					{t('Account Settings')}
+				</button>
+				<div className='dropdown-separator ui-menu-divider' />
+				<button
+					type='button'
+					className='dropdown-item ui-menu-item'
+					onClick={() => {
+						setIsOpen(false);
+						onLogout();
+					}}
+				>
+					<LogoutIcon />
+					<span>{t('Log out')}</span>
+				</button>
 			</PositionedDropdown>
 		</div>
 	);

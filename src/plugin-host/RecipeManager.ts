@@ -1,4 +1,5 @@
 // src/plugin-host/RecipeManager.ts
+import { normalizeRecipeCategory } from './recipeCategory';
 import { nanoid } from 'nanoid';
 
 import {
@@ -40,10 +41,24 @@ import {
 	type RegistryEntry,
 } from './types';
 
-import { SERVICE_TYPE, SERVICE_PREFIX, ENDPOINT_PREFIX, instanceRecipeId, serviceMembers, validateService, type ServiceMember } from '../plugins/service/shared';
+import {
+	SERVICE_TYPE,
+	SERVICE_PREFIX,
+	ENDPOINT_PREFIX,
+	instanceRecipeId,
+	serviceMembers,
+	validateService,
+	type ServiceMember,
+} from '../plugins/service/shared';
 
-export type ServiceMemberAuthorization = (type: string, registering: boolean) => Promise<void>;
-import { ENDPOINT_TYPE, readEndpointTransport } from '../plugins/endpoint/shared';
+export type ServiceMemberAuthorization = (
+	type: string,
+	registering: boolean,
+) => Promise<void>;
+import {
+	ENDPOINT_TYPE,
+	readEndpointTransport,
+} from '../plugins/endpoint/shared';
 import { getInstanceId } from '../control/protocol';
 import { accountStores } from '../control/stores';
 import { getActiveAccountId } from './activeAccount';
@@ -80,27 +95,36 @@ class RecipeManager {
 	private reattached = new Set<string>();
 	private cancelling = new Set<string>();
 	private starting = new Map<string, Promise<void>>();
-    private installing = new Map<string, Promise<void>>();
-    private memberSetup = new Map<string, Promise<void>>();
-    private remoteChecks = new Map<string, Map<string, string>>();
-    private persistQueue: Promise<void> = Promise.resolve();
-    private memberStarted: ((id: string) => void) | undefined;
+	private installing = new Map<string, Promise<void>>();
+	private memberSetup = new Map<string, Promise<void>>();
+	private remoteChecks = new Map<string, Map<string, string>>();
+	private persistQueue: Promise<void> = Promise.resolve();
+	private memberStarted: ((id: string) => void) | undefined;
 
-    setServiceMemberStartedListener(listener: (id: string) => void): void { this.memberStarted = listener; }
+	setServiceMemberStartedListener(listener: (id: string) => void): void {
+		this.memberStarted = listener;
+	}
 	private ports = new Map<string, Record<string, string>>();
 
 	async reinjectRunning(): Promise<void> {
 		if (!this.initialized) return;
-        if (getActiveAccountId()) {
-            for (const [prefix, type] of [[SERVICE_PREFIX, SERVICE_TYPE], [ENDPOINT_PREFIX, ENDPOINT_TYPE]]) {
-                const own = prefix + getInstanceId() + '.';
-                for (const key of accountStores.list('settings')) {
-                    if (!key.startsWith(own)) continue;
-                    const id = key.slice(own.length);
-                    if (this.recipes.get(id)?.type !== type || this.statuses.get(id)?.state !== 'running') accountStores.delete('settings', key);
-                }
-            }
-        }
+		if (getActiveAccountId()) {
+			for (const [prefix, type] of [
+				[SERVICE_PREFIX, SERVICE_TYPE],
+				[ENDPOINT_PREFIX, ENDPOINT_TYPE],
+			]) {
+				const own = `${prefix}${getInstanceId()}.`;
+				for (const key of accountStores.list('settings')) {
+					if (!key.startsWith(own)) continue;
+					const id = key.slice(own.length);
+					if (
+						this.recipes.get(id)?.type !== type ||
+						this.statuses.get(id)?.state !== 'running'
+					)
+						accountStores.delete('settings', key);
+				}
+			}
+		}
 
 		for (const [id, status] of this.statuses) {
 			if (status.state !== 'running') continue;
@@ -108,8 +132,8 @@ class RecipeManager {
 			const base = this.recipes.get(id);
 			if (!base) continue;
 
-            if (base.type === SERVICE_TYPE) this.publishService(base);
-            else this.runStartHook(await this.resolveForCurrentPlatform(base));
+			if (base.type === SERVICE_TYPE) this.publishService(base);
+			else this.runStartHook(await this.resolveForCurrentPlatform(base));
 		}
 	}
 
@@ -296,134 +320,264 @@ class RecipeManager {
 		return Array.from(this.recipes.values());
 	}
 
-    isInstalled(recipeId: string): boolean { return this.readInstalled().has(recipeId); }
+	isInstalled(recipeId: string): boolean {
+		return this.readInstalled().has(recipeId);
+	}
 
-    getStatus(recipeId: string): RecipeStatus | undefined {
-        const status = this.statuses.get(recipeId);
-        const recipe = this.recipes.get(recipeId);
-        if (status?.state !== 'running' || recipe?.type !== SERVICE_TYPE) return status;
-        try {
-            const unavailable = this.serviceMemberStatuses(recipe).filter(member => member.state !== 'running');
-            return unavailable.length ? { ...status, groupActive: true, state: 'error', lastError: `Unavailable: ${unavailable.map(m => m.reference).join(', ')}` } : status;
-        } catch (error) { return { ...status, groupActive: true, state: 'error', lastError: errorMessage(error, 'Invalid service') }; }
-    }
+	getStatus(recipeId: string): RecipeStatus | undefined {
+		const status = this.statuses.get(recipeId);
+		const recipe = this.recipes.get(recipeId);
+		if (status?.state !== 'running' || recipe?.type !== SERVICE_TYPE)
+			return status;
+		try {
+			const unavailable = this.serviceMemberStatuses(recipe).filter(
+				(member) => member.state !== 'running',
+			);
+			return unavailable.length
+				? {
+						...status,
+						groupActive: true,
+						state: 'error',
+						lastError: `Unavailable: ${unavailable.map((m) => m.reference).join(', ')}`,
+					}
+				: status;
+		} catch (error) {
+			return {
+				...status,
+				groupActive: true,
+				state: 'error',
+				lastError: errorMessage(error, 'Invalid service'),
+			};
+		}
+	}
 
-    private localMember(member: ServiceMember): boolean {
-        return !member.instanceId || member.instanceId === getInstanceId();
-    }
+	private localMember(member: ServiceMember): boolean {
+		return !member.instanceId || member.instanceId === getInstanceId();
+	}
 
-    serviceMemberStatuses(recipe: Recipe) {
-        if (recipe.type !== SERVICE_TYPE) return [];
-        const peers = new Set(listAvailablePeers().filter(peer => peer.controlAvailable && peer.peerKind === 'chelys' && peer.transport === 'webrtc').map(peer => peer.id));
-        let members: ServiceMember[];
-        try { members = serviceMembers(recipe); } catch { return []; }
-        return members.map(member => {
-            const local = this.localMember(member);
-            const reference = member.instanceId ? `${member.instanceId}/${member.recipeId}` : member.recipeId;
-            const state = local ? this.statuses.get(member.recipeId)?.state ?? 'missing' : peers.has(member.instanceId) ? this.remoteChecks.get(recipe.id)?.get(reference) ?? 'unchecked' : 'offline';
-            return { reference, recipeId: member.recipeId, local, name: local ? this.recipes.get(member.recipeId)?.name ?? member.recipeId : member.recipeId, state };
-        });
-    }
+	serviceMemberStatuses(recipe: Recipe) {
+		if (recipe.type !== SERVICE_TYPE) return [];
+		const peers = new Set(
+			listAvailablePeers()
+				.filter(
+					(peer) =>
+						peer.controlAvailable &&
+						peer.peerKind === 'chelys' &&
+						peer.transport === 'webrtc',
+				)
+				.map((peer) => peer.id),
+		);
+		let members: ServiceMember[];
+		try {
+			members = serviceMembers(recipe);
+		} catch {
+			return [];
+		}
+		return members.map((member) => {
+			const local = this.localMember(member);
+			const reference = member.instanceId
+				? `${member.instanceId}/${member.recipeId}`
+				: member.recipeId;
+			const state = local
+				? (this.statuses.get(member.recipeId)?.state ?? 'missing')
+				: peers.has(member.instanceId)
+					? (this.remoteChecks.get(recipe.id)?.get(reference) ?? 'unchecked')
+					: 'offline';
+			return {
+				reference,
+				recipeId: member.recipeId,
+				local,
+				name: local
+					? (this.recipes.get(member.recipeId)?.name ?? member.recipeId)
+					: member.recipeId,
+				state,
+			};
+		});
+	}
 
-    private publishService(recipe: Recipe): void {
-        if (!getActiveAccountId()) return;
-        const instanceId = getInstanceId();
-        const id = instanceRecipeId(instanceId, recipe.id);
-        accountStores.set('settings', SERVICE_PREFIX + id, { id, name: recipe.name, members: serviceMembers(recipe).map(member => instanceRecipeId(member.instanceId ?? instanceId, member.recipeId)) });
-    }
+	private publishService(recipe: Recipe): void {
+		if (!getActiveAccountId()) return;
+		const instanceId = getInstanceId();
+		const id = instanceRecipeId(instanceId, recipe.id);
+		accountStores.set('settings', SERVICE_PREFIX + id, {
+			id,
+			name: recipe.name,
+			members: serviceMembers(recipe).map((member) =>
+				instanceRecipeId(member.instanceId ?? instanceId, member.recipeId),
+			),
+		});
+	}
 
-    private withdrawService(id: string): void {
-        if (!getActiveAccountId()) return;
-        const key = SERVICE_PREFIX + instanceRecipeId(getInstanceId(), id);
-        if (accountStores.list('settings').includes(key)) accountStores.delete('settings', key);
-    }
+	private withdrawService(id: string): void {
+		if (!getActiveAccountId()) return;
+		const key = SERVICE_PREFIX + instanceRecipeId(getInstanceId(), id);
+		if (accountStores.list('settings').includes(key))
+			accountStores.delete('settings', key);
+	}
 
-    /** Export only an independently configured connection, never the account room or upstream URL. */
-    async connectionDescriptor(id: string): Promise<Record<string, unknown>> {
-        const recipe = this.recipes.get(id);
-        if (!recipe || ![ENDPOINT_TYPE, 'storage'].includes(recipe.type) || this.getStatus(id)?.state !== 'running') throw Error('Start a storage or endpoint recipe first');
-        const resolved = await this.resolveForCurrentPlatform(recipe);
-        const descriptor = pluginTypeRegistry.get(recipe.type)?.toConfigBlock?.(resolved);
-        if (!descriptor || typeof descriptor.id !== 'string') throw Error('Recipe has no connection descriptor');
-        return { ...descriptor, kind: recipe.type === 'storage' ? 'storage' : 'service' };
-    }
+	/** Export only an independently configured connection, never the account room or upstream URL. */
+	async connectionDescriptor(id: string): Promise<Record<string, unknown>> {
+		const recipe = this.recipes.get(id);
+		if (
+			!recipe ||
+			![ENDPOINT_TYPE, 'storage'].includes(recipe.type) ||
+			this.getStatus(id)?.state !== 'running'
+		)
+			throw Error('Start a storage or endpoint recipe first');
+		const resolved = await this.resolveForCurrentPlatform(recipe);
+		const descriptor = pluginTypeRegistry
+			.get(recipe.type)
+			?.toConfigBlock?.(resolved);
+		if (!descriptor || typeof descriptor.id !== 'string')
+			throw Error('Recipe has no connection descriptor');
+		return {
+			...descriptor,
+			kind: recipe.type === 'storage' ? 'storage' : 'service',
+		};
+	}
 
-    async authorizeServiceMembers(id: string, operation: 'install' | 'run', authorize: ServiceMemberAuthorization): Promise<void> {
-        const group = this.recipes.get(id);
-        if (group?.type !== SERVICE_TYPE) return;
-        for (const member of serviceMembers(group)) {
-            if (!this.localMember(member)) continue;
-            const recipe = this.recipes.get(member.recipeId);
-            if (recipe?.type === SERVICE_TYPE) throw Error('Nested services are not supported');
-            if (operation === 'run') {
-                if (!recipe || !this.readInstalled().has(recipe.id)) throw Error(`Install member ${member.recipeId} first`);
-                if (this.statuses.get(recipe.id)?.state !== 'running') await authorize(recipe.type, false);
-            } else if (!recipe || !this.readInstalled().has(member.recipeId) || this.statuses.get(member.recipeId)?.state === 'error') {
-                const entry = recipe ?? (await recipeRegistry.list()).find(item => item.id === member.recipeId);
-                if (!entry || entry.type === SERVICE_TYPE) throw Error(`Plugin not found in registry: ${member.recipeId}`);
-                await authorize(entry.type, !recipe);
-            }
-        }
-    }
+	async authorizeServiceMembers(
+		id: string,
+		operation: 'install' | 'run',
+		authorize: ServiceMemberAuthorization,
+	): Promise<void> {
+		const group = this.recipes.get(id);
+		if (group?.type !== SERVICE_TYPE) return;
+		for (const member of serviceMembers(group)) {
+			if (!this.localMember(member)) continue;
+			const recipe = this.recipes.get(member.recipeId);
+			if (recipe?.type === SERVICE_TYPE)
+				throw Error('Nested services are not supported');
+			if (operation === 'run') {
+				if (!recipe || !this.readInstalled().has(recipe.id))
+					throw Error(`Install member ${member.recipeId} first`);
+				if (this.statuses.get(recipe.id)?.state !== 'running')
+					await authorize(recipe.type, false);
+			} else if (
+				!recipe ||
+				!this.readInstalled().has(member.recipeId) ||
+				this.statuses.get(member.recipeId)?.state === 'error'
+			) {
+				const entry =
+					recipe ??
+					(await recipeRegistry.list()).find(
+						(item) => item.id === member.recipeId,
+					);
+				if (!entry || entry.type === SERVICE_TYPE)
+					throw Error(`Plugin not found in registry: ${member.recipeId}`);
+				await authorize(entry.type, !recipe);
+			}
+		}
+	}
 
-    private async installMember(id: string, source: DockerInstallSource, authorize?: ServiceMemberAuthorization): Promise<void> {
-        // Authorize even when joining an installation initiated by another caller.
-        const existing = this.recipes.get(id);
-        const entry = existing ? undefined : (await recipeRegistry.list()).find(item => item.id === id);
-        if (!existing && !entry) throw Error(`Plugin not found in registry: ${id}`);
-        if (!existing || !this.readInstalled().has(id) || this.statuses.get(id)?.state === 'error') await authorize?.((existing ?? entry!).type, !existing);
-        const pending = this.memberSetup.get(id);
-        if (pending) return pending;
-        const operation = (async () => {
-            let recipe = this.recipes.get(id);
-            if (!recipe) {
-                const entry = (await recipeRegistry.list()).find(item => item.id === id);
-                if (!entry || entry.type === SERVICE_TYPE) throw Error(`Plugin not found in registry: ${id}`);
-                await authorize?.(entry.type, true);
-                recipe = this.recipes.get(id) ?? await this.installFromRegistry(entry);
-            }
-            if (recipe.type === SERVICE_TYPE) throw Error('Nested services are not supported');
-            await this.installing.get(id);
-            if (this.readInstalled().has(id) && this.statuses.get(id)?.state !== 'error') return;
-            await authorize?.(recipe.type, false);
-            const mode = recipe.selectedMode ?? recipe.modes.find(item => item.kind === 'docker')?.kind ?? recipe.modes[0]?.kind;
-            if (!mode) throw Error(`No install mode for ${id}`);
-            await this.install(id, mode, source);
-            if (!this.readInstalled().has(id) || this.statuses.get(id)?.state === 'error') throw Error(this.statuses.get(id)?.lastError ?? `Could not install ${id}`);
-        })();
-        this.memberSetup.set(id, operation);
-        try { await operation; } finally { this.memberSetup.delete(id); }
-    }
+	private async installMember(
+		id: string,
+		source: DockerInstallSource,
+		authorize?: ServiceMemberAuthorization,
+	): Promise<void> {
+		// Authorize even when joining an installation initiated by another caller.
+		const existing = this.recipes.get(id);
+		const entry = existing
+			? undefined
+			: (await recipeRegistry.list()).find((item) => item.id === id);
+		const candidate = existing ?? entry;
+		if (!candidate) throw Error(`Plugin not found in registry: ${id}`);
+		if (
+			!existing ||
+			!this.readInstalled().has(id) ||
+			this.statuses.get(id)?.state === 'error'
+		)
+			await authorize?.(candidate.type, !existing);
+		const pending = this.memberSetup.get(id);
+		if (pending) return pending;
+		const operation = (async () => {
+			let recipe = this.recipes.get(id);
+			if (!recipe) {
+				const entry = (await recipeRegistry.list()).find(
+					(item) => item.id === id,
+				);
+				if (!entry || entry.type === SERVICE_TYPE)
+					throw Error(`Plugin not found in registry: ${id}`);
+				await authorize?.(entry.type, true);
+				recipe =
+					this.recipes.get(id) ?? (await this.installFromRegistry(entry));
+			}
+			if (recipe.type === SERVICE_TYPE)
+				throw Error('Nested services are not supported');
+			await this.installing.get(id);
+			if (
+				this.readInstalled().has(id) &&
+				this.statuses.get(id)?.state !== 'error'
+			)
+				return;
+			await authorize?.(recipe.type, false);
+			const mode =
+				recipe.selectedMode ??
+				recipe.modes.find((item) => item.kind === 'docker')?.kind ??
+				recipe.modes[0]?.kind;
+			if (!mode) throw Error(`No install mode for ${id}`);
+			await this.install(id, mode, source);
+			if (
+				!this.readInstalled().has(id) ||
+				this.statuses.get(id)?.state === 'error'
+			)
+				throw Error(
+					this.statuses.get(id)?.lastError ?? `Could not install ${id}`,
+				);
+		})();
+		this.memberSetup.set(id, operation);
+		try {
+			await operation;
+		} finally {
+			this.memberSetup.delete(id);
+		}
+	}
 
-    private async checkRemoteMembers(recipe: Recipe): Promise<void> {
-        const checks = new Map<string, string>();
-        this.remoteChecks.set(recipe.id, checks);
-        const hosts = new Map<string, ServiceMember[]>();
-        for (const member of serviceMembers(recipe)) {
-            if (this.localMember(member) || !member.instanceId) continue;
-            const list = hosts.get(member.instanceId) ?? [];
-            list.push(member); hosts.set(member.instanceId, list);
-        }
-        for (const [host, members] of hosts) {
-            try {
-                if (!listAvailablePeers().some(peer => peer.id === host && peer.controlAvailable && peer.peerKind === 'chelys' && peer.transport === 'webrtc')) throw Error('Remote unavailable');
-                const inventory = await callRemotePeer(host, 'recipes.list') as Array<{ id: string; state: string; type: string }>;
-                for (const member of members) {
-                    const match = inventory.find(item => item.id === member.recipeId && item.type !== SERVICE_TYPE);
-                    checks.set(`${host}/${member.recipeId}`, match?.state ?? 'missing');
-                }
-            } catch {
-                for (const member of members) checks.set(`${host}/${member.recipeId}`, 'unavailable');
-            }
-        }
-    }
+	private async checkRemoteMembers(recipe: Recipe): Promise<void> {
+		const checks = new Map<string, string>();
+		this.remoteChecks.set(recipe.id, checks);
+		const hosts = new Map<string, ServiceMember[]>();
+		for (const member of serviceMembers(recipe)) {
+			if (this.localMember(member) || !member.instanceId) continue;
+			const list = hosts.get(member.instanceId) ?? [];
+			list.push(member);
+			hosts.set(member.instanceId, list);
+		}
+		for (const [host, members] of hosts) {
+			try {
+				if (
+					!listAvailablePeers().some(
+						(peer) =>
+							peer.id === host &&
+							peer.controlAvailable &&
+							peer.peerKind === 'chelys' &&
+							peer.transport === 'webrtc',
+					)
+				)
+					throw Error('Remote unavailable');
+				const inventory = (await callRemotePeer(
+					host,
+					'recipes.list',
+				)) as Array<{ id: string; state: string; type: string }>;
+				for (const member of members) {
+					const match = inventory.find(
+						(item) => item.id === member.recipeId && item.type !== SERVICE_TYPE,
+					);
+					checks.set(`${host}/${member.recipeId}`, match?.state ?? 'missing');
+				}
+			} catch {
+				for (const member of members)
+					checks.set(`${host}/${member.recipeId}`, 'unavailable');
+			}
+		}
+	}
 
-    async refreshServiceMembers(id: string): Promise<void> {
-        const recipe = this.recipes.get(id);
-        if (!recipe || recipe.type !== SERVICE_TYPE) throw Error('Unknown service');
-        await this.checkRemoteMembers(recipe);
-        this.emit();
-    }
+	async refreshServiceMembers(id: string): Promise<void> {
+		const recipe = this.recipes.get(id);
+		if (!recipe || recipe.type !== SERVICE_TYPE) throw Error('Unknown service');
+		await this.checkRemoteMembers(recipe);
+		this.emit();
+	}
 
 	subscribe(listener: StatusListener): () => void {
 		this.listeners.add(listener);
@@ -433,20 +587,44 @@ class RecipeManager {
 
 	async save(recipe: Recipe): Promise<Recipe> {
 		const id = recipe.id || nanoid();
-		const stored: Recipe = withSanitizedIcon({ ...recipe, id });
-        const previous = this.recipes.get(id);
-        if (previous && previous.type !== stored.type) throw Error('Recipe type cannot be changed; create a new recipe');
-        if (stored.type === SERVICE_TYPE) {
-            validateService(stored);
-            const references = serviceMembers(stored).map(member => `${member.instanceId ?? getInstanceId()}/${member.recipeId}`);
-            if (new Set(references).size !== references.length) throw Error('Duplicate plugin instance');
-            for (const member of serviceMembers(stored)) if (this.localMember(member) && (member.recipeId === id || this.recipes.get(member.recipeId)?.type === SERVICE_TYPE)) throw Error('Nested services are not supported');
-            if (['running', 'starting', 'installing', 'stopping'].includes(this.statuses.get(id)?.state ?? '')) throw Error('Stop the service before editing membership');
-            if (previous && JSON.stringify(previous.typeConfig.members) !== JSON.stringify(stored.typeConfig.members)) {
-                this.setInstalled(id, null);
-                this.patch(id, { state: 'not-installed', mode: null });
-            }
-        }
+		const stored: Recipe = withSanitizedIcon({
+			...recipe,
+			id,
+			category: normalizeRecipeCategory(recipe.category),
+		});
+		const previous = this.recipes.get(id);
+		if (previous && previous.type !== stored.type)
+			throw Error('Recipe type cannot be changed; create a new recipe');
+		if (stored.type === SERVICE_TYPE) {
+			validateService(stored);
+			const references = serviceMembers(stored).map(
+				(member) =>
+					`${member.instanceId ?? getInstanceId()}/${member.recipeId}`,
+			);
+			if (new Set(references).size !== references.length)
+				throw Error('Duplicate plugin instance');
+			for (const member of serviceMembers(stored))
+				if (
+					this.localMember(member) &&
+					(member.recipeId === id ||
+						this.recipes.get(member.recipeId)?.type === SERVICE_TYPE)
+				)
+					throw Error('Nested services are not supported');
+			if (
+				['running', 'starting', 'installing', 'stopping'].includes(
+					this.statuses.get(id)?.state ?? '',
+				)
+			)
+				throw Error('Stop the service before editing membership');
+			if (
+				previous &&
+				JSON.stringify(previous.typeConfig.members) !==
+					JSON.stringify(stored.typeConfig.members)
+			) {
+				this.setInstalled(id, null);
+				this.patch(id, { state: 'not-installed', mode: null });
+			}
+		}
 
 		this.recipes.set(id, stored);
 
@@ -480,7 +658,7 @@ class RecipeManager {
 
 	async cancelInstall(recipeId: string): Promise<void> {
 		this.cancelling.add(recipeId);
-        if (this.recipes.get(recipeId)?.type === SERVICE_TYPE) return;
+		if (this.recipes.get(recipeId)?.type === SERVICE_TYPE) return;
 		await processSupervisorService.stop(recipeId);
 	}
 
@@ -533,38 +711,71 @@ class RecipeManager {
 		recipeId: string,
 		mode: InstallModeKind,
 		source: DockerInstallSource = 'build',
-		options: { initializeVolumes?: boolean; authorizeMember?: ServiceMemberAuthorization } = {},
+		options: {
+			initializeVolumes?: boolean;
+			authorizeMember?: ServiceMemberAuthorization;
+		} = {},
 	): Promise<void> {
-        const pending = this.installing.get(recipeId);
-        if (pending) return pending;
-        const operation = this.installOnce(recipeId, mode, source, options);
-        this.installing.set(recipeId, operation);
-        try { await operation; } finally { this.installing.delete(recipeId); }
-    }
+		const pending = this.installing.get(recipeId);
+		if (pending) return pending;
+		const operation = this.installOnce(recipeId, mode, source, options);
+		this.installing.set(recipeId, operation);
+		try {
+			await operation;
+		} finally {
+			this.installing.delete(recipeId);
+		}
+	}
 
-    private async installOnce(recipeId: string, mode: InstallModeKind, source: DockerInstallSource, options: { initializeVolumes?: boolean; authorizeMember?: ServiceMemberAuthorization }): Promise<void> {
+	private async installOnce(
+		recipeId: string,
+		mode: InstallModeKind,
+		source: DockerInstallSource,
+		options: {
+			initializeVolumes?: boolean;
+			authorizeMember?: ServiceMemberAuthorization;
+		},
+	): Promise<void> {
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
-        if (base.type === SERVICE_TYPE) {
-            if (mode !== 'connect') throw Error('Services use group installation');
-            if (this.statuses.get(recipeId)?.state === 'running') throw Error('Stop the service before reinstalling');
-            this.patch(recipeId, { state: 'installing', mode, lastError: null, logTail: [] });
-            try {
-                for (const member of serviceMembers(base)) {
-                    if (this.cancelling.has(recipeId)) throw Error('Service installation cancelled');
-                    if (!this.localMember(member)) continue;
-                    if (member.recipeId === recipeId) throw Error('Nested services are not supported');
-                    this.appendLog(recipeId, `Preparing ${member.recipeId}`);
-                    await this.installMember(member.recipeId, source, options.authorizeMember);
-                }
-                if (this.cancelling.has(recipeId)) throw Error('Service installation cancelled');
-                this.setInstalled(recipeId, { mode, version: base.version });
-                this.patch(recipeId, { state: 'installed' });
-            } catch (error) {
-                this.patch(recipeId, { state: 'error', lastError: errorMessage(error, 'Service installation failed') });
-            } finally { this.cancelling.delete(recipeId); }
-            return;
-        }
+		if (base.type === SERVICE_TYPE) {
+			if (mode !== 'connect') throw Error('Services use group installation');
+			if (this.statuses.get(recipeId)?.state === 'running')
+				throw Error('Stop the service before reinstalling');
+			this.patch(recipeId, {
+				state: 'installing',
+				mode,
+				lastError: null,
+				logTail: [],
+			});
+			try {
+				for (const member of serviceMembers(base)) {
+					if (this.cancelling.has(recipeId))
+						throw Error('Service installation cancelled');
+					if (!this.localMember(member)) continue;
+					if (member.recipeId === recipeId)
+						throw Error('Nested services are not supported');
+					this.appendLog(recipeId, `Preparing ${member.recipeId}`);
+					await this.installMember(
+						member.recipeId,
+						source,
+						options.authorizeMember,
+					);
+				}
+				if (this.cancelling.has(recipeId))
+					throw Error('Service installation cancelled');
+				this.setInstalled(recipeId, { mode, version: base.version });
+				this.patch(recipeId, { state: 'installed' });
+			} catch (error) {
+				this.patch(recipeId, {
+					state: 'error',
+					lastError: errorMessage(error, 'Service installation failed'),
+				});
+			} finally {
+				this.cancelling.delete(recipeId);
+			}
+			return;
+		}
 
 		const recipe = await this.resolveForCurrentPlatform(base);
 		const containerEngine =
@@ -623,7 +834,10 @@ class RecipeManager {
 		}
 	}
 
-	async run(recipeId: string, authorizeMember?: ServiceMemberAuthorization): Promise<void> {
+	async run(
+		recipeId: string,
+		authorizeMember?: ServiceMemberAuthorization,
+	): Promise<void> {
 		const pending = this.starting.get(recipeId);
 		if (pending) return pending;
 		const operation = this.runOnce(recipeId, authorizeMember);
@@ -635,39 +849,62 @@ class RecipeManager {
 		}
 	}
 
-	private async runOnce(recipeId: string, authorizeMember?: ServiceMemberAuthorization): Promise<void> {
+	private async runOnce(
+		recipeId: string,
+		authorizeMember?: ServiceMemberAuthorization,
+	): Promise<void> {
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
 
 		const status = this.statuses.get(recipeId);
 		const mode = status?.mode;
-        if (base.type === SERVICE_TYPE) {
-            if (!this.readInstalled().has(recipeId)) { this.patch(recipeId, { state: 'error', lastError: 'Install the service first' }); return; }
-            this.patch(recipeId, { state: 'starting', lastError: null });
-            try {
-                await this.checkRemoteMembers(base);
-                const unavailable = this.serviceMemberStatuses(base).filter(member => !member.local && member.state !== 'running');
-                if (unavailable.length) throw Error(`Remote plugins unavailable: ${unavailable.map(member => member.reference).join(', ')}`);
-                for (const member of serviceMembers(base)) {
-                    if (!this.localMember(member)) continue;
-                    await this.installing.get(member.recipeId);
-                    const plugin = this.recipes.get(member.recipeId);
-                    if (!plugin || plugin.type === SERVICE_TYPE || !this.readInstalled().has(plugin.id)) throw Error(`Install member ${member.recipeId} first`);
-                    if (this.statuses.get(plugin.id)?.state !== 'running') {
-                        await authorizeMember?.(plugin.type, false);
-                        await this.run(plugin.id);
-                    }
-                    if (this.statuses.get(plugin.id)?.state !== 'running') throw Error(`Could not start ${plugin.name}`);
-                    this.memberStarted?.(plugin.id);
-                }
-                this.publishService(base);
-                this.patch(recipeId, { state: 'running' });
-            } catch (error) {
-                this.withdrawService(recipeId);
-                this.patch(recipeId, { state: 'error', lastError: errorMessage(error, 'Service start failed') });
-            }
-            return;
-        }
+		if (base.type === SERVICE_TYPE) {
+			if (!this.readInstalled().has(recipeId)) {
+				this.patch(recipeId, {
+					state: 'error',
+					lastError: 'Install the service first',
+				});
+				return;
+			}
+			this.patch(recipeId, { state: 'starting', lastError: null });
+			try {
+				await this.checkRemoteMembers(base);
+				const unavailable = this.serviceMemberStatuses(base).filter(
+					(member) => !member.local && member.state !== 'running',
+				);
+				if (unavailable.length)
+					throw Error(
+						`Remote plugins unavailable: ${unavailable.map((member) => member.reference).join(', ')}`,
+					);
+				for (const member of serviceMembers(base)) {
+					if (!this.localMember(member)) continue;
+					await this.installing.get(member.recipeId);
+					const plugin = this.recipes.get(member.recipeId);
+					if (
+						!plugin ||
+						plugin.type === SERVICE_TYPE ||
+						!this.readInstalled().has(plugin.id)
+					)
+						throw Error(`Install member ${member.recipeId} first`);
+					if (this.statuses.get(plugin.id)?.state !== 'running') {
+						await authorizeMember?.(plugin.type, false);
+						await this.run(plugin.id);
+					}
+					if (this.statuses.get(plugin.id)?.state !== 'running')
+						throw Error(`Could not start ${plugin.name}`);
+					this.memberStarted?.(plugin.id);
+				}
+				this.publishService(base);
+				this.patch(recipeId, { state: 'running' });
+			} catch (error) {
+				this.withdrawService(recipeId);
+				this.patch(recipeId, {
+					state: 'error',
+					lastError: errorMessage(error, 'Service start failed'),
+				});
+			}
+			return;
+		}
 		if (!mode) {
 			this.patch(recipeId, {
 				state: 'error',
@@ -707,7 +944,11 @@ class RecipeManager {
 				await this.allocatePorts(base);
 			}
 			const recipe = await this.resolveForCurrentPlatform(base);
-            if (recipe.type === ENDPOINT_TYPE && !readEndpointTransport(recipe, getInstanceId())) throw Error('Invalid endpoint protocol or WebSocket URL');
+			if (
+				recipe.type === ENDPOINT_TYPE &&
+				!readEndpointTransport(recipe, getInstanceId())
+			)
+				throw Error('Invalid endpoint protocol or WebSocket URL');
 			const workdir = (await materializeRecipeFiles(recipe)) ?? undefined;
 
 			if (mode === 'connect') {
@@ -736,15 +977,15 @@ class RecipeManager {
 						existingContainer === 'stopped'
 							? ['start', '--attach', containerName(recipeId)]
 							: [
-								'run',
-								'--rm',
-								'--name',
-								containerName(recipeId),
-								...dockerVolumeArgs(recipeId, docker.volumes),
-								...docker.runArgs,
-								docker.image,
-								...(docker.command ?? []),
-							],
+									'run',
+									'--rm',
+									'--name',
+									containerName(recipeId),
+									...dockerVolumeArgs(recipeId, docker.volumes),
+									...docker.runArgs,
+									docker.image,
+									...(docker.command ?? []),
+								],
 					env:
 						containerEngine === 'podman'
 							? await this.podmanRegistryEnv(recipe.env)
@@ -764,13 +1005,16 @@ class RecipeManager {
 	async stop(recipeId: string): Promise<void> {
 		// A stop racing with a pending start must win, not leave a late container behind.
 		await this.starting.get(recipeId);
-        if (this.recipes.get(recipeId)?.type === SERVICE_TYPE) {
-            await this.installing.get(recipeId);
-            this.withdrawService(recipeId);
-            this.remoteChecks.delete(recipeId);
-            this.patch(recipeId, { state: this.readInstalled().has(recipeId) ? 'stopped' : 'not-installed', lastError: null });
-            return;
-        }
+		if (this.recipes.get(recipeId)?.type === SERVICE_TYPE) {
+			await this.installing.get(recipeId);
+			this.withdrawService(recipeId);
+			this.remoteChecks.delete(recipeId);
+			this.patch(recipeId, {
+				state: this.readInstalled().has(recipeId) ? 'stopped' : 'not-installed',
+				lastError: null,
+			});
+			return;
+		}
 		this.reattached.delete(recipeId);
 
 		const recipe = this.recipes.get(recipeId);
@@ -856,17 +1100,18 @@ class RecipeManager {
 	}
 
 	async uninstall(recipeId: string): Promise<void> {
-        if (this.recipes.get(recipeId)?.type === SERVICE_TYPE) {
-            await this.stop(recipeId);
-            this.setInstalled(recipeId, null);
-            this.patch(recipeId, { state: 'not-installed', mode: null });
-            return;
-        }
+		if (this.recipes.get(recipeId)?.type === SERVICE_TYPE) {
+			await this.stop(recipeId);
+			this.setInstalled(recipeId, null);
+			this.patch(recipeId, { state: 'not-installed', mode: null });
+			return;
+		}
 		const status = this.statuses.get(recipeId);
 		const mode = status?.mode;
 
 		if (!mode || mode === 'connect') {
-            if (this.recipes.get(recipeId)?.type === ENDPOINT_TYPE) await this.stop(recipeId);
+			if (this.recipes.get(recipeId)?.type === ENDPOINT_TYPE)
+				await this.stop(recipeId);
 			this.setInstalled(recipeId, null);
 			this.patch(recipeId, { state: 'not-installed', mode: null });
 			return;
@@ -1130,14 +1375,20 @@ class RecipeManager {
 		for (const listener of this.listeners) listener(snapshot);
 	}
 
-    private async persistUserRecipes(): Promise<void> {
-        const write = this.persistQueue.catch(() => undefined).then(async () => {
-            const seedIds = new Set(pluginTypeRegistry.seeds().map(r => r.id));
-            await recipeStore.save(this.listRecipes().filter(r => !seedIds.has(r.id) && r.source !== 'seed'));
-        });
-        this.persistQueue = write;
-        await write;
-    }
+	private async persistUserRecipes(): Promise<void> {
+		const write = this.persistQueue
+			.catch(() => undefined)
+			.then(async () => {
+				const seedIds = new Set(pluginTypeRegistry.seeds().map((r) => r.id));
+				await recipeStore.save(
+					this.listRecipes().filter(
+						(r) => !seedIds.has(r.id) && r.source !== 'seed',
+					),
+				);
+			});
+		this.persistQueue = write;
+		await write;
+	}
 
 	private readInstalled(): Map<string, InstalledRecord> {
 		try {

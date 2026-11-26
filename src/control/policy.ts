@@ -9,7 +9,7 @@ export const PERMISSIONS = [
 	'infrastructure.logs',
 	'infrastructure.manage',
 	'recipes.read',
-    'recipes.connect',
+	'recipes.connect',
 	'recipes.logs',
 	'recipes.edit',
 	'recipes.install',
@@ -99,7 +99,9 @@ export const accessPolicy = {
 	/** Backend-only key material; never returned by an RPC. */
 	dedicatedKeys(): Array<{ id: string; hash: string }> {
 		const config = read();
-		return config.mode === 'keys' ? config.keys.map(({ id, hash }) => ({ id, hash })) : [];
+		return config.mode === 'keys'
+			? config.keys.map(({ id, hash }) => ({ id, hash }))
+			: [];
 	},
 	listKeys(): Array<Omit<KeyRecord, 'hash'>> {
 		return read().keys.map(({ hash: _hash, ...value }) => value);
@@ -195,7 +197,8 @@ export const accessPolicy = {
 		const hash = await keyHash(origin.apiKey);
 		// The account or access policy may have changed while hashing.
 		const current = read();
-		if (current.mode !== 'keys') throw new Error('API-key mode is no longer active');
+		if (current.mode !== 'keys')
+			throw new Error('API-key mode is no longer active');
 
 		let allowed = false;
 		for (const record of current.keys) {

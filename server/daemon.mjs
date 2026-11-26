@@ -20,7 +20,11 @@ import {
 } from './credentials.mjs';
 import { stopAllProcesses } from './adapters/core.mjs';
 import { ownerPreference, withStartupClaim } from './ownership.mjs';
-import { createLocalServer, encodeResponse, handleSocketError } from './rpc-socket.mjs';
+import {
+	createLocalServer,
+	encodeResponse,
+	handleSocketError,
+} from './rpc-socket.mjs';
 
 const MAX_REQUEST = 2_097_152;
 const MAX_REMOTE_REQUEST = 65_536;
@@ -47,13 +51,14 @@ export async function runServer({ wsPort = 0 } = {}) {
 	const desktopManaged = process.env.CHELYS_DESKTOP_MANAGED === '1';
 	const desktopPid = Number(process.env.CHELYS_DESKTOP_PID);
 	if (desktopManaged && (!Number.isSafeInteger(desktopPid) || desktopPid <= 0))
-		throw new Error('Desktop-managed backend requires a valid desktop process ID');
+		throw new Error(
+			'Desktop-managed backend requires a valid desktop process ID',
+		);
 	if (desktopManaged && ownerPreference() !== 'desktop')
-		throw new Error('Desktop ownership preference changed while launching the backend; retry');
-	if (
-		ownerPreference() === 'desktop' &&
-		!desktopManaged
-	)
+		throw new Error(
+			'Desktop ownership preference changed while launching the backend; retry',
+		);
+	if (ownerPreference() === 'desktop' && !desktopManaged)
 		throw new Error(
 			'This profile prefers Desktop ownership. Start the desktop application, or change the owner in Settings.',
 		);
@@ -63,13 +68,17 @@ export async function runServer({ wsPort = 0 } = {}) {
 		ok: false,
 		error: 'Chelys is starting',
 	});
-	const local = createLocalServer((message) => execute(message, { transport: 'local' }));
+	const local = createLocalServer((message) =>
+		execute(message, { transport: 'local' }),
+	);
 	await withStartupClaim(async () => {
 		const preferred = ownerPreference();
 		if (preferred === 'desktop' && !desktopManaged)
 			throw new Error('Desktop ownership was selected while starting Chelys');
 		if (desktopManaged && preferred !== 'desktop')
-			throw new Error('Desktop ownership preference changed during startup; retry');
+			throw new Error(
+				'Desktop ownership preference changed during startup; retry',
+			);
 		await reserveSocket();
 		await new Promise((resolve, reject) => {
 			local.once('error', reject);
@@ -91,7 +100,10 @@ export async function runServer({ wsPort = 0 } = {}) {
 			getStoredSetting,
 		} = await import('./dist/runtime.mjs');
 		setSignalingOrigin(() => getStoredSetting('headlessSignalingOrigin'));
-		chelysControl.setRuntimeKind(desktopManaged ? 'desktop' : 'headless', process.pid);
+		chelysControl.setRuntimeKind(
+			desktopManaged ? 'desktop' : 'headless',
+			process.pid,
+		);
 		chelysControl.setStorageSeedAllowed(!hasPersistentStorage());
 		await initializeChelysRecipes();
 		const unsubscribePresence = recipeManager.subscribe((statuses) =>
@@ -259,10 +271,24 @@ export async function runServer({ wsPort = 0 } = {}) {
 			// Local-only process lifecycle control. Never expose this via remote keys.
 			if (origin.transport === 'local') {
 				let request;
-				try { request = JSON.parse(message); } catch {}
-				if (request?.v === 1 && typeof request.id === 'string' && request.method === 'instance.shutdown') {
-					if (!shutdown) return { v: 1, id: request.id, ok: false, error: 'Backend is still starting' };
-					setTimeout(() => { void shutdown().finally(() => process.exit(0)); }, 75).unref();
+				try {
+					request = JSON.parse(message);
+				} catch {}
+				if (
+					request?.v === 1 &&
+					typeof request.id === 'string' &&
+					request.method === 'instance.shutdown'
+				) {
+					if (!shutdown)
+						return {
+							v: 1,
+							id: request.id,
+							ok: false,
+							error: 'Backend is still starting',
+						};
+					setTimeout(() => {
+						void shutdown().finally(() => process.exit(0));
+					}, 75).unref();
 					return { v: 1, id: request.id, ok: true, result: { stopping: true } };
 				}
 			}
@@ -299,7 +325,10 @@ export async function runServer({ wsPort = 0 } = {}) {
 				`[Chelys] WebSocket control bound to 127.0.0.1:${wsPort} (use a TLS proxy for remote access)`,
 			);
 		}
-		console.info(`[Chelys] ${desktopManaged ? 'Desktop-managed' : 'Headless'} runtime listening on`, socketPath);
+		console.info(
+			`[Chelys] ${desktopManaged ? 'Desktop-managed' : 'Headless'} runtime listening on`,
+			socketPath,
+		);
 		let closing = null;
 		let ownerWatch = null;
 		shutdown = () => {
@@ -314,7 +343,9 @@ export async function runServer({ wsPort = 0 } = {}) {
 				await new Promise((resolve) => local.close(resolve));
 				if (websocket) await new Promise((resolve) => websocket.close(resolve));
 				if (process.platform !== 'win32') {
-					try { fs.unlinkSync(socketPath); } catch {}
+					try {
+						fs.unlinkSync(socketPath);
+					} catch {}
 				}
 			})();
 			return closing;

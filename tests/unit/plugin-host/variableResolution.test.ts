@@ -1,3 +1,4 @@
+// tests/unit/plugin-host/variableResolution.test.ts
 import { describe, expect, it } from 'vitest';
 import {
 	canPullImage,

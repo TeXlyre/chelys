@@ -131,8 +131,8 @@ const DashboardApp: React.FC = () => {
 					{t('OS')}:{' '}
 					{platformInfo
 						? platformInfo.override === 'auto'
-							? formatPlatform(platformInfo.detected)
-							: `${formatPlatform(platformInfo.effective)} ${t('(manual)')}`
+							? t(formatPlatform(platformInfo.detected))
+							: `${t(formatPlatform(platformInfo.effective))} ${t('(manual)')}`
 						: t('Detecting OS')}
 				</p>
 
@@ -155,7 +155,7 @@ const DashboardApp: React.FC = () => {
 						>
 							{t('Chelys Releases')}
 						</a>{' '}
-						{`v${__APP_VERSION__}`}
+						<bdi dir='ltr'>{`v${__APP_VERSION__}`}</bdi>
 					</span>
 				</p>
 			</footer>

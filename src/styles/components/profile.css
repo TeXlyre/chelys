@@ -1,6 +1,8 @@
 /* src/styles/components/profile.css */
 /* Shared modal primitives handle sizing, header, scrolling and controls. */
-.modal-overlay { padding: var(--space-md); }
+.modal-overlay {
+	padding: var(--space-md);
+}
 .ui-panel[data-role="modal"] {
 	--ui-modal-border: 1px solid var(--accent-border);
 	--ui-modal-title-font-size: var(--font-size-title);
@@ -304,7 +306,9 @@
 	grid-template-columns: minmax(0, 1fr);
 }
 
-.control-peer-detail[hidden] { display: none; }
+.control-peer-detail[hidden] {
+	display: none;
+}
 
 .control-peer-list {
 	border: 1px solid var(--accent-border);
@@ -477,17 +481,41 @@
 }
 
 /* Chelys-specific profile and remote-control layout, using Wide tokens. */
-.ui-panel-content[data-role="modal"] { min-height: 0; overscroll-behavior: contain; font-size: var(--ui-modal-font-size, var(--font-size-small)); }
-.ui-panel-content[data-role="modal"] > .view-tabs { margin-bottom: var(--space-md); border-bottom: 1px solid var(--accent-border); padding-bottom: var(--space-sm); flex-wrap: wrap; }
-.control-panel-heading > div:first-child { min-width: 0; flex: 1 1 10rem; overflow-wrap: anywhere; }
-.control-panel-heading h3 { font-size: var(--font-size-title); }
-.control-toolbar { flex-shrink: 0; max-width: 100%; }
+.ui-panel-content[data-role="modal"] {
+	min-height: 0;
+	overscroll-behavior: contain;
+	font-size: var(--ui-modal-font-size, var(--font-size-small));
+}
+.ui-panel-content[data-role="modal"] > .view-tabs {
+	margin-bottom: var(--space-md);
+	border-bottom: 1px solid var(--accent-border);
+	padding-bottom: var(--space-sm);
+	flex-wrap: wrap;
+}
+.control-panel-heading > div:first-child {
+	min-width: 0;
+	flex: 1 1 10rem;
+	overflow-wrap: anywhere;
+}
+.control-panel-heading h3 {
+	font-size: var(--font-size-title);
+}
+.control-toolbar {
+	flex-shrink: 0;
+	max-width: 100%;
+}
 
-
-.control-empty-state { padding: var(--space-md); margin: 0; }
+.control-empty-state {
+	padding: var(--space-md);
+	margin: 0;
+}
 @media (max-width: 560px) {
-	.control-panel-heading > div:first-child { flex-basis: 100%; }
-	.control-toolbar { justify-content: flex-start; }
+	.control-panel-heading > div:first-child {
+		flex-basis: 100%;
+	}
+	.control-toolbar {
+		justify-content: flex-start;
+	}
 }
 
 /* Recovery renders outside the normal themed application chrome. */

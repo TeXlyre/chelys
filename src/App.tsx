@@ -1,3 +1,4 @@
+// src/App.tsx
 
 import { ROOM_DEFAULTS } from './config';
 import { RoomProvider } from './contexts/RoomContext';

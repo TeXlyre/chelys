@@ -90,10 +90,20 @@ test('source archives reuse an existing complete TeXlyre checkout', () =>
 			'src/styles/components',
 			'extras/themes',
 			'src/chelys',
+			'translations',
 		]) {
 			fs.mkdirSync(path.join(dir, 'external/texlyre', folder), {
 				recursive: true,
 			});
+		}
+		for (const file of [
+			'src/i18n.ts',
+			'translations/locales.config.json',
+			'translations/locales/en.json',
+		]) {
+			const target = path.join(dir, 'external/texlyre', file);
+			fs.mkdirSync(path.dirname(target), { recursive: true });
+			fs.writeFileSync(target, '');
 		}
 		assert.match(run(), /already present/);
 		assert.equal(fs.existsSync(log), false);
@@ -119,12 +129,11 @@ test('an incomplete checkout is not overwritten', () =>
 		);
 	}));
 
-
 test('existing sparse source archive dependencies can acquire themes without recloning', () =>
- fixture(({ dir, log, run }) => {
-  fs.mkdirSync(path.join(dir, 'external/texlyre/.git'), { recursive: true });
-  run();
-  const calls = fs.readFileSync(log, 'utf8');
-  assert.match(calls, /sparse-checkout set .*extras\/themes/);
-  assert.doesNotMatch(calls, /clone /);
- }));
+	fixture(({ dir, log, run }) => {
+		fs.mkdirSync(path.join(dir, 'external/texlyre/.git'), { recursive: true });
+		run();
+		const calls = fs.readFileSync(log, 'utf8');
+		assert.match(calls, /sparse-checkout set .*extras\/themes/);
+		assert.doesNotMatch(calls, /clone /);
+	}));

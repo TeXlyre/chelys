@@ -1,5 +1,6 @@
 // tests/unit/plugin-host/RecipeRegistry.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { recipeCategory } from '@src/plugin-host/recipeCategory';
 import { recipeRegistry } from '@src/plugin-host/RecipeRegistry';
 import type { RegistryEntry } from '@src/plugin-host/types';
 
@@ -33,6 +34,7 @@ describe('recipe registry', () => {
 									id: 'versioned',
 									type: 'lsp',
 									name: 'Versioned',
+									category: ' Custom category ',
 									manifestUrl: 'https://registry.test/versioned/latest.json',
 									versions: [
 										{
@@ -61,6 +63,7 @@ describe('recipe registry', () => {
 		expect(entries).toHaveLength(2);
 		expect(entries[0]).toMatchObject({
 			id: 'versioned',
+			category: 'Custom category',
 			version: '2.0.0',
 			versions: [
 				{
@@ -70,6 +73,8 @@ describe('recipe registry', () => {
 			],
 			tags: [],
 		});
+		expect(recipeCategory(entries[1], () => 'Typesetter')).toBe('Typesetter');
+		expect(recipeCategory(entries[0], () => 'Language Server')).toBe('Custom category');
 		expect(entries[1]?.versions).toEqual([
 			{
 				version: '1.4.0',
@@ -83,6 +88,7 @@ describe('recipe registry', () => {
 			id: 'ltex',
 			type: 'lsp',
 			name: 'LTeX',
+			category: 'Latest category',
 			version: '2.0.0',
 			manifestUrl: 'https://registry.test/ltex/2.0.0/recipe.json',
 			versions: [
@@ -129,6 +135,7 @@ describe('recipe registry', () => {
 
 		expect(recipe.id).toBe('ltex');
 		expect(recipe.version).toBe('1.0.0');
+		expect(recipe.category).toBeUndefined();
 		expect(recipe.source).toBe('registry');
 		expect(recipe.sourceUrl).toBe('https://registry.test/ltex/1.0.0/');
 		expect(docker.kind).toBe('docker');
@@ -146,4 +153,13 @@ it('rejects unknown manifest versions without silently installing the latest', a
 		versions: [{ version: '2.4.1', manifestUrl: 'https://registry.test/garage/2.4.1/recipe.json' }],
 	}, '0.0.0')).rejects.toThrow('Recipe version not found');
 	expect(fetchMock).not.toHaveBeenCalled();
+});
+
+it('preserves manifest categories, falls back to the current registry entry, and ignores invalid categories', async () => {
+    const entry: RegistryEntry = { id: 'example', type: 'endpoint', name: 'Example', category: 'Computer Vision', version: '1.0.0', manifestUrl: 'https://registry.test/example/recipe.json' };
+    const manifest = { id: entry.id, type: entry.type, name: entry.name, env: {}, modes: [{ kind: 'connect' }], typeConfig: {} };
+    for (const [category, expected] of [[undefined, 'Computer Vision'], [' New category ', 'New category'], [42, 'Computer Vision']]) {
+        vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ ...manifest, category })));
+        expect((await recipeRegistry.fetchRecipe(entry)).category).toBe(expected);
+    }
 });

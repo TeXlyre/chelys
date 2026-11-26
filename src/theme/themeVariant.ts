@@ -1,3 +1,4 @@
+// src/theme/themeVariant.ts
 // Chelys appearance uses the upstream TeXlyre palette definitions.
 import {
 	isThemeColorId,
@@ -20,19 +21,26 @@ export const themeOptions = [
 	{ value: 'system', label: 'System' },
 	...Object.keys(themes).map((value) => ({
 		value,
-		label: value.split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+		label: value
+			.split('_')
+			.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+			.join(' '),
 	})),
 ];
 
 export function normalizeVariant(value: unknown): ThemePreference {
-	return typeof value === 'string' && (value === 'system' || isThemeColorId(value))
+	return typeof value === 'string' &&
+		(value === 'system' || isThemeColorId(value))
 		? value
 		: 'light';
 }
 
 export function getInitialVariant(): ThemePreference {
 	try {
-		return normalizeVariant(localStorage.getItem(STORAGE_KEY) ?? config.userdata.default.settings.themeVariant);
+		return normalizeVariant(
+			localStorage.getItem(STORAGE_KEY) ??
+				config.userdata.default.settings.themeVariant,
+		);
 	} catch {
 		return normalizeVariant(config.userdata.default.settings.themeVariant);
 	}
@@ -40,9 +48,12 @@ export function getInitialVariant(): ThemePreference {
 
 export function applyThemeVariant(value: unknown): void {
 	const preference = normalizeVariant(value);
-	const variant = preference === 'system'
-		? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-		: preference;
+	const variant =
+		preference === 'system'
+			? window.matchMedia('(prefers-color-scheme: dark)').matches
+				? 'dark'
+				: 'light'
+			: preference;
 	const mode = DARK_VARIANTS.has(variant) ? 'dark' : 'light';
 	const root = document.documentElement;
 	for (const [key, color] of Object.entries(themes[variant])) {
@@ -58,15 +69,21 @@ export function setThemeVariant(value: unknown): void {
 	const preference = normalizeVariant(value);
 	applyThemeVariant(preference);
 	try {
-		if (localStorage.getItem(STORAGE_KEY) !== preference) localStorage.setItem(STORAGE_KEY, preference);
+		if (localStorage.getItem(STORAGE_KEY) !== preference)
+			localStorage.setItem(STORAGE_KEY, preference);
 	} catch {
 		// The active palette remains usable even if local storage is unavailable.
 	}
 }
 
 export function nextThemeVariant(mode: ThemeVariant): ThemeColorId {
-	const target = mode === 'dark' ? config.themeToggle.light : config.themeToggle.dark;
+	const target =
+		mode === 'dark' ? config.themeToggle.light : config.themeToggle.dark;
 	const fallback = mode === 'dark' ? 'light' : 'dark';
-	if (!isThemeColorId(target) || DARK_VARIANTS.has(target) !== (fallback === 'dark')) return fallback;
+	if (
+		!isThemeColorId(target) ||
+		DARK_VARIANTS.has(target) !== (fallback === 'dark')
+	)
+		return fallback;
 	return target;
 }

@@ -17,6 +17,13 @@ const SPARSE_PATHS = [
 	'src/styles/components',
 	'extras/themes',
 	'src/chelys',
+	'translations',
+];
+
+const REQUIRED_FILES = [
+	'src/i18n.ts',
+	'translations/locales.config.json',
+	'translations/locales/en.json',
 ];
 
 const git = (...args) =>
@@ -28,7 +35,9 @@ if (existsSync(path.join(root, '.git'))) {
 	git('submodule', 'update', '--init', '--recursive');
 	git('-C', SUBMODULE_DIR, 'sparse-checkout', 'set', ...SPARSE_PATHS);
 } else if (
-	SPARSE_PATHS.every((item) => existsSync(path.join(externalPath, item)))
+	[...SPARSE_PATHS, ...REQUIRED_FILES].every((item) =>
+		existsSync(path.join(externalPath, item)),
+	)
 ) {
 	console.log('TeXlyre dependency is already present.');
 } else if (existsSync(path.join(externalPath, '.git'))) {

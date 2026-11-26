@@ -1,3 +1,4 @@
+// tests/mocks/nativeFrame.ts
 const HEADER_BYTES = 2;
 const KIND_STRING = 0;
 const KIND_BINARY = 1;

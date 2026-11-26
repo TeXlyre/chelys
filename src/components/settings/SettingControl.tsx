@@ -124,7 +124,9 @@ const SettingControl: React.FC<SettingControlProps> = ({
 				<div className='setting-dependency-badge'>{setting.disabledReason}</div>
 			)}
 			{setting.description && (
-				<div className='setting-description ui-field-hint'>{setting.description}</div>
+				<div className='setting-description ui-field-hint'>
+					{setting.description}
+				</div>
 			)}
 		</div>
 	);

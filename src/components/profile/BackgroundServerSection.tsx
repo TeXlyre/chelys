@@ -1,4 +1,5 @@
 // src/components/profile/BackgroundServerSection.tsx
+import { t } from '@/i18n';
 import { useEffect, useState } from 'react';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { invoke } from '@tauri-apps/api/core';
@@ -33,7 +34,9 @@ export default function BackgroundServerSection() {
 			setOwner(current.preference);
 			if (next && current.preference === 'desktop')
 				throw new Error(
-					'Choose Automatic or Headless ownership before enabling daemon startup.',
+					t(
+						'Choose Automatic or Headless ownership before enabling daemon startup.',
+					),
 				);
 			if (next) await enable();
 			else await disable();
@@ -55,7 +58,7 @@ export default function BackgroundServerSection() {
 				}}
 			/>
 			<section className='settings-group'>
-				<h4>Background server</h4>
+				<h4>{t('Background server')}</h4>
 				<label className='checkbox-control'>
 					<input
 						type='checkbox'
@@ -63,12 +66,12 @@ export default function BackgroundServerSection() {
 						disabled={busy || (owner === 'desktop' && !enabled)}
 						onChange={(event) => void toggle(event.target.checked)}
 					/>
-					Start the headless daemon at OS login
+					{t('Start the headless daemon at OS login')}
 				</label>
 				<p className='setting-description'>
-					Runs the bundled CLI with --headless; it does not launch a second
-					desktop window. If Desktop ownership is selected, background daemon
-					startup is disabled.
+					{t(
+						'Start the bundled CLI in headless mode without opening another window. Available with Automatic or Headless ownership.',
+					)}
 				</p>
 				<button
 					type='button'
@@ -79,17 +82,19 @@ export default function BackgroundServerSection() {
 							.catch((caught) => setError(String(caught)))
 					}
 				>
-					Install terminal command
+					{t('Install terminal command')}
 				</button>
 				{cliPath && (
 					<p className='setting-description'>
-						Terminal command installed at {cliPath}. Ensure the directory is in
-						PATH.
+						{t(
+							'Terminal command installed at {path}. Ensure the directory is in PATH.',
+							{ path: cliPath },
+						)}
 					</p>
 				)}
 				{error && (
 					<p className='error-message' role='alert'>
-						{error}
+						{t(error)}
 					</p>
 				)}
 			</section>

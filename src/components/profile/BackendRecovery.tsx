@@ -1,3 +1,5 @@
+// src/components/profile/BackendRecovery.tsx
+import { t } from '@/i18n';
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import BackendOwnershipSection from '../settings/BackendOwnershipSection';
@@ -21,16 +23,31 @@ export default function BackendRecovery({ reason }: { reason?: string }) {
 	return (
 		<main className='backend-recovery'>
 			<div className='backend-recovery-content'>
-				<h2>Chelys backend unavailable</h2>
-				<p>The desktop could not connect to its local backend. You can retry here or change how it starts.</p>
-				{error && <p className='error-message' role='alert'>{error}</p>}
-				<button type='button' onClick={() => void retry()} aria-busy={busy} disabled={busy}>
-					{busy ? 'Connecting…' : 'Retry connection'}
+				<h2>{t('Chelys backend unavailable')}</h2>
+				<p>
+					{t(
+						'The desktop could not connect to its local backend. You can retry here or change how it starts.',
+					)}
+				</p>
+				{error && (
+					<p className='error-message' role='alert'>
+						{t(error)}
+					</p>
+				)}
+				<button
+					type='button'
+					onClick={() => void retry()}
+					aria-busy={busy}
+					disabled={busy}
+				>
+					{busy ? t('Connecting…') : t('Retry connection')}
 				</button>
 				<BackendOwnershipSection compact />
 				<p className='setting-description'>
-					You can also recover without the desktop: <code>chelys runtime preference automatic</code>,
-					 then reopen Chelys. This command does not need a running backend.
+					{t(
+						'To recover without the desktop, run {command} and reopen Chelys. This command does not need a running backend.',
+						{ command: 'chelys runtime preference automatic' },
+					)}
 				</p>
 			</div>
 		</main>

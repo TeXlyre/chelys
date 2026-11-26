@@ -1,3 +1,4 @@
+// tests/mocks/tauri-core.ts
 export type InvokeHandler = (payload: unknown) => unknown;
 
 export interface InvokeCall {

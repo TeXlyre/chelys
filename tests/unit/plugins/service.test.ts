@@ -1,3 +1,4 @@
+// tests/unit/plugins/service.test.ts
 import { describe, expect, it } from 'vitest';
 import { serviceMembers, validateService, instanceRecipeId } from '@src/plugins/service/shared';
 import { endpointDescriptor, readEndpointTransport } from '@src/plugins/endpoint/shared';

@@ -1,4 +1,12 @@
 // src/components/profile/PeerControlSection.tsx
+import { t } from '@/i18n';
+import { recipeStateLabels } from '../../plugin-host/recipeStateLabels';
+import {
+	modeLabel,
+	type InstallModeKind,
+	type RecipeRuntimeState,
+} from '../../plugin-host/types';
+import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
 import { useEffect, useState } from 'react';
 import { localCommand } from '../../control/localClient';
 
@@ -17,7 +25,7 @@ interface Recipe {
 	mode: string | null;
 	modes: string[];
 	inspectable?: boolean;
-    groupActive?: boolean;
+	groupActive?: boolean;
 	inspectionFields?: Array<{ id: string; label: string; sensitivity: string }>;
 }
 interface Inventory {
@@ -64,7 +72,7 @@ const metricRows = (value: unknown): Array<[string, unknown]> => {
 	return value && typeof value === 'object' ? Object.entries(value) : [];
 };
 const readable = (name: string, value: unknown): string => {
-	if (value === null || value === undefined) return 'Unavailable';
+	if (value === null || value === undefined) return t('Unavailable');
 	if (
 		typeof value === 'number' ||
 		(typeof value === 'string' && /^\d+$/.test(value))
@@ -85,7 +93,7 @@ const readable = (name: string, value: unknown): string => {
 };
 const freeSpace = (value?: string) =>
 	value && /^\d+$/.test(value)
-		? `${(Number(value) / 1024 ** 3).toFixed(1)} GiB free`
+		? t('{value} GiB free', { value: (Number(value) / 1024 ** 3).toFixed(1) })
 		: null;
 
 export default function PeerControlSection() {
@@ -94,7 +102,9 @@ export default function PeerControlSection() {
 	const [apiKey, setApiKey] = useState('');
 	const [alias, setAlias] = useState('');
 	const [url, setUrl] = useState('');
-	const [connectionTransport, setConnectionTransport] = useState<'webrtc' | 'websocket'>('webrtc');
+	const [connectionTransport, setConnectionTransport] = useState<
+		'webrtc' | 'websocket'
+	>('webrtc');
 	const [connectionKey, setConnectionKey] = useState('');
 	const [adding, setAdding] = useState(false);
 	const [inventory, setInventory] = useState<Inventory | null>(null);
@@ -168,9 +178,11 @@ export default function PeerControlSection() {
 		<section className='control-peer-section'>
 			<div className='control-panel-heading'>
 				<div>
-					<h3>Remote instances</h3>
+					<h3>{t('Remote instances')}</h3>
 					<p className='field-hint'>
-						Discover account peers or connect to another instance using an invitation or WebSocket endpoint.
+						{t(
+							'Discover account peers or connect to another instance using an invitation or WebSocket endpoint.',
+						)}
 					</p>
 				</div>
 				<div className='control-toolbar'>
@@ -180,7 +192,7 @@ export default function PeerControlSection() {
 						disabled={pending}
 						onClick={() => void perform(refreshPeers)}
 					>
-						Refresh
+						{t('Refresh')}
 					</button>
 					<button
 						type='button'
@@ -191,7 +203,7 @@ export default function PeerControlSection() {
 							setConnectionKey('');
 						}}
 					>
-						{adding ? 'Cancel' : 'Add connection'}
+						{adding ? t('Cancel') : t('Add connection')}
 					</button>
 				</div>
 			</div>
@@ -201,7 +213,11 @@ export default function PeerControlSection() {
 					onSubmit={(event) => {
 						event.preventDefault();
 						void perform(async () => {
-							await localCommand('peers.connect', { alias, url: url.trim(), apiKey: connectionKey || undefined });
+							await localCommand('peers.connect', {
+								alias,
+								url: url.trim(),
+								apiKey: connectionKey || undefined,
+							});
 							selectPeer(alias);
 							setApiKey(connectionKey);
 							setConnectionKey('');
@@ -213,40 +229,77 @@ export default function PeerControlSection() {
 					}}
 				>
 					<input
-						aria-label='Connection alias'
-						placeholder='Connection alias'
+						aria-label={t('Connection alias')}
+						placeholder={t('Connection alias')}
 						value={alias}
 						required
 						onChange={(e) => setAlias(e.target.value)}
 					/>
-					<select aria-label='Connection transport' value={connectionTransport} onChange={event => {
-						setConnectionTransport(event.target.value as 'webrtc' | 'websocket');
-						setUrl('');
-					}}>
-						<option value='webrtc'>WebRTC invitation</option>
-						<option value='websocket'>WebSocket endpoint</option>
+					<select
+						aria-label={t('Connection transport')}
+						value={connectionTransport}
+						onChange={(event) => {
+							setConnectionTransport(
+								event.target.value as 'webrtc' | 'websocket',
+							);
+							setUrl('');
+						}}
+					>
+						<option value='webrtc'>{t('WebRTC invitation')}</option>
+						<option value='websocket'>{t('WebSocket endpoint')}</option>
 					</select>
 					<input
-						aria-label={connectionTransport === 'webrtc' ? 'Connection invitation' : 'WebSocket endpoint'}
-						placeholder={connectionTransport === 'webrtc' ? 'Paste Chelys invitation' : 'wss://host/control'}
+						aria-label={
+							connectionTransport === 'webrtc'
+								? t('Connection invitation')
+								: t('WebSocket endpoint')
+						}
+						placeholder={
+							connectionTransport === 'webrtc'
+								? t('Paste Chelys invitation')
+								: 'wss://host/control'
+						}
 						value={url}
 						required
 						onChange={(e) => setUrl(e.target.value)}
 					/>
-					<input type='password' autoComplete='off' aria-label='Remote API key' placeholder='API key (not saved)' value={connectionKey} onChange={event => setConnectionKey(event.target.value)} required={connectionTransport === 'webrtc'} />
-					<button type='submit' className='button primary' disabled={pending || (connectionTransport === 'webrtc' ? !url.startsWith('chelys-webrtc:') : !/^wss?:\/\//.test(url))}>
-						Save
+					<input
+						type='password'
+						autoComplete='off'
+						aria-label={t('Remote API key')}
+						placeholder={t('API key (not saved)')}
+						value={connectionKey}
+						onChange={(event) => setConnectionKey(event.target.value)}
+						required={connectionTransport === 'webrtc'}
+					/>
+					<button
+						type='submit'
+						className='button primary'
+						disabled={
+							pending ||
+							(connectionTransport === 'webrtc'
+								? !url.startsWith('chelys-webrtc:')
+								: !/^wss?:\/\//.test(url))
+						}
+					>
+						{t('Save')}
 					</button>
 				</form>
 			)}
-			<div className='control-peer-layout' data-empty={peers.length === 0 && !target}>
+			<div
+				className='control-peer-layout'
+				data-empty={peers.length === 0 && !target}
+			>
 				<section
 					className='control-peer-list'
-					aria-label='Discovered and saved Chelys peers'
+					aria-label={t('Discovered and saved Chelys peers')}
 				>
 					{peers.length === 0 && (
-						<p className='control-empty-state ui-empty-state' data-style='empty'>
-							No remote instances discovered or saved.
+						<p
+							className='control-empty-state ui-empty-state'
+							data-style='empty'
+						>
+							{t('No remote instances discovered or saved.')}
 						</p>
 					)}
 					{peers.map((peer) => {
@@ -263,20 +316,26 @@ export default function PeerControlSection() {
 								<strong>{peer.alias || peer.username || value}</strong>
 								<small>
 									{peer.transport === 'websocket'
-										? 'Saved endpoint'
-										: peer.alias ? 'Saved WebRTC invitation' : peer.controlAvailable === false
-											? 'Present · control disabled'
-											: 'Discovered via WebRTC'}
+										? t('Saved endpoint')
+										: peer.alias
+											? t('Saved WebRTC invitation')
+											: peer.controlAvailable === false
+												? t('Present · control disabled')
+												: t('Discovered via WebRTC')}
 								</small>
 							</button>
 						);
 					})}
 				</section>
-				<div className='control-peer-detail' hidden={peers.length === 0 && !target}>
+				<div
+					className='control-peer-detail'
+					hidden={peers.length === 0 && !target}
+				>
 					{!target ? (
 						<p className='control-empty-state field-hint'>
-							Select an instance to inspect the information and recipes it
-							allows you to see.
+							{t(
+								'Select an instance to inspect the information and recipes it allows you to see.',
+							)}
 						</p>
 					) : (
 						<>
@@ -290,8 +349,8 @@ export default function PeerControlSection() {
 									</h3>
 									<small className='field-hint'>
 										{inventory
-											? 'Inspected successfully'
-											: 'Access not yet verified'}{' '}
+											? t('Inspected successfully')
+											: t('Access not yet verified')}{' '}
 										· {selectedPeer?.transport}
 									</small>
 								</div>
@@ -300,11 +359,13 @@ export default function PeerControlSection() {
 										type='button'
 										className='button secondary'
 										disabled={
-											pending || selectedPeer?.controlAvailable === false || (!!selectedPeer?.alias && !apiKey.trim())
+											pending ||
+											selectedPeer?.controlAvailable === false ||
+											(!!selectedPeer?.alias && !apiKey.trim())
 										}
 										onClick={() => void perform(inspect)}
 									>
-										Inspect
+										{t('Inspect')}
 									</button>
 									{selectedAlias && (
 										<button
@@ -313,7 +374,7 @@ export default function PeerControlSection() {
 											disabled={pending}
 											onClick={() => setConfirmRemoval(selectedAlias)}
 										>
-											Remove
+											{t('Remove')}
 										</button>
 									)}
 								</div>
@@ -321,8 +382,10 @@ export default function PeerControlSection() {
 							{selectedPeer?.alias && confirmRemoval === selectedPeer.alias && (
 								<div className='warning-message' role='alert'>
 									<p>
-										Remove the saved connection “{selectedPeer.alias}”?
-										This does not revoke its API keys on the remote machine.
+										{t(
+											'Remove the saved connection “{name}”? This does not revoke its API keys on the remote machine.',
+											{ name: selectedPeer.alias },
+										)}
 									</p>
 									<div className='control-toolbar'>
 										<button
@@ -330,7 +393,7 @@ export default function PeerControlSection() {
 											className='button secondary'
 											onClick={() => setConfirmRemoval('')}
 										>
-											Cancel
+											{t('Cancel')}
 										</button>
 										<button
 											type='button'
@@ -346,21 +409,23 @@ export default function PeerControlSection() {
 												})
 											}
 										>
-											Remove connection
+											{t('Remove connection')}
 										</button>
 									</div>
 								</div>
 							)}
 							<div className='form-group ui-field'>
 								<label htmlFor='chelys-peer-key'>
-									API key for this peer {selectedPeer?.alias ? '(required)' : '(if required)'}
+									{selectedPeer?.alias
+										? t('API key for this peer (required)')
+										: t('API key for this peer (if required)')}
 								</label>
 								<input
 									id='chelys-peer-key'
 									type='password'
 									value={apiKey}
 									autoComplete='off'
-									placeholder='Enter if required by the remote instance'
+									placeholder={t('Enter if required by the remote instance')}
 									onChange={(event) => setApiKey(event.target.value)}
 								/>
 							</div>
@@ -378,47 +443,49 @@ export default function PeerControlSection() {
 													className={`tab-button ui-tab ${tab === value ? 'active' : ''}`}
 													onClick={() => setTab(value)}
 												>
-													{humanLabel(value)}
+													{t(humanLabel(value))}
 												</button>
 											),
 										)}
 									</div>
 									{tab === 'overview' && (
 										<dl className='control-peer-facts'>
-											<dt>Instance</dt>
+											<dt>{t('Instance')}</dt>
 											<dd>{inventory.instanceId}</dd>
-											<dt>Machine</dt>
+											<dt>{t('Machine')}</dt>
 											<dd>
-												{inventory.machine?.platform || 'Restricted'}{' '}
+												{inventory.machine?.platform || t('Restricted')}{' '}
 												{inventory.machine?.architecture || ''}
 											</dd>
-											<dt>Storage</dt>
+											<dt>{t('Storage')}</dt>
 											<dd>
 												{freeSpace(inventory.machine?.freeStorageBytes) ||
-													'Restricted or unavailable'}
+													t('Restricted or unavailable')}
 											</dd>
-											<dt>Running recipes</dt>
+											<dt>{t('Running recipes')}</dt>
 											<dd>
 												{inventory.runningRecipes?.length ??
 													inventory.availableRecipes.filter(
 														(recipe) => recipe.state === 'running',
 													).length}
 											</dd>
-											<dt>Recipe installation</dt>
+											<dt>{t('Recipe installation')}</dt>
 											<dd>
 												{inventory.canInstallRecipes
-													? 'Permitted'
-													: 'Restricted'}
+													? t('Permitted')
+													: t('Restricted')}
 											</dd>
-											<dt>Recipe execution</dt>
+											<dt>{t('Recipe execution')}</dt>
 											<dd>
-												{inventory.canRunRecipes ? 'Permitted' : 'Restricted'}
+												{inventory.canRunRecipes
+													? t('Permitted')
+													: t('Restricted')}
 											</dd>
-											<dt>Infrastructure management</dt>
+											<dt>{t('Infrastructure management')}</dt>
 											<dd>
 												{inventory.canManageInfrastructure
-													? 'Permitted'
-													: 'Restricted'}
+													? t('Permitted')
+													: t('Restricted')}
 											</dd>
 										</dl>
 									)}
@@ -426,13 +493,13 @@ export default function PeerControlSection() {
 										<section className='control-monitor-details'>
 											{inspectionRecipes.length === 0 ? (
 												<p className='field-hint'>
-													This peer has no inspectable recipes.
+													{t('This peer has no inspectable recipes.')}
 												</p>
 											) : (
 												<>
 													<div className='control-peer-connect'>
 														<select
-															aria-label='Inspectable recipe'
+															aria-label={t('Inspectable recipe')}
 															value={monitorId}
 															onChange={(event) => {
 																setMonitorId(event.target.value);
@@ -463,14 +530,15 @@ export default function PeerControlSection() {
 																)
 															}
 														>
-															Read metrics
+															{t('Read metrics')}
 														</button>
 													</div>
 													{currentInspectionRecipe?.inspectionFields?.length ? (
 														<fieldset className='control-access-permissions control-peer-field-selector'>
 															<legend>
-																Request only selected categories (none selected
-																= all permitted)
+																{t(
+																	'Request only selected categories (none selected = all permitted)',
+																)}
 															</legend>
 															{currentInspectionRecipe.inspectionFields?.map(
 																(field) => (
@@ -490,7 +558,7 @@ export default function PeerControlSection() {
 																				)
 																			}
 																		/>
-																		{field.label}
+																		{t(field.label)}
 																	</label>
 																),
 															)}
@@ -499,10 +567,13 @@ export default function PeerControlSection() {
 													{metrics && (
 														<>
 															<p className='field-hint'>
-																Scope: {metrics.scope || 'Unavailable'} ·
-																Sampled:{' '}
-																{metrics.sampledAt || 'No recent sample'} ·{' '}
-																{metrics.state}
+																{t('Scope:')}{' '}
+																{metrics.scope
+																	? t(metrics.scope)
+																	: t('Unavailable')}{' '}
+																· {t('Sampled:')}{' '}
+																{metrics.sampledAt || t('No recent sample')} ·{' '}
+																{t(humanLabel(metrics.state))}
 															</p>
 															<div className='control-metric-grid'>
 																{metrics.fields.map((field) => (
@@ -510,7 +581,7 @@ export default function PeerControlSection() {
 																		className='control-metric'
 																		key={field.id}
 																	>
-																		<strong>{field.label}</strong>
+																		<strong>{t(field.label)}</strong>
 																		{metrics.metrics?.[field.id] &&
 																		typeof metrics.metrics[field.id] ===
 																			'object' ? (
@@ -519,7 +590,7 @@ export default function PeerControlSection() {
 																					metrics.metrics[field.id],
 																				).map(([name, value]) => (
 																					<div key={name}>
-																						<dt>{humanLabel(name)}</dt>
+																						<dt>{t(humanLabel(name))}</dt>
 																						<dd>{readable(name, value)}</dd>
 																					</div>
 																				))}
@@ -544,18 +615,30 @@ export default function PeerControlSection() {
 									{tab === 'recipes' && (
 										<div className='control-peer-inventory'>
 											{inventory.availableRecipes.length === 0 && (
-												<p className='field-hint'>No recipes advertised.</p>
+												<p className='field-hint'>
+													{t('No recipes advertised.')}
+												</p>
 											)}
 											{inventory.availableRecipes.map((recipe) => (
 												<div className='control-peer-recipe' key={recipe.id}>
 													<div>
 														<strong>{recipe.name}</strong>
 														<small>
-															{recipe.type} · {recipe.state}
+															{t(
+																pluginTypeRegistry.get(recipe.type)?.label ??
+																	humanLabel(recipe.type),
+															)}{' '}
+															·{' '}
+															{t(
+																recipeStateLabels[
+																	recipe.state as RecipeRuntimeState
+																] ?? humanLabel(recipe.state),
+															)}
 														</small>
 													</div>
 													<div className='control-peer-recipe-actions'>
-														{recipe.state === 'running' || recipe.groupActive ? (
+														{recipe.state === 'running' ||
+														recipe.groupActive ? (
 															<button
 																type='button'
 																className='button secondary'
@@ -574,7 +657,7 @@ export default function PeerControlSection() {
 																	})
 																}
 															>
-																Stop
+																{t('Stop')}
 															</button>
 														) : (
 															<button
@@ -596,11 +679,13 @@ export default function PeerControlSection() {
 																	})
 																}
 															>
-																Run
+																{t('Run')}
 															</button>
 														)}
 														<select
-															aria-label={`Install mode for ${recipe.name}`}
+															aria-label={t('Install mode for {name}', {
+																name: recipe.name,
+															})}
 															value={
 																modeByRecipe[recipe.id] ?? recipe.modes[0] ?? ''
 															}
@@ -613,7 +698,7 @@ export default function PeerControlSection() {
 														>
 															{recipe.modes.map((mode) => (
 																<option key={mode} value={mode}>
-																	{mode}
+																	{t(modeLabel(mode as InstallModeKind))}
 																</option>
 															))}
 														</select>
@@ -639,7 +724,7 @@ export default function PeerControlSection() {
 																})
 															}
 														>
-															Install
+															{t('Install')}
 														</button>
 														<button
 															type='button'
@@ -659,7 +744,7 @@ export default function PeerControlSection() {
 																})
 															}
 														>
-															Uninstall
+															{t('Uninstall')}
 														</button>
 													</div>
 												</div>
@@ -674,7 +759,7 @@ export default function PeerControlSection() {
 			</div>
 			{error && (
 				<p className='error-message' role='alert'>
-					{error}
+					{t(error)}
 				</p>
 			)}
 		</section>

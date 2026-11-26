@@ -149,7 +149,8 @@
 	--ui-modal-width: var(--ui-settings-modal-width, 900px);
 }
 
-.ui-panel[data-role="modal"]:has(.settings-wrapper) .ui-panel-content[data-role="modal"] {
+.ui-panel[data-role="modal"]:has(.settings-wrapper)
+	.ui-panel-content[data-role="modal"] {
 	display: flex;
 	overflow: hidden;
 }
@@ -217,20 +218,35 @@
 	}
 }
 
-.setting-description, .field-hint {
+.setting-description,
+.field-hint {
 	font-size: var(--ui-field-hint-font-size, var(--font-size-meta));
 	color: var(--pico-secondary);
 	line-height: 1.45;
 	margin: var(--space-xs) 0 0;
 	overflow-wrap: anywhere;
 }
-.setting-control { font-size: var(--ui-field-label-font-size, var(--font-size-small)); margin-bottom: 0; }
-.setting-control input:not([type="checkbox"]), .setting-control select { margin: 0; }
-.settings-container { min-width: 0; }
+.setting-control {
+	font-size: var(--ui-field-label-font-size, var(--font-size-small));
+	margin-bottom: 0;
+}
+.setting-control input:not([type="checkbox"]),
+.setting-control select {
+	margin: 0;
+}
+.settings-container {
+	min-width: 0;
+}
 @media (max-width: 480px) {
-	.settings-sidebar { width: 34%; }
-	.settings-nav-item { padding-inline: var(--space-sm); }
-	.settings-content { padding-inline: var(--space-sm); }
+	.settings-sidebar {
+		width: 34%;
+	}
+	.settings-nav-item {
+		padding-inline: var(--space-sm);
+	}
+	.settings-content {
+		padding-inline: var(--space-sm);
+	}
 }
 
 /* Native runtime controls are also rendered in the backend recovery view. */

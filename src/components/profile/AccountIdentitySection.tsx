@@ -136,7 +136,7 @@ const AccountIdentitySection: React.FC<AccountIdentitySectionProps> = ({
 				mono
 			/>
 
-			<h3>{t('Chelys Key (PRF output)')}</h3>
+			<h3>{t('Chelys key (PRF output)')}</h3>
 			<p className='field-hint'>
 				{t(
 					'Your key selects which room you sync with. Keep it to stay in the same room, paste a key to match another account, or generate new key to create a temporary session.',

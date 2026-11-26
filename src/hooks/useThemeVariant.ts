@@ -1,7 +1,7 @@
 // src/hooks/useThemeVariant.ts
 import { useEffect, useState } from 'react';
 
-import { type ThemeVariant } from '../theme/themeVariant';
+import type { ThemeVariant } from '../theme/themeVariant';
 
 const appliedVariant = (): ThemeVariant =>
 	document.documentElement.getAttribute('data-theme-mode') === 'dark'

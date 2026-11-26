@@ -31,7 +31,11 @@ function validate(id: string, value: unknown): void {
 	) {
 		throw new Error(`Chelys setting ${id} requires a ${typeof fallback}`);
 	}
-	if (id === 'themeVariant' && value !== 'system' && !isThemeColorId(value as string)) {
+	if (
+		id === 'themeVariant' &&
+		value !== 'system' &&
+		!isThemeColorId(value as string)
+	) {
 		throw new Error('Unknown Chelys theme variant');
 	}
 	const choices: Record<string, string[]> = {
