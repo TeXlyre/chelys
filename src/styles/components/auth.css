@@ -287,19 +287,6 @@
 	position: relative;
 }
 
-.user-dropdown-menu {
-	position: absolute;
-	top: 100%;
-	right: 0;
-	margin-top: var(--space-xs);
-	min-width: var(--dropdown-width);
-	background-color: var(--pico-background);
-	border: 1px solid var(--accent-border);
-	border-radius: var(--radius-sm);
-	box-shadow: var(--shadow-md);
-	z-index: var(--z-dropdown);
-	overflow: hidden;
-}
 
 .user-dropdown-button {
 	display: flex;

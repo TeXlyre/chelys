@@ -1,17 +1,16 @@
 // src/hooks/useThemeVariant.ts
 import { useEffect, useState } from 'react';
 
-import { getInitialVariant, type ThemeVariant } from '../theme/themeVariant';
+import { type ThemeVariant } from '../theme/themeVariant';
 
 const appliedVariant = (): ThemeVariant =>
-	document.documentElement.getAttribute('data-theme') === 'dark'
+	document.documentElement.getAttribute('data-theme-mode') === 'dark'
 		? 'dark'
 		: 'light';
 
 export function useThemeVariant(): ThemeVariant {
 	const [variant, setVariant] = useState<ThemeVariant>(() => {
-		const applied = document.documentElement.getAttribute('data-theme');
-		return applied ? appliedVariant() : getInitialVariant();
+		return appliedVariant();
 	});
 
 	useEffect(() => {

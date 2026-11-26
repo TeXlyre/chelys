@@ -1,70 +1,12 @@
 /* src/styles/components/profile.css */
-.modal-overlay {
-	position: fixed;
-	inset: 0;
-	background: rgba(0, 0, 0, 0.5);
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	z-index: var(--z-modal);
-	padding: var(--space-md);
-}
-
-.modal-container {
-	background: var(--pico-background);
-	border: 1px solid var(--accent-border);
-	border-radius: var(--radius-md);
-	width: 100%;
-	max-height: 90vh;
-	display: flex;
-	flex-direction: column;
-	overflow: hidden;
-}
-
-.modal-small {
-	max-width: 420px;
-}
-
-.modal-medium {
-	max-width: 600px;
-}
-
-.modal-large {
-	max-width: 800px;
-}
-
-.modal-wide {
-	max-width: 1000px;
-}
-
-.modal-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: var(--space-md);
-	border-bottom: 1px solid var(--accent-border);
-}
-
-.modal-header h2 {
-	margin: 0;
-	font-size: 1.1rem;
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-}
-
-.modal-close-button {
-	background: none;
-	border: none;
-	color: var(--text-color);
-	cursor: pointer;
-	padding: 0.25rem;
-	display: flex;
-}
-
-.modal-content {
-	padding: var(--space-md);
-	overflow-y: auto;
+/* Shared modal primitives handle sizing, header, scrolling and controls. */
+.modal-overlay { padding: var(--space-md); }
+.ui-panel[data-role="modal"] {
+	--ui-modal-border: 1px solid var(--accent-border);
+	--ui-modal-title-font-size: var(--font-size-title);
+	--ui-modal-title-icon-size: 1rem;
+	--ui-modal-title-icon-gap: var(--space-xs);
+	--ui-modal-max-width: 100%;
 }
 
 .modal-actions {
@@ -157,7 +99,6 @@
 }
 
 .control-access {
-	padding-top: 0.75rem;
 	min-width: 0;
 }
 
@@ -246,19 +187,24 @@
 
 .control-peer-connect {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
-	gap: 0.5rem;
+	gap: var(--space-sm);
 	min-width: 0;
 }
 
 .control-peer-connect input,
 .control-peer-connect select {
 	min-width: 0;
-	flex: 1 1 auto;
-	margin-bottom: 0;
+	width: auto;
+	max-width: 100%;
+	flex: 1 1 12rem;
+	margin: 0;
 }
 
 .control-peer-connect button {
+	width: auto;
+	max-width: 100%;
 	flex: 0 0 auto;
 	margin: 0;
 }
@@ -306,25 +252,17 @@
 	min-height: 2.1rem;
 }
 
-@media (max-width: 500px) {
-	.control-peer-connect {
-		flex-wrap: wrap;
-	}
-
-	.control-peer-connect input {
-		flex-basis: 100%;
-	}
-}
-
 .control-subtabs {
-	margin-bottom: var(--space-sm);
+	margin-bottom: var(--space-xs);
+	flex-wrap: wrap;
 }
 
 .control-panel-heading {
 	display: flex;
-	align-items: flex-start;
+	align-items: center;
 	justify-content: space-between;
-	gap: var(--space-sm);
+	flex-wrap: wrap;
+	gap: var(--space-md);
 	margin-bottom: var(--space-sm);
 }
 
@@ -355,17 +293,24 @@
 
 .control-peer-layout {
 	display: grid;
-	grid-template-columns: minmax(11rem, 0.7fr) minmax(0, 1.7fr);
-	gap: var(--space-sm);
-	align-items: start;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+	gap: var(--space-md);
+	align-items: stretch;
 	margin-top: var(--space-md);
 }
+
+.control-peer-layout[data-empty="true"] {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.control-peer-detail[hidden] { display: none; }
 
 .control-peer-list {
 	border: 1px solid var(--accent-border);
 	border-radius: var(--radius-sm);
 	min-width: 0;
-	padding: 0.3rem;
+	padding: var(--space-sm);
+	background: var(--pico-secondary-background);
 }
 
 .control-peer-item {
@@ -377,6 +322,9 @@
 	margin: 0;
 	padding: 0.6rem 0.7rem;
 	text-align: left;
+	min-height: 0;
+	height: auto;
+	overflow-wrap: anywhere;
 	border: 1px solid transparent;
 	border-radius: var(--radius-sm);
 	background: transparent;
@@ -384,16 +332,13 @@
 }
 
 .control-peer-item.selected {
-	border-color: var(--accent-border);
-	background: var(
-		--pico-card-sectioning-background-color,
-		rgba(128, 128, 128, 0.08)
-	);
+	border-color: var(--pico-primary);
+	background: var(--pico-primary-focus);
 }
 
 .control-peer-item small {
-	color: var(--pico-muted-color);
-	font-size: 0.78rem;
+	color: var(--pico-secondary);
+	font-size: var(--font-size-meta);
 	overflow-wrap: anywhere;
 }
 
@@ -401,7 +346,7 @@
 	min-width: 0;
 	border: 1px solid var(--accent-border);
 	border-radius: var(--radius-sm);
-	padding: var(--space-sm);
+	padding: var(--space-md);
 }
 
 .control-peer-facts {
@@ -482,7 +427,7 @@
 	margin-top: var(--space-sm);
 }
 
-@media (max-width: 700px) {
+@media (max-width: 560px) {
 	.control-peer-layout {
 		grid-template-columns: minmax(0, 1fr);
 	}
@@ -520,29 +465,36 @@
 	max-width: 100%;
 	margin-bottom: 1.5rem;
 }
-.backend-recovery-content .profile-ownership {
-	padding: 1.25rem 0 0;
+.backend-recovery-content .backend-ownership {
+	padding-top: var(--space-md);
 	border-top: 1px solid var(--accent-border);
+	margin-bottom: var(--space-md);
 }
-.profile-ownership {
-	min-width: 0;
-	max-width: 100%;
-	gap: 0.65rem;
-}
-.profile-ownership > h4,
-.profile-ownership > label,
-.profile-ownership > p {
-	margin: 0;
-}
-.profile-ownership > select {
-	box-sizing: border-box;
-	min-width: 0;
-	width: 100%;
-	max-width: 100%;
-	margin: 0;
-}
-.profile-ownership .setting-description,
 .backend-recovery-content .setting-description,
 .backend-recovery-content .error-message {
+	overflow-wrap: anywhere;
+}
+
+/* Chelys-specific profile and remote-control layout, using Wide tokens. */
+.ui-panel-content[data-role="modal"] { min-height: 0; overscroll-behavior: contain; font-size: var(--ui-modal-font-size, var(--font-size-small)); }
+.ui-panel-content[data-role="modal"] > .view-tabs { margin-bottom: var(--space-md); border-bottom: 1px solid var(--accent-border); padding-bottom: var(--space-sm); flex-wrap: wrap; }
+.control-panel-heading > div:first-child { min-width: 0; flex: 1 1 10rem; overflow-wrap: anywhere; }
+.control-panel-heading h3 { font-size: var(--font-size-title); }
+.control-toolbar { flex-shrink: 0; max-width: 100%; }
+
+
+.control-empty-state { padding: var(--space-md); margin: 0; }
+@media (max-width: 560px) {
+	.control-panel-heading > div:first-child { flex-basis: 100%; }
+	.control-toolbar { justify-content: flex-start; }
+}
+
+/* Recovery renders outside the normal themed application chrome. */
+.backend-recovery-content h2 {
+	color: var(--text-color);
+}
+.backend-recovery-content code {
+	color: var(--text-color);
+	background: var(--background-color);
 	overflow-wrap: anywhere;
 }
