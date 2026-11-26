@@ -73,3 +73,9 @@ See [LICENSE](https://github.com/TeXlyre/chelys/blob/main/LICENSE) for the compl
 ## Headless servers and remote control
 
 Chelys also supports an optional Node-based server runtime and a shared CLI/GUI remote-control API. See [HEADLESS.md](HEADLESS.md) for deployment, account and recipe commands, access policies, and WebRTC/WebSocket peer management.
+
+### Appearance
+
+Chelys uses TeXlyre's Wide theme, shared controls, and colour palettes directly from the `external/texlyre` submodule. Run `npm run init:submodules` to populate the theme assets (existing sparse Git checkouts are extended in place). Chelys-specific styles live under `src/styles/components`.
+
+Choose a palette under **Settings → Appearance → Colour theme**; the header and login toggle use the `themeToggle.light` and `themeToggle.dark` targets in `chelys.config.ts`. The preference is stored in Chelys settings, independently of TeXlyre settings. System follows the OS colour mode.

@@ -12,7 +12,10 @@ const SPARSE_PATHS = [
 	'src/utils',
 	'src/types',
 	'src/extensions/yjs',
+	'src/components/common',
 	'src/styles/shared',
+	'src/styles/components',
+	'extras/themes',
 	'src/chelys',
 ];
 
@@ -28,6 +31,9 @@ if (existsSync(path.join(root, '.git'))) {
 	SPARSE_PATHS.every((item) => existsSync(path.join(externalPath, item)))
 ) {
 	console.log('TeXlyre dependency is already present.');
+} else if (existsSync(path.join(externalPath, '.git'))) {
+	// Extend an earlier source-archive sparse checkout in place.
+	git('-C', SUBMODULE_DIR, 'sparse-checkout', 'set', ...SPARSE_PATHS);
 } else {
 	// Source ZIPs have no .git metadata. Restore the same sparse dependency from .gitmodules.
 	if (existsSync(externalPath) && readdirSync(externalPath).length > 0) {

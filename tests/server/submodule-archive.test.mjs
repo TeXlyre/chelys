@@ -65,7 +65,7 @@ test('source archives clone the TeXlyre submodule using sparse checkout', () =>
 		);
 		assert.match(
 			calls,
-			/-C external\/texlyre sparse-checkout set src\/services/,
+			/-C external\/texlyre sparse-checkout set src\/services.*extras\/themes/,
 		);
 	}));
 
@@ -85,7 +85,10 @@ test('source archives reuse an existing complete TeXlyre checkout', () =>
 			'src/utils',
 			'src/types',
 			'src/extensions/yjs',
+			'src/components/common',
 			'src/styles/shared',
+			'src/styles/components',
+			'extras/themes',
 			'src/chelys',
 		]) {
 			fs.mkdirSync(path.join(dir, 'external/texlyre', folder), {
@@ -115,3 +118,13 @@ test('an incomplete checkout is not overwritten', () =>
 			'user data',
 		);
 	}));
+
+
+test('existing sparse source archive dependencies can acquire themes without recloning', () =>
+ fixture(({ dir, log, run }) => {
+  fs.mkdirSync(path.join(dir, 'external/texlyre/.git'), { recursive: true });
+  run();
+  const calls = fs.readFileSync(log, 'utf8');
+  assert.match(calls, /sparse-checkout set .*extras\/themes/);
+  assert.doesNotMatch(calls, /clone /);
+ }));

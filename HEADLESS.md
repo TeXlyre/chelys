@@ -40,19 +40,19 @@ For development use of `chelys serve` directly from a source checkout without pa
 | CLI | Same socket/pipe, using `server/cli.mjs` | Scripting and local automation; no desktop required |
 | Remote peer | Same command dispatcher with explicit access-policy checks | Only permitted remote operations; privileged full-recipe and credential commands are **local-only** |
 
-The desktop starts the bundled server only if no existing instance owns the socket. It waits for a valid RPC response before rendering the full UI; it shows a recoverable error screen if startup or shared storage fails. Once started, the daemon remains available to the CLI/remote peers **even when the desktop UI closes**. The UI polls server-side recipe status, account presence and service-room awareness; it does not create duplicate WebRTC connections for avatars. Settings and browser-backed UI data use the authoritative server store, with initial migration and subsequent synchronization when another client changes them.
+The desktop starts the bundled server only if no existing instance owns the socket. It waits for a valid RPC response before rendering the full UI; it shows a recoverable error screen if startup or shared storage fails. Automatic and Headless backends remain available to the CLI/remote peers after the desktop quits; Desktop-managed backends stop on quit. The UI polls server-side recipe status, account presence and service-room awareness; it does not create duplicate WebRTC connections for avatars. Settings and browser-backed UI data use the authoritative server store, with initial migration and subsequent synchronization when another client changes them.
 
 ### Instance startup preference
 
-Account Settings → **Profile runtime owner** configures the **startup policy** of that one backend. There are not separate desktop and headless recipe engines anymore; the desktop remains the full native UI in all modes.
+Settings → System → Runtime → **Backend ownership** configures the **startup policy** of that one backend. There are not separate desktop and headless recipe engines anymore; the desktop remains the full native UI in all modes.
 
 | Preference | Startup behavior |
 | --- | --- |
 | **Automatic** (default) | Reuse whichever backend already serves the profile; opening the desktop starts the bundled backend if none is running. |
-| **Desktop-managed** | Only the desktop launcher may start the daemon when none is running; a standalone new `chelys serve` is rejected. The daemon continues after the desktop closes. |
+| **Desktop-managed** | Only the desktop launcher may start the daemon when none is running; a standalone new `chelys serve` is rejected. The daemon stops when the desktop quits (hiding to the tray is not quitting). |
 | **Headless** | The daemon may be started independently using `chelys serve`, or started automatically when the desktop opens. The full UI connects to it in either case. |
 
-`instance-owner.json` is stored in the shared data directory. Setting a different preference does not forcibly stop an active daemon; restart Chelys and, when necessary, stop the prior daemon/service to change launch policy. CLI recovery commands work even if no daemon is available:
+`instance-owner.json` is stored in the shared data directory. Setting a different preference does not forcibly stop an active daemon; use Apply mode and restart backend in System settings when the active backend differs, or stop the prior daemon/service and reopen Chelys. CLI recovery commands work even if no daemon is available:
 
 ```sh
 chelys runtime show
@@ -62,7 +62,7 @@ chelys runtime preference desktop
 chelys runtime preference headless
 ```
 
-Only one daemon may bind a profile socket/pipe, with a short-lived startup lock to serialize competing starts. Desktop and standalone server use one data directory and credential store, with the same environment overrides. The desktop autostart toggle launches `chelys --headless` at OS login, not a desktop window. It is opt-in and disabled for Desktop-managed mode. Default instance directory: `XDG_DATA_HOME/chelys` or `~/.local/share/chelys`; `CHELYS_DATA_DIR` must be absolute. Use a separate data directory for genuinely independent instances.
+Only one daemon may bind a profile socket/pipe, with a short-lived startup lock to serialize competing starts. Desktop and standalone server use one data directory and credential store, with the same environment overrides. The OS login startup toggle registers `chelys --autostart` once. At login it reads the current local ownership preference: Desktop-managed launches the desktop (hidden when a tray is available); Automatic and Headless launch the independent daemon without a window. Changing ownership does not change the registration. If upgrading from a build that registered `--headless`, disable and re-enable startup once to replace the old registration. Explicit `--headless` remains daemon-only. Default instance directory: `XDG_DATA_HOME/chelys` or `~/.local/share/chelys`; `CHELYS_DATA_DIR` must be absolute. Use a separate data directory for genuinely independent instances.
 
 For existing desktop installations, launch the upgraded desktop once to copy the old `chelys-recipes.json` if the new shared manifest is absent and to import previously saved browser settings into a new shared store. Do this before converting to background-only startup. The app never deletes the old recipe manifest during migration.
 
