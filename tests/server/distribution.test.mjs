@@ -46,7 +46,7 @@ test('runtime packager reads Cargo launcher output before renaming the Tauri sid
 test('background runtime is optional and desktop attaches to the existing owner', () => {
 	const store = JSON.parse(read('src-tauri/gen/windows/bundle.config.json'));
 	assert.equal(store.extensions.startupTask.enabled, false);
-	assert.match(read('src-tauri/src/lib.rs'), /Some\(vec!\["--headless"\]\)/);
+	assert.match(read('src-tauri/src/lib.rs'), /Some\(vec!\["--autostart"\]\)/);
 	assert.match(read('src/main.tsx'), /if \(mode === 'unavailable'\)/);
 	assert.match(read('src/main.tsx'), /<App \/>/);
 	assert.match(

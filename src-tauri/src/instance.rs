@@ -307,9 +307,9 @@ pub async fn instance_owner_get(state: tauri::State<'_, InstanceState>) -> Resul
             Some("headless") => "headless",
             _ => "unavailable",
         },
-        restart_required: preference != *state.started_mode.lock().unwrap()
-            || (preference == OwnerMode::Desktop && active.as_deref() == Some("headless"))
-            || (preference != OwnerMode::Desktop && active.as_deref() == Some("desktop")),
+        restart_required: matches!(active.as_deref(), Some("desktop") | Some("headless"))
+            && ((preference == OwnerMode::Desktop && active.as_deref() == Some("headless"))
+            || (preference != OwnerMode::Desktop && active.as_deref() == Some("desktop"))),
         issue: read_issue.or_else(|| state.issue.lock().unwrap().clone()),
     })
 }

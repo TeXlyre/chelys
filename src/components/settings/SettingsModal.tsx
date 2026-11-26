@@ -7,8 +7,9 @@ import { useSettings } from '../../hooks/useSettings';
 import { DEFERRED_UPDATE_TYPES } from '../../contexts/SettingsContext';
 import type { Setting } from '../../contexts/SettingsContext';
 import { SettingsIcon } from '../common/Icons';
-import Modal from '../common/Modal';
+import Modal from '@texlyre/components/common/Modal';
 import SettingControl from './SettingControl';
+import BackendOwnershipSection, { runtimeSearchTerms } from './BackendOwnershipSection';
 
 interface SettingsModalProps {
 	isOpen: boolean;
@@ -54,6 +55,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 
 	useEffect(() => {
 		const result = searchSettings(searchQuery);
+		// Native runtime controls have no account-backed setting IDs.
+		const runtimeCategory = t('System');
+		const runtimeSubcategory = t('Runtime');
+		if (
+			searchQuery.trim() && runtimeSearchTerms.some((label) =>
+				t(label).toLowerCase().includes(searchQuery.trim().toLowerCase()),
+			)
+		) {
+			const system = result.categories.find((item) => item.category === runtimeCategory);
+			if (!system) {
+				result.categories.push({ category: runtimeCategory, subcategories: [runtimeSubcategory] });
+			} else if (!system.subcategories.includes(runtimeSubcategory)) {
+				system.subcategories.push(runtimeSubcategory);
+			}
+		}
 		setFilteredData(result);
 
 		if (result.categories.length === 0) return;
@@ -176,6 +192,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 	};
 
 	const settings = getSettingsByCategory(activeCategory, activeSubcategory);
+	const showRuntime = activeCategory === t('System') && activeSubcategory === t('Runtime');
 
 	const getDependencyValue = (setting: Setting) => {
 		const dependency = setting.dependsOn;
@@ -256,46 +273,61 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 				<div className='settings-container'>
 					<div className='settings-sidebar'>
 						<div className='settings-search'>
-							<input
-								type='text'
-								placeholder={t('Search settings...')}
-								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
-								className='search-input'
-							/>
-							{searchQuery && (
-								<button
-									type='button'
-									aria-label={t('Clear search')}
-									className='clear-search-button'
-									onClick={() => setSearchQuery('')}
-									title={t('Clear search')}
-								>
-									<span aria-hidden='true'>×</span>
-								</button>
-							)}
+							<div className='ui-search-field'>
+								<input
+									type='text'
+									placeholder={t('Search settings...')}
+									value={searchQuery}
+									onChange={(e) => setSearchQuery(e.target.value)}
+									className='ui-field-control ui-search-control'
+								/>
+								{searchQuery && (
+									<button
+										type='button'
+										aria-label={t('Clear search')}
+										className='ui-search-clear'
+										onClick={() => setSearchQuery('')}
+										title={t('Clear search')}
+									>
+										<span aria-hidden='true'>×</span>
+									</button>
+								)}
+							</div>
 						</div>
 						{filteredData.categories.map(({ category, subcategories }) => (
 							<div key={category} className='settings-category'>
-								<div
-									className={`category-item ${activeCategory === category ? 'active' : ''}`}
+								<button
+									type='button'
+									className='settings-nav-item ui-list-item'
+									data-interactive='true'
+									data-appearance='flat'
+									data-border='none'
+									data-padding='sd'
+									data-selected={activeCategory === category}
+									data-accent={activeCategory === category ? 'start' : undefined}
 									onClick={() => {
 										setActiveCategory(category);
 										setActiveSubcategory(subcategories[0]);
 									}}
 								>
 									{highlightText(category, searchQuery)}
-								</div>
+								</button>
 								{activeCategory === category && subcategories.length > 0 && (
 									<div className='subcategories'>
 										{subcategories.map((subcategory) => (
-											<div
+											<button
+												type='button'
 												key={subcategory}
-												className={`subcategory-item ${activeSubcategory === subcategory ? 'active' : ''}`}
+												className='settings-nav-item ui-list-item'
+												data-interactive='true'
+												data-appearance='flat'
+												data-border='none'
+												data-padding='sm'
+												data-selected={activeSubcategory === subcategory}
 												onClick={() => setActiveSubcategory(subcategory)}
 											>
 												{highlightText(subcategory, searchQuery)}
-											</div>
+											</button>
 										))}
 									</div>
 								)}
@@ -313,6 +345,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 					<div className='settings-content'>
 						<h3>{renderTitle()}</h3>
 						<div className='settings-group'>
+							{showRuntime && <BackendOwnershipSection />}
 							{settings.map((setting) => {
 								const disabled = !isDependencyMet(setting);
 								const nested = shouldNestSetting(setting);
@@ -348,7 +381,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
 									</div>
 								);
 							})}
-							{settings.length === 0 && (
+							{settings.length === 0 && !showRuntime && (
 								<div className='no-settings'>
 									{t('No settings available in this category.')}
 								</div>

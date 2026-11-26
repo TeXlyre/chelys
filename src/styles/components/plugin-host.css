@@ -12,7 +12,7 @@
 	padding: 0 var(--space-md);
 	overflow-y: auto;
 	width: 100%;
-	min-width: fit-content;
+	min-width: 0;
 	margin: 0 auto;
 }
 
@@ -38,7 +38,7 @@
 	gap: var(--space-xs);
 }
 
-.recipe-secret-field > input {
+.recipe-secret-field>input {
 	flex: 1;
 	min-width: 0;
 }
@@ -127,11 +127,9 @@
 
 .recipe-update-badge {
 	font-size: 0.75rem;
-	background-color: color-mix(
-		in srgb,
-		var(--color-warning) 20%,
-		var(--pico-background)
-	);
+	background-color: color-mix(in srgb,
+			var(--color-warning) 20%,
+			var(--pico-background));
 	border: 1px solid var(--color-warning);
 	color: var(--text-color);
 	padding: 0 var(--space-xs);
@@ -159,7 +157,6 @@
 	flex: 1;
 	border: none;
 	background: transparent;
-	padding: var(--space-sm) 0;
 	margin: 0;
 	color: var(--text-color);
 }
@@ -321,13 +318,11 @@
 .recipe-actions .action-button {
 	flex: 0 0 auto;
 	white-space: nowrap;
-	padding: var(--space-xs) var(--space-md);
 }
 
 .recipe-actions .recipe-version-select {
 	font-size: 0.85rem;
-	padding: var(--space-xs) calc(var(--space-lg) + var(--space-sm))
-		var(--space-xs) var(--space-xs);
+	padding: var(--space-xs) calc(var(--space-lg) + var(--space-sm)) var(--space-xs) var(--space-xs);
 	border: 1px solid var(--accent-border);
 	border-radius: var(--radius-sm);
 	background-color: var(--pico-background);
@@ -460,12 +455,40 @@
 
 .plugin-category-nav {
 	display: flex;
+	align-self: stretch;
+	min-width: 0;
+	overflow-x: auto;
 	gap: var(--space-xs);
-	border-bottom: 0;
 }
 
-.plugin-category-nav .category-item {
-	border-radius: var(--radius-sm);
+.plugin-category-nav .plugin-category-tab {
+	border: 0;
+	border-bottom: 2px solid transparent;
+	border-radius: 0;
+	padding: var(--ui-explorer-tab-padding);
+	font-size: var(--ui-explorer-tab-font-size);
+	min-height: var(--button-height-md);
+}
+
+.plugin-category-nav .plugin-category-tab.active {
+	border-bottom: var(--ui-explorer-tab-active-border);
+	background: var(--ui-explorer-tab-active-background);
+	color: var(--pico-primary);
+	font-weight: var(--ui-explorer-tab-active-font-weight);
+}
+
+[data-layout="texlyre-wide"] .app-container>header {
+	padding-inline: var(--space-md);
+	gap: var(--space-sm);
+}
+
+.recipe-variables {
+	padding-top: var(--space-md);
+}
+
+.recipe-form>.form-group,
+.recipe-variables>.form-group {
+	min-width: 0;
 }
 
 .recipe-import.dragging {
@@ -620,4 +643,25 @@
 .recipe-install-buttons .open-dropdown {
 	z-index: 1001;
 	max-width: 360px;
+}
+
+/* Shared button geometry for Chelys action rows and tab controls. */
+.app-container,
+.modal-container,
+.auth-container,
+.backend-recovery {
+	--ui-tab-line-height: var(--ui-button-line-height, 1.2);
+}
+
+.recipe-actions,
+.recipe-actions-utility {
+	align-items: center;
+}
+
+.recipe-actions .action-button {
+	min-height: var(--ui-action-control-height);
+}
+
+.recipe-variables>.ui-field {
+	margin: 0;
 }

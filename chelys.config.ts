@@ -1,6 +1,7 @@
 // chelys.config.ts
 export interface ChelysConfig {
 	productName: string;
+	themeToggle: { light: string; dark: string };
 	userdata: {
 		version: string;
 		default: {
@@ -11,10 +12,12 @@ export interface ChelysConfig {
 
 const config: ChelysConfig = {
 	productName: 'Chelys',
+	themeToggle: { light: 'light', dark: 'dark' },
 	userdata: {
 		version: '0.1.0',
 		default: {
 			settings: {
+				themeVariant: 'light',
 				recipeRegistryUrl:
 					'https://texlyre.github.io/chelys-recipes/api/recipes.json',
 				enableCodedSeeds: false,
@@ -22,7 +25,6 @@ const config: ChelysConfig = {
 				headlessSignalingOrigin: 'http://localhost:5173',
 				collabAutoReconnect: true,
 				closeBehavior: 'tray',
-				startOnBoot: false,
 				recipePlatformOverride: 'auto',
 				dynamicPortFallback: true,
 				defaultContainerEngine: 'docker',

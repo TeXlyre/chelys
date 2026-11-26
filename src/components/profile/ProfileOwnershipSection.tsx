@@ -67,7 +67,11 @@ export default function ProfileOwnershipSection({
 				}
 			}
 			onChange?.(mode);
-			setNotice('Preference saved. An already-running backend is not stopped or replaced until you apply the new mode.');
+			setNotice(next.active === 'unavailable'
+				? 'Preference saved. Retry the connection to start the backend.'
+				: next.restartRequired
+					? 'Preference saved. Apply the new mode to restart the backend.'
+					: 'Preference saved.');
 		} catch (caught) {
 			setError(String(caught));
 		} finally {

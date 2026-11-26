@@ -5,7 +5,7 @@ import { toHex } from '@chelys/protocol';
 
 import { t } from '@/i18n';
 import { useRoom } from '../../hooks/useRoom';
-import CopyField from '../common/CopyField';
+import CopyField from '@texlyre/components/common/CopyField';
 import PasteField from '../common/PasteField';
 import ThemeToggle from '../settings/ThemeToggle';
 import CredentialStorageWarning from '../common/CredentialStorageWarning';

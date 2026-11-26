@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { localCommand } from '../../control/localClient';
 import CollaboratorAvatars, {
 	type CollaboratorState,
-} from '../common/CollaboratorAvatars';
+} from '../common/SnapshotCollaboratorAvatars';
 
 const AccountCollabIndicator: React.FC = () => {
 	const [collaborators, setCollaborators] = useState<CollaboratorState[]>([]);

@@ -1,47 +1,72 @@
-// src/theme/themeVariant.ts
-const STORAGE_KEY_GLOBAL = 'texlyre-settings';
-const VARIANT_SETTING_ID = 'theme-variant';
+// Chelys appearance uses the upstream TeXlyre palette definitions.
+import {
+	isThemeColorId,
+	themes,
+	type ThemeColorId,
+} from '../../external/texlyre/extras/themes/shared/colors';
+import config from '../../chelys.config';
 
-const DARK_VARIANTS = new Set(['dark', 'monokai', 'tomorrow_night_blue']);
-
+const STORAGE_KEY = 'chelys-theme-variant';
+const DARK_VARIANTS = new Set<ThemeColorId>([
+	'dark',
+	'monokai',
+	'tomorrow_night_blue',
+	'nord',
+	'deuteranopia',
+]);
 export type ThemeVariant = 'dark' | 'light';
+export type ThemePreference = ThemeColorId | 'system';
+export const themeOptions = [
+	{ value: 'system', label: 'System' },
+	...Object.keys(themes).map((value) => ({
+		value,
+		label: value.split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
+	})),
+];
 
-function getStorageKey(): string {
-	const userId = localStorage.getItem('texlyre-current-user');
-	return userId ? `texlyre-user-${userId}-settings` : STORAGE_KEY_GLOBAL;
+export function normalizeVariant(value: unknown): ThemePreference {
+	return typeof value === 'string' && (value === 'system' || isThemeColorId(value))
+		? value
+		: 'light';
 }
 
-function readStoredVariant(): ThemeVariant {
+export function getInitialVariant(): ThemePreference {
 	try {
-		const raw = localStorage.getItem(getStorageKey());
-		const stored = raw ? JSON.parse(raw)[VARIANT_SETTING_ID] : null;
-		if (stored === 'system') {
-			return window.matchMedia('(prefers-color-scheme: dark)').matches
-				? 'dark'
-				: 'light';
-		}
-		return DARK_VARIANTS.has(stored) ? 'dark' : 'light';
+		return normalizeVariant(localStorage.getItem(STORAGE_KEY) ?? config.userdata.default.settings.themeVariant);
 	} catch {
-		return 'light';
+		return normalizeVariant(config.userdata.default.settings.themeVariant);
 	}
 }
 
-export function applyThemeVariant(variant: ThemeVariant): void {
-	document.documentElement.setAttribute('data-theme', variant);
-	document.documentElement.setAttribute('data-theme-mode', variant);
+export function applyThemeVariant(value: unknown): void {
+	const preference = normalizeVariant(value);
+	const variant = preference === 'system'
+		? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+		: preference;
+	const mode = DARK_VARIANTS.has(variant) ? 'dark' : 'light';
+	const root = document.documentElement;
+	for (const [key, color] of Object.entries(themes[variant])) {
+		root.style.setProperty(`--pico-${key}`, color);
+	}
+	root.style.setProperty('--text-color', themes[variant].color);
+	root.setAttribute('data-theme', variant);
+	root.setAttribute('data-theme-mode', mode);
+	root.style.colorScheme = mode;
 }
 
-export function getInitialVariant(): ThemeVariant {
-	return readStoredVariant();
-}
-
-export function setThemeVariant(variant: ThemeVariant): void {
-	applyThemeVariant(variant);
+export function setThemeVariant(value: unknown): void {
+	const preference = normalizeVariant(value);
+	applyThemeVariant(preference);
 	try {
-		const key = getStorageKey();
-		const raw = localStorage.getItem(key);
-		const obj = raw ? JSON.parse(raw) : {};
-		obj[VARIANT_SETTING_ID] = variant;
-		localStorage.setItem(key, JSON.stringify(obj));
-	} catch {}
+		if (localStorage.getItem(STORAGE_KEY) !== preference) localStorage.setItem(STORAGE_KEY, preference);
+	} catch {
+		// The active palette remains usable even if local storage is unavailable.
+	}
+}
+
+export function nextThemeVariant(mode: ThemeVariant): ThemeColorId {
+	const target = mode === 'dark' ? config.themeToggle.light : config.themeToggle.dark;
+	const fallback = mode === 'dark' ? 'light' : 'dark';
+	if (!isThemeColorId(target) || DARK_VARIANTS.has(target) !== (fallback === 'dark')) return fallback;
+	return target;
 }

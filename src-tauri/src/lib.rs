@@ -32,7 +32,7 @@ enum CloseBehavior {
 #[derive(Default)]
 struct CloseBehaviorState(Mutex<Option<CloseBehavior>>);
 
-fn credential_directory(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
+fn credential_directory() -> Result<PathBuf, AppError> {
     if let Some(value) = std::env::var_os("CHELYS_DATA_DIR").filter(|value| !value.is_empty()) {
         let directory = PathBuf::from(value);
         if !directory.is_absolute() {
@@ -44,9 +44,8 @@ fn credential_directory(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
     let base = if let Some(xdg) = std::env::var_os("XDG_DATA_HOME").filter(|value| !value.is_empty()) {
         PathBuf::from(xdg)
     } else {
-        app.path()
-            .home_dir()
-            .map_err(|error| AppError::Credential(error.to_string()))?
+        std::env::home_dir()
+            .ok_or_else(|| AppError::Credential("Home directory unavailable".into()))?
             .join(".local")
             .join("share")
     };
@@ -54,6 +53,15 @@ fn credential_directory(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
         return Err(AppError::Credential("Credential data directory must be absolute".into()));
     }
     Ok(base.join("chelys"))
+}
+
+// Resolve the same local preference before creating any desktop windows.
+// Invalid preferences open the desktop recovery UI instead of silently failing at login.
+pub fn autostart_headless() -> bool {
+    credential_directory()
+        .map_err(|error| error.to_string())
+        .and_then(|directory| ownership::read(&directory))
+        .is_ok_and(|mode| mode != ownership::OwnerMode::Desktop)
 }
 
 #[tauri::command]
@@ -149,15 +157,15 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["--headless"]),
+            Some(vec!["--autostart"]),
         ))
         .setup(|app| {
-            let directory = credential_directory(app.handle()).map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?;
+            let directory = credential_directory().map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?;
             let instance = instance::initialize(app.handle(), directory)
                 .map_err(|error| Box::<dyn std::error::Error>::from(error))?;
             app.manage(instance);
             tray::build(app.handle())?;
-            if std::env::args().any(|arg| arg == "--hidden") && app.tray_by_id("main").is_some() {
+            if std::env::args().any(|arg| arg == "--hidden" || arg == "--autostart") && app.tray_by_id("main").is_some() {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.hide();
                 }

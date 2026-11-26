@@ -72,7 +72,7 @@ test('peer inventory uses an accessible named section and installed UI buttons h
 	);
 	for (const file of [
 		'src/components/app/DashboardApp.tsx',
-		'src/components/profile/BackgroundServerSection.tsx',
+		'src/components/settings/BackendOwnershipSection.tsx',
 	]) {
 		const text = read(file);
 		assert.doesNotMatch(

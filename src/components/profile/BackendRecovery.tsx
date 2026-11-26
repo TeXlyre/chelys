@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import ProfileOwnershipSection from './ProfileOwnershipSection';
+import BackendOwnershipSection from '../settings/BackendOwnershipSection';
 
 /** Native recovery is deliberately independent of the backend and its storage. */
 export default function BackendRecovery({ reason }: { reason?: string }) {
@@ -27,7 +27,7 @@ export default function BackendRecovery({ reason }: { reason?: string }) {
 				<button type='button' onClick={() => void retry()} aria-busy={busy} disabled={busy}>
 					{busy ? 'Connecting…' : 'Retry connection'}
 				</button>
-				<ProfileOwnershipSection compact />
+				<BackendOwnershipSection compact />
 				<p className='setting-description'>
 					You can also recover without the desktop: <code>chelys runtime preference automatic</code>,
 					 then reopen Chelys. This command does not need a running backend.

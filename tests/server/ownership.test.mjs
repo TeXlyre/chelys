@@ -111,7 +111,7 @@ test('headless implementation and desktop settings use the same preference path 
 	assert.match(source, /\.instance-startup\.lock/);
 	assert.match(source, /Automatic, Desktop, Headless/);
 	const ui = fs.readFileSync(
-		path.join(root, 'src/components/profile/ProfileOwnershipSection.tsx'),
+		path.join(root, 'src/components/settings/BackendOwnershipSection.tsx'),
 		'utf8',
 	);
 	assert.match(ui, /Automatic \(recommended\)/);
@@ -144,7 +144,7 @@ test('runtime stop is safe when the backend is already offline', () => {
 
 test('lifecycle stop is exposed only through local control and Settings', () => {
     const server = fs.readFileSync(path.join(root, 'server/daemon.mjs'), 'utf8');
-    const settings = fs.readFileSync(path.join(root, 'src/components/profile/ProfileOwnershipSection.tsx'), 'utf8');
+    const settings = fs.readFileSync(path.join(root, 'src/components/settings/BackendOwnershipSection.tsx'), 'utf8');
     const native = fs.readFileSync(path.join(root, 'src-tauri/src/instance.rs'), 'utf8');
     assert.match(server, /origin\.transport === 'local'/);
     assert.match(server, /request\.method === 'instance\.shutdown'/);
@@ -190,3 +190,39 @@ test('recovery screen can retry, and has a scrollable layout independent of the 
 });
 
 test.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+
+test('runtime controls belong to System settings and share the offline recovery control', () => {
+	const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+	const modal = read('src/components/settings/SettingsModal.tsx');
+	const recovery = read('src/components/profile/BackendRecovery.tsx');
+	const profile = read('src/components/profile/ProfileModal.tsx');
+	const runtime = read('src/components/settings/BackendOwnershipSection.tsx');
+	assert.match(modal, /activeCategory === t\('System'\) && activeSubcategory === t\('Runtime'\)/);
+	assert.match(modal, /showRuntime && <BackendOwnershipSection/);
+	assert.match(modal, /runtimeSearchTerms\.some/);
+	assert.match(recovery, /<BackendOwnershipSection compact/);
+	assert.doesNotMatch(profile, /BackgroundServerSection|ProfileOwnershipSection|BackendOwnershipSection/);
+	assert.match(runtime, /invoke<OwnerStatus>\('instance_owner_set', \{ mode \}\)/);
+	assert.match(runtime, /invoke\('instance_restart'\)/);
+	assert.match(runtime, /window\.location\.reload\(\)/);
+	assert.match(runtime, /invoke<string>\('instance_install_cli'\)/);
+});
+
+test('OS login registration uses shared setting controls and follows ownership at launch', () => {
+	const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+	const runtime = read('src/components/settings/BackendOwnershipSection.tsx');
+	assert.doesNotMatch(read('chelys.config.ts'), /startOnBoot/);
+	assert.doesNotMatch(read('src/settings/registry.ts'), /startOnBoot|applyStartOnBoot/);
+	assert.doesNotMatch(read('src/utils/systemSettings.ts'), /applyStartOnBoot/);
+	assert.match(runtime, /setAutostart\(await isEnabled\(\)\)/);
+	assert.match(runtime, /<SettingControl/);
+	assert.match(runtime, /disabled: busy \|\| autostart === null/);
+	assert.doesNotMatch(runtime, /if \(mode === 'desktop'\)|next && current\.preference/);
+	const native = read('src-tauri/src/lib.rs');
+	const main = read('src-tauri/src/main.rs');
+	assert.match(native, /Some\(vec!\["--autostart"\]\)/);
+	assert.match(native, /credential_directory\(\)[\s\S]*?ownership::read\(&directory\)/);
+	assert.match(native, /mode != ownership::OwnerMode::Desktop/);
+	assert.match(main, /Some\("--autostart"\)[\s\S]*?autostart_headless\(\)[\s\S]*?run_cli\(vec!\["--headless"\.into\(\)\]\)/);
+	assert.match(read('src/settings/registry.ts'), /Desktop-managed backends stop on quit; other backends keep running/);
+});

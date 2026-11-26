@@ -8,7 +8,7 @@ import {
 	getUserData,
 	setUserData,
 } from '@texlyre/utils/userDataUtils';
-import Modal from '../common/Modal';
+import Modal from '@texlyre/components/common/Modal';
 import { EditIcon } from '../common/Icons';
 
 type EditableType = Exclude<UserDataType, 'all'>;

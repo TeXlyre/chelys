@@ -165,10 +165,9 @@ export default function PeerControlSection() {
 		<section className='control-peer-section'>
 			<div className='control-panel-heading'>
 				<div>
-					<h3>Chelys peers</h3>
+					<h3>Remote instances</h3>
 					<p className='field-hint'>
-						WebRTC peers are discovered through the account room. WebSocket
-						connections are saved endpoints until inspected.
+						Discover peers in your account room or add a WebSocket endpoint.
 					</p>
 				</div>
 				<div className='control-toolbar'>
@@ -182,10 +181,11 @@ export default function PeerControlSection() {
 					</button>
 					<button
 						type='button'
-						className='button secondary'
+						className='button primary'
+						aria-expanded={adding}
 						onClick={() => setAdding((previous) => !previous)}
 					>
-						Add connection
+						{adding ? 'Cancel' : 'Add connection'}
 					</button>
 				</div>
 			</div>
@@ -222,13 +222,13 @@ export default function PeerControlSection() {
 					</button>
 				</form>
 			)}
-			<div className='control-peer-layout'>
+			<div className='control-peer-layout' data-empty={peers.length === 0 && !target}>
 				<section
 					className='control-peer-list'
 					aria-label='Discovered and saved Chelys peers'
 				>
 					{peers.length === 0 && (
-						<p className='field-hint'>
+						<p className='control-empty-state ui-empty-state' data-style='empty'>
 							No remote instances discovered or saved.
 						</p>
 					)}
@@ -255,9 +255,9 @@ export default function PeerControlSection() {
 						);
 					})}
 				</section>
-				<div className='control-peer-detail'>
+				<div className='control-peer-detail' hidden={peers.length === 0 && !target}>
 					{!target ? (
-						<p className='field-hint'>
+						<p className='control-empty-state field-hint'>
 							Select an instance to inspect the information and recipes it
 							allows you to see.
 						</p>

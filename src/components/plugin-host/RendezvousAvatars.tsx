@@ -5,7 +5,7 @@ import { localCommand } from '../../control/localClient';
 import type { Recipe } from '../../plugin-host/types';
 import CollaboratorAvatars, {
 	type CollaboratorState,
-} from '../common/CollaboratorAvatars';
+} from '../common/SnapshotCollaboratorAvatars';
 
 interface RendezvousAvatarsProps {
 	recipe: Recipe;

@@ -1,7 +1,8 @@
 // src/components/profile/UserDropdown.tsx
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 
+import PositionedDropdown from '@texlyre/components/common/PositionedDropdown';
 import { t } from '@/i18n';
 import { UserIcon, EditIcon, LogoutIcon } from '../common/Icons';
 
@@ -17,30 +18,14 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 	onOpenProfile,
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
-	const dropdownRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		const handleClickOutside = (event: MouseEvent) => {
-			if (
-				dropdownRef.current &&
-				!dropdownRef.current.contains(event.target as Node)
-			) {
-				setIsOpen(false);
-			}
-		};
-
-		document.addEventListener('mousedown', handleClickOutside);
-		return () => {
-			document.removeEventListener('mousedown', handleClickOutside);
-		};
-	}, []);
+	const [anchor, setAnchor] = useState<HTMLElement | null>(null);
 
 	return (
-		<div className='user-dropdown-container' ref={dropdownRef}>
+		<div className='user-dropdown-container'>
 			<button
 				type='button'
 				className='user-dropdown-button'
-				onClick={() => setIsOpen(!isOpen)}
+				onClick={(event) => { setAnchor(event.currentTarget); setIsOpen(!isOpen); }}
 				aria-expanded={isOpen}
 				aria-haspopup='true'
 			>
@@ -48,8 +33,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 				<span>{username}</span>
 			</button>
 
-			{isOpen && (
-				<div className='user-dropdown-menu ui-menu' data-layout='column'>
+			<PositionedDropdown isOpen={isOpen} triggerElement={anchor} onClose={() => setIsOpen(false)}>
 					<button
 						type='button'
 						className='dropdown-item ui-menu-item'
@@ -73,8 +57,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({
 						<LogoutIcon />
 						<span>{t('Logout')}</span>
 					</button>
-				</div>
-			)}
+			</PositionedDropdown>
 		</div>
 	);
 };

@@ -1,9 +1,8 @@
-// src/components/common/CollaboratorAvatars.tsx
+// src/components/common/SnapshotCollaboratorAvatars.tsx
 import type React from 'react';
-import { useEffect, useRef, useState } from 'react';
-import type { Awareness } from 'y-protocols/awareness';
+import { useRef, useState } from 'react';
 
-import Popover from './Popover';
+import Popover from '@texlyre/components/common/Popover';
 
 export interface CollaboratorUser {
 	id?: string;
@@ -21,58 +20,19 @@ export interface CollaboratorState {
 }
 
 interface CollaboratorAvatarsProps {
-	awareness?: Awareness;
-	snapshot?: CollaboratorState[];
+	snapshot: CollaboratorState[];
 	maxVisible?: number;
 	excludeLocal?: boolean;
 }
 
-const CollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
-	awareness,
+const SnapshotCollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
 	snapshot,
 	maxVisible = 4,
 	excludeLocal = false,
 }) => {
-	const [collaborators, setCollaborators] = useState<CollaboratorState[]>([]);
+	const collaborators = excludeLocal ? snapshot.filter((item) => !item.isLocal) : snapshot;
 	const [expanded, setExpanded] = useState(false);
 	const rowRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		if (!awareness) {
-			setCollaborators(snapshot ?? []);
-			return;
-		}
-		const update = () => {
-			const states = awareness.getStates();
-			const result: CollaboratorState[] = [];
-
-			states.forEach((state, clientId) => {
-				if (!state.user) return;
-				const isLocal = clientId === awareness.clientID;
-				if (excludeLocal && isLocal) return;
-				result.push({
-					clientId,
-					user: state.user as CollaboratorUser,
-					isLocal,
-				});
-			});
-
-			result.sort((a, b) => {
-				if (a.isLocal) return -1;
-				if (b.isLocal) return 1;
-				return (a.user.username || '').localeCompare(b.user.username || '');
-			});
-
-			setCollaborators(result);
-		};
-
-		awareness.on('change', update);
-		update();
-
-		return () => {
-			awareness.off('change', update);
-		};
-	}, [awareness, snapshot, excludeLocal]);
 
 	if (collaborators.length === 0) return null;
 
@@ -159,4 +119,4 @@ const CollaboratorAvatars: React.FC<CollaboratorAvatarsProps> = ({
 	);
 };
 
-export default CollaboratorAvatars;
+export default SnapshotCollaboratorAvatars;

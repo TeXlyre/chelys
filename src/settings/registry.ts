@@ -3,9 +3,16 @@ import { t } from '@/i18n';
 import type { Setting } from '../contexts/SettingsContext';
 import { getSettingDefault } from '../config';
 import { resetPlatformCache } from '../plugin-host/platformResolution';
-import { applyCloseBehavior, applyStartOnBoot } from '../utils/systemSettings';
+import { applyCloseBehavior } from '../utils/systemSettings';
 import { localCommand } from '../control/localClient';
 import { flushSharedStorage } from '../runtime/storageMirror';
+
+import {
+	getInitialVariant,
+	normalizeVariant,
+	setThemeVariant,
+	themeOptions,
+} from '../theme/themeVariant';
 
 const reinjectBackend = () => {
 	void flushSharedStorage()
@@ -16,6 +23,18 @@ const reinjectBackend = () => {
 };
 
 export const getChelysSettings = (): Setting[] => [
+	{
+		id: 'themeVariant',
+		category: t('Appearance'),
+		type: 'select',
+		label: t('Colour theme'),
+		description: t('Choose the colour palette used by Chelys.'),
+		defaultValue: getInitialVariant(),
+		options: themeOptions.map((option) => ({ ...option, label: t(option.label) })),
+		liveUpdate: true,
+		validate: (value) => normalizeVariant(value) === value,
+		onChange: setThemeVariant,
+	},
 	{
 		id: 'recipeRegistryUrl',
 		category: t('Recipes'),
@@ -191,31 +210,17 @@ export const getChelysSettings = (): Setting[] => [
 	{
 		id: 'closeBehavior',
 		category: t('System'),
-		subcategory: t('Startup'),
+		subcategory: t('Runtime'),
 		type: 'select',
 		label: t('When closing the window'),
 		description: t(
-			'Hide the desktop window in the system tray or quit the UI. The shared backend keeps running.',
+			'Hide the desktop window in the system tray or quit the desktop. Desktop-managed backends stop on quit; other backends keep running.',
 		),
 		defaultValue: getSettingDefault('closeBehavior'),
 		options: [
 			{ label: t('Hide to system tray'), value: 'tray' },
-			{ label: t('Quit desktop UI'), value: 'exit' },
+			{ label: t('Quit Chelys desktop'), value: 'exit' },
 		],
 		onChange: (value) => applyCloseBehavior(value === 'exit'),
-	},
-	{
-		id: 'startOnBoot',
-		category: t('System'),
-		subcategory: t('Startup'),
-		type: 'checkbox',
-		label: t('Start on system boot'),
-		description: t(
-			'Start the headless backend at OS login (without opening a desktop window)',
-		),
-		defaultValue: getSettingDefault('startOnBoot'),
-		onChange: (value) => {
-			void applyStartOnBoot(value === true);
-		},
 	},
 ];
