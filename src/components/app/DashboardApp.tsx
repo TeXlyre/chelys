@@ -68,7 +68,7 @@ const DashboardApp: React.FC = () => {
 					<div className='plugin-category-nav'>
 						<button
 							type='button'
-							className={`category-item ${activeCategory === null ? 'active' : ''}`}
+							className={`plugin-category-tab ${activeCategory === null ? 'active' : ''}`}
 							disabled={panelBusy && activeCategory !== null}
 							onClick={() => {
 								if (!(panelBusy && activeCategory !== null))
@@ -81,7 +81,7 @@ const DashboardApp: React.FC = () => {
 							<button
 								type='button'
 								key={definition.type}
-								className={`category-item ${activeCategory === definition.type ? 'active' : ''}`}
+								className={`plugin-category-tab ${activeCategory === definition.type ? 'active' : ''}`}
 								disabled={panelBusy && activeCategory !== definition.type}
 								onClick={() => {
 									if (!(panelBusy && activeCategory !== definition.type))
@@ -125,7 +125,7 @@ const DashboardApp: React.FC = () => {
 				onClose={() => setShowProfile(false)}
 			/>
 			<footer>
-				<p className='project-type-badge'>
+				<p className='project-type-badge footer-status'>
 					{t('OS')}:{' '}
 					{platformInfo
 						? platformInfo.override === 'auto'

@@ -9,7 +9,7 @@ import {
 	clearUserData,
 	importFromFile,
 } from '@texlyre/utils/userDataUtils';
-import IconButton from '../common/IconButton';
+import IconButton from '@texlyre/components/common/IconButton';
 import { TrashIcon, DownloadIcon, ImportIcon, EditIcon } from '../common/Icons';
 import JsonEditorModal from './JsonEditorModal';
 

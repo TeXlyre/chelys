@@ -44,7 +44,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 
 			case 'select':
 				return (
-					<div className='select-control'>
+					<div className='select-control ui-field' data-gap='xs'>
 						<label htmlFor={controlId}>{setting.label}</label>
 						<select
 							id={controlId}
@@ -63,7 +63,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 
 			case 'text':
 				return (
-					<div className='text-control'>
+					<div className='text-control ui-field' data-gap='xs'>
 						<label htmlFor={controlId}>{setting.label}</label>
 						<input
 							id={controlId}
@@ -78,7 +78,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 
 			case 'number':
 				return (
-					<div className='number-control'>
+					<div className='number-control ui-field' data-gap='xs'>
 						<label htmlFor={controlId}>{setting.label}</label>
 						<input
 							id={controlId}
@@ -95,7 +95,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 
 			case 'color':
 				return (
-					<div className='color-control'>
+					<div className='color-control ui-field' data-gap='xs'>
 						<label htmlFor={controlId}>{setting.label}</label>
 						<input
 							id={controlId}
@@ -124,7 +124,7 @@ const SettingControl: React.FC<SettingControlProps> = ({
 				<div className='setting-dependency-badge'>{setting.disabledReason}</div>
 			)}
 			{setting.description && (
-				<div className='setting-description'>{setting.description}</div>
+				<div className='setting-description ui-field-hint'>{setting.description}</div>
 			)}
 		</div>
 	);

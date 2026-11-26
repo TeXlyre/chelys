@@ -14,8 +14,8 @@ import {
 } from '../../plugin-host/recipeSharing';
 import type { Recipe } from '../../plugin-host/types';
 import { withoutSecretValues } from '../../plugin-host/variableResolution';
-import IconButton from '../common/IconButton';
-import Popover from '../common/Popover';
+import IconButton from '@texlyre/components/common/IconButton';
+import Popover from '@texlyre/components/common/Popover';
 import { DownloadIcon, ShareIcon } from '../common/Icons';
 
 interface RecipeShareActionsProps {
