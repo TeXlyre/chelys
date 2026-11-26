@@ -5,6 +5,9 @@ import { registerTypesetterPlugin } from '../plugins/typesetter';
 import { registerInfrastructurePlugin } from '../plugins/infrastructure';
 import { registerStoragePlugin } from '../plugins/storage';
 
+import { registerServicePlugin } from '../plugins/service';
+import { registerEndpointPlugin } from '../plugins/endpoint';
+
 let initialized = false;
 export function registerChelysPlugins(): void {
 	if (initialized) return;
@@ -13,5 +16,7 @@ export function registerChelysPlugins(): void {
 	registerStoragePlugin();
 	registerInfrastructurePlugin();
 	registerAcpPlugin();
+	registerEndpointPlugin();
+	registerServicePlugin();
 	initialized = true;
 }

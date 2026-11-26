@@ -81,7 +81,7 @@ const RecipeShareActions: React.FC<RecipeShareActionsProps> = ({
 				}
 			/>
 
-			<div className='recipe-share' ref={anchorRef}>
+			{recipe.type !== 'service' && <div className='recipe-share' ref={anchorRef}>
 				<IconButton
 					icon={<ShareIcon />}
 					label={t('Share')}
@@ -143,7 +143,7 @@ const RecipeShareActions: React.FC<RecipeShareActionsProps> = ({
 						{t('Download for TeXlyre')}
 					</button>
 				</Popover>
-			</div>
+			</div>}
 		</>
 	);
 };

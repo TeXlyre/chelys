@@ -140,6 +140,7 @@ export function resolveRecipe(recipe: Recipe): Recipe {
 		];
 	}
 
+	if (recipe.type === 'endpoint') resolved.typeConfig = { ...resolved.typeConfig, configId: recipe.id };
 	const rewritten = rewriteTransportUrl(
 		resolved.typeConfig as { transportUrl?: unknown; configId?: unknown },
 	);

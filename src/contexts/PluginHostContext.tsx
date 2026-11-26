@@ -20,7 +20,9 @@ import type {
 import { localCommand } from '../control/localClient';
 import { registerChelysPlugins } from '../runtime/registerPlugins';
 
+export interface MemberStatus { reference: string; recipeId: string; local: boolean; name: string; state: string }
 interface PluginHostContextType {
+    members: Record<string, MemberStatus[]>;
 	recipes: Recipe[];
 	statuses: Map<string, RecipeStatus>;
 	isReady: boolean;
@@ -56,6 +58,7 @@ interface PluginHostContextType {
 
 export const PluginHostContext = createContext<PluginHostContextType>({
 	recipes: [],
+	members: {},
 	statuses: new Map(),
 	isReady: false,
 	install: async (
@@ -86,6 +89,7 @@ export const PluginHostContext = createContext<PluginHostContextType>({
 });
 
 type RecipeSnapshot = {
+    members: Record<string, MemberStatus[]>;
 	recipes: Recipe[];
 	statuses: Record<string, RecipeStatus>;
 	engines: Record<string, ContainerEngine | null>;
@@ -98,6 +102,7 @@ export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 	const [statuses, setStatuses] = useState<Map<string, RecipeStatus>>(
 		new Map(),
 	);
+	const [members, setMembers] = useState<Record<string, MemberStatus[]>>({});
 	const [recipes, setRecipes] = useState<Recipe[]>([]);
 	const [registry, setRegistry] = useState<RegistryEntry[]>([]);
 	const [engines, setEngines] = useState<
@@ -108,6 +113,7 @@ export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 	const refresh = async () => {
 		const snapshot = await localCommand<RecipeSnapshot>('recipes.snapshot');
 		setRecipes(snapshot.recipes);
+		setMembers(snapshot.members ?? {});
 		setStatuses(new Map(Object.entries(snapshot.statuses)));
 		setEngines(snapshot.engines);
 		return snapshot.recipes;
@@ -202,6 +208,7 @@ export const PluginHostProvider: React.FC<{ children: ReactNode }> = ({
 		<PluginHostContext.Provider
 			value={{
 				recipes,
+				members,
 				statuses,
 				isReady,
 				install: async (id, mode, source) => {

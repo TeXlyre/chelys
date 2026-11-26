@@ -10,6 +10,7 @@ export interface InstallOption {
 
 /** The same choices for individual and bulk installation. */
 export function recipeInstallOptions(recipe: Recipe): InstallOption[] {
+	if (recipe.type === 'service') return [{ id: 'connect', mode: 'connect', label: 'Install member plugins' }];
 	return recipe.modes.flatMap((mode): InstallOption[] => {
 		if (mode.kind !== 'docker') {
 			return [{ id: mode.kind, mode: mode.kind, label: modeLabel(mode.kind) }];

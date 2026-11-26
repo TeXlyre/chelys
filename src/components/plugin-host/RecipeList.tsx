@@ -30,6 +30,7 @@ import {
 import RecipeBrowser from './RecipeBrowser';
 import RecipeForm from './RecipeForm';
 import RecipeImport from './RecipeImport';
+import { localCommand } from '../../control/localClient';
 import RecipeShareActions from './RecipeShareActions';
 import RendezvousAvatars from './RendezvousAvatars';
 import RecipeVariables from './RecipeVariables';
@@ -55,6 +56,7 @@ interface RecipeListProps {
 const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 	const {
 		recipes,
+		members,
 		statuses,
 		isReady,
 		install,
@@ -81,6 +83,8 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 	const [bulkAnchor, setBulkAnchor] = useState<HTMLElement | null>(null);
 	const [bulkRunning, setBulkRunning] = useState(false);
 	const [bulkResult, setBulkResult] = useState('');
+    const [checking, setChecking] = useState<string | null>(null);
+    const [checkError, setCheckError] = useState('');
 	const bulkLock = useRef(false);
 	const latest = useRef({ recipes, statuses });
 	latest.current = { recipes, statuses };
@@ -213,6 +217,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 		return (
 			<RecipeForm
 				recipe={editing === 'new' ? null : editing}
+                category={category}
 				initialView={editingView}
 				onDone={() => setEditing(null)}
 			/>
@@ -339,8 +344,9 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 				const busy = state === 'installing';
 				const starting = state === 'starting';
 				const stopping = state === 'stopping';
-				const installed = state === 'installed' || state === 'stopped';
-				const running = state === 'running';
+				const isService = recipe.type === 'service';
+                const installed = state === 'installed' || state === 'stopped' || (isService && state === 'error' && status?.mode === 'connect');
+				const running = state === 'running' || !!status?.groupActive;
 				const modeKinds = recipe.modes.map((m) => m.kind);
 				const hasVariables = !!recipe.variables && recipe.variables.length > 0;
 				const updateVersion = updatesAvailable.get(recipe.id);
@@ -398,7 +404,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 									</span>
 								)}
 								<span className='recipe-type-badge'>{typeLabel}</span>
-								{status?.mode && (
+								{status?.mode && !isService && (
 									<span className='recipe-mode-badge'>
 										{t(modeLabel(status.mode))}
 									</span>
@@ -412,6 +418,18 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 							</div>
 						</div>
 
+                        {isService && <div className='recipe-members'>
+                            {(members[recipe.id] ?? []).map(member => {
+                                const count = Object.values(members).filter(group => group.some(other => other.local === member.local && (member.local ? other.recipeId === member.recipeId : other.reference === member.reference))).length;
+                                return <div key={member.reference} className='recipe-card-main'>
+                                    <div className='recipe-card-info'><span>{member.name}</span><small title={member.reference}>{member.local ? t('Local') : member.reference.split('/')[0]}</small>{count > 1 && <small>{t('Shared')} · {count}</small>}</div>
+                                    <small className={`recipe-state recipe-state-${member.state}`}>{member.local ? (STATE_LABELS[member.state as RecipeRuntimeState] ?? member.state) : `${member.state}${member.state === 'running' ? ' (last checked)' : ''}`}</small>
+                                </div>;
+                            })}
+                            <small>{t('Stopping or removing a service leaves its plugins running.')}</small>
+                            {(members[recipe.id] ?? []).some(member => !member.local) && <button type='button' className='button' disabled={checking !== null || busy || locked} onClick={() => { setChecking(recipe.id); setCheckError(''); void localCommand('recipes.service.check', { id: recipe.id }).catch(error => setCheckError(String(error))).finally(() => setChecking(null)); }}>{checking === recipe.id ? t('Checking…') : t('Check members')}</button>}
+                            {checkError && <small role='alert'>{checkError}</small>}
+                        </div>}
 						{status?.lastError && (
 							<div className='recipe-error'>{status.lastError}</div>
 						)}
@@ -546,7 +564,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 									icon={<EditIcon />}
 									label={t('Edit')}
 									tooltip={t('Open this recipe in the editor.')}
-									disabled={bulkRunning || locked}
+									disabled={bulkRunning || locked || (isService && running)}
 									onClick={() => openEditor(recipe, 'guided')}
 								/>
 								<RecipeShareActions

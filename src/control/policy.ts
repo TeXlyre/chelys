@@ -9,6 +9,7 @@ export const PERMISSIONS = [
 	'infrastructure.logs',
 	'infrastructure.manage',
 	'recipes.read',
+    'recipes.connect',
 	'recipes.logs',
 	'recipes.edit',
 	'recipes.install',

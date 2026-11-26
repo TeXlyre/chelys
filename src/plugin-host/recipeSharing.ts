@@ -64,7 +64,10 @@ export function describeRecipeShare(recipe: Recipe): RecipeShareInfo {
 	const config = resolved.typeConfig as SharedTransportConfig;
 	const transportType = text(config.transportType) ?? 'websocket';
 	const roomId = text(config.transportRoomId);
-	const json = JSON.stringify(build(resolved), null, 2);
+	let json: string;
+    try { json = JSON.stringify(build(resolved), null, 2); } catch (error) {
+        return { json: null, fileName, transportType, state: 'blocked', message: error instanceof Error ? error.message : 'Invalid configuration' };
+    }
 
 	if (transportType === 'webrtc' && !roomId) {
 		return {

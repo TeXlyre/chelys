@@ -34,10 +34,10 @@ const usage = `Chelys CLI — one command grammar for local and remote peers
   chelys account {settings|properties|records|secrets} {list|get KEY|set KEY JSON|delete KEY}
   chelys account records {append KEY JSON|remove KEY RECORD_ID}       TeXlyre record entries
   chelys profile {show|set name VALUE|update [--username ...] [--prf HEX|--prf-file FILE|--generate-prf]|rotate-prf}
-  chelys recipes {list|registry|add ID [--version VERSION]|inspect ID|logs ID|import FILE|remove ID}
+  chelys recipes {list|registry|add ID [--version VERSION]|inspect ID|connection ID|logs ID|import FILE|remove ID}
   chelys recipes metrics ID [--fields cpu,memory,gpu]   On-demand recipe inspection
   chelys recipes share ID {show|set MODE --fields ...}  Local-only sharing policy
-  chelys recipes {install ID MODE [--source registry|build] [--engine docker|podman]|uninstall ID|run ID|stop ID|restart ID}
+  chelys recipes {install ID MODE [--source registry|build] [--engine docker|podman]|uninstall ID|run ID|stop ID|restart ID|check ID|cancel ID}
   chelys recipes set ID FIELD JSON          Fields: name, notes, cwd, typeConfig.KEY, variableValues.KEY
   chelys recipes env {list ID|get ID KEY|set ID KEY VALUE|delete ID KEY}
   chelys access {show|mode disabled|mode peers|mode keys}
@@ -254,7 +254,7 @@ async function secretPrompt(prompt) {
 		input.on('data', onData);
 	});
 }
-async function send(request, timeoutMs = 35_000) {
+async function send(request, timeoutMs = ['recipes.install','recipes.uninstall','recipes.run','recipes.restart','recipes.stop','recipes.remove'].includes(request.method === 'peers.call' ? request.params?.method : request.method) ? 30 * 60_000 + 60_000 : 35_000) {
 	return new Promise((resolve, reject) => {
 		const socket = net.createConnection(socketPath);
 		let buffer = '';
@@ -420,7 +420,10 @@ function decode(positional, options) {
 					...(options.engine ? { engine: options.engine } : {}),
 					initializeVolumes: options['initialize-volumes'] === true,
 				});
-			if (sub === 'uninstall') return rpc('recipes.uninstall', { id: third });
+			if (sub === 'connection') return rpc('recipes.connection', { id: third });
+            if (sub === 'check') return rpc('recipes.service.check', { id: third });
+            if (sub === 'cancel') return rpc('recipes.cancelInstall', { id: third });
+            if (sub === 'uninstall') return rpc('recipes.uninstall', { id: third });
 			if (sub === 'run') return rpc('recipes.run', { id: third });
 			if (sub === 'stop') return rpc('recipes.stop', { id: third });
 			if (sub === 'restart') return rpc('recipes.restart', { id: third });

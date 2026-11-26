@@ -209,12 +209,13 @@ Local RPC is newline-delimited JSON over the private Unix socket or Windows name
 | --- | --- |
 | `inventory.read`, `machine.read` | Instance metadata and machine inventory |
 | `recipes.read`, `recipes.logs`, `recipes.telemetry.read` | Recipe inventory, logs, and permitted telemetry |
-| `recipes.edit`, `recipes.install`, `recipes.run`, `recipes.remove` | Ordinary recipe changes and lifecycle |
+| `recipes.edit`, `recipes.install`, `recipes.run`, `recipes.remove` | Recipe and service-group changes and lifecycle |
+| `recipes.connect` | Read a running endpoint’s independently configured execution descriptor |
 | `infrastructure.manage`, `infrastructure.logs` | Additional authorization for privileged infrastructure operations and logs |
 | `chelys.settings.read/write`, `instance.profile.read/edit` | Instance configuration |
 | `texlyre.{settings,properties,records,secrets}.read/write` | Individual TeXlyre account stores |
 
-Remote recipe lifecycle responses expose state and install mode, not process logs or environment values. Infrastructure operations require `infrastructure.manage` **in addition** to the corresponding recipe permission; an API key must explicitly grant it. Telemetry requires both authorization and a per-recipe sharing policy.
+Remote recipe lifecycle responses expose state and install mode, not process logs or environment values. Infrastructure operations require `infrastructure.manage` **in addition** to the corresponding recipe permission; an API key must explicitly grant it. Telemetry requires both authorization and a per-recipe sharing policy. Service groups use these same commands; each missing local member is authorized before registration, installation or start. Existing member installations are shared; stopping a group does not stop its members. Remote members are already-running same-account references.
 
 ### Remote targets
 

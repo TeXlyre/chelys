@@ -111,6 +111,9 @@ export interface RegistryEntry {
 	version?: string;
 	description?: string;
 	tags?: string[];
+    protocol?: string;
+    providers?: string[];
+    members?: string[];
 	manifestUrl: string;
 	versions?: RecipeVersion[];
 }
@@ -126,6 +129,7 @@ export type RecipeRuntimeState =
 	| 'error';
 
 export interface RecipeStatus {
+    groupActive?: boolean;
 	recipeId: string;
 	state: RecipeRuntimeState;
 	mode: InstallModeKind | null;

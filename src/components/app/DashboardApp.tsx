@@ -7,6 +7,7 @@ import { useRoom } from '../../hooks/useRoom';
 import { PluginHostProvider } from '../../contexts/PluginHostContext';
 import RecipeList from '../plugin-host/RecipeList';
 import { pluginTypeRegistry } from '../../plugin-host/PluginTypeRegistry';
+import { registerChelysPlugins } from '../../runtime/registerPlugins';
 import ProfileModal from '../profile/ProfileModal';
 import SettingsButton from '../settings/SettingsButton';
 import UserDropdown from '../profile/UserDropdown';
@@ -29,6 +30,7 @@ const DashboardApp: React.FC = () => {
 	const { username, logout } = useRoom();
 	const [showProfile, setShowProfile] = useState(false);
 	const [activeCategory, setActiveCategory] = useState<string | null>(null);
+	registerChelysPlugins();
 	const exclusiveCategories = pluginTypeRegistry
 		.list()
 		.filter((definition) => definition.exclusive);

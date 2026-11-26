@@ -79,3 +79,15 @@ Chelys also supports an optional Node-based server runtime and a shared CLI/GUI 
 Chelys uses TeXlyre's Wide theme, shared controls, and colour palettes directly from the `external/texlyre` submodule. Run `npm run init:submodules` to populate the theme assets (existing sparse Git checkouts are extended in place). Chelys-specific styles live under `src/styles/components`.
 
 Choose a palette under **Settings → Appearance → Colour theme**; the header and login toggle use the `themeToggle.light` and `themeToggle.dark` targets in `chelys.config.ts`. The preference is stored in Chelys settings, independently of TeXlyre settings. System follows the OS colour mode.
+
+### Endpoints and services
+
+An `endpoint` recipe runs an independent application backend using its existing system, Docker or connect mode. It declares `typeConfig.protocol`, `transportType` (`webrtc` or `websocket`), and `transportUrl`. Each running endpoint advertises `generic-plugin-config:<machine UUID>.<recipe ID>` with its protocol and transport. WebRTC uses the existing `endpoint:<machine UUID>.<recipe ID>` label and account room; the private upstream URL is not advertised. Use a reachable secured URL for direct WebSocket clients.
+
+A `service` recipe is a process-free collection of references, e.g.:
+
+```json
+{"id":"analysis","name":"Analysis","type":"service","env":{},"modes":[{"kind":"connect"}],"typeConfig":{"members":["ffmpeg","siglip","12345678-1234-1234-1234-123456789abc/gaze-execution"]}}
+```
+
+Open Services in the dashboard, create/import a group, and select local or remote plugins. Install prepares missing local members from the configured registries; existing installations are reused. Run starts missing local members and checks remote members already running on same-account peers with control-read permission. Check members refreshes remote status explicitly. A running group advertises `service-group-config:<machine UUID>.<recipe ID>` with member instance IDs. Remote status is last checked, not a live health probe. Stop, uninstall or remove a group does not stop or uninstall its member plugins; manage those independently in Plugins. No nested groups, remote provisioning, or extra group container. Group lifecycle commands are available through the same CLI and authorized remote control API as other recipes. Installation and start enforce permissions for any local member mutation (including registration and infrastructure management). A group cannot grant additional privileges. Explicitly shared System Monitor telemetry remains independently permissioned. For Laboritorium, add the new `https://texlyre.github.io/laboritorium-recipes/api/recipes.json` registry once published, or import recipes locally.

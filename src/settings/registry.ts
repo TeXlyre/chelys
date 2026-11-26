@@ -40,8 +40,8 @@ export const getChelysSettings = (): Setting[] => [
 		category: t('Recipes'),
 		subcategory: t('Registry'),
 		type: 'text',
-		label: t('Recipe registry URL'),
-		description: t('Endpoint used to fetch the recipe registry'),
+		label: t('Recipe registry URLs'),
+		description: t('Comma-separated recipe registry URLs. The first registry takes precedence for duplicate recipe IDs.'),
 		defaultValue: getSettingDefault('recipeRegistryUrl'),
 	},
 	{

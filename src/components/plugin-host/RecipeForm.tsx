@@ -31,10 +31,12 @@ import {
 	type InstallStep,
 	type Recipe,
 } from '../../plugin-host/types';
+import ServiceMemberPicker from './ServiceMemberPicker';
 import RecipeCodeMirror, { recipeEditorLanguage } from './RecipeCodeMirror';
 
 interface RecipeFormProps {
 	recipe: Recipe | null;
+	category?: string;
 	initialView?: 'guided' | 'files';
 	onDone: () => void;
 }
@@ -235,6 +237,7 @@ const partsToRecipe = (parts: RecipePart[], fallbackId: string): Recipe => {
 const RecipeForm: React.FC<RecipeFormProps> = ({
 	recipe,
 	initialView = 'guided',
+    category,
 	onDone,
 }) => {
 	const { save } = usePluginHost();
@@ -243,7 +246,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 	const dockerMode = recipe ? dockerOf(recipe) : undefined;
 
 	const [mode, setMode] = useState<'guided' | 'files'>(initialView);
-	const [type, setType] = useState(recipe?.type ?? types[0]?.type ?? 'lsp');
+	const [type, setType] = useState(recipe?.type ?? category ?? types[0]?.type ?? 'lsp');
 	const [name, setName] = useState(recipe?.name ?? '');
 	const [runCommand, setRunCommand] = useState(
 		systemMode?.runCommand.command ?? '',
@@ -392,6 +395,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 	};
 
 	const buildModes = (): InstallMode[] => {
+        if (type === 'service') return [{ kind: 'connect' }];
 		const system: InstallMode = {
 			...(systemMode ?? { kind: 'system' as const }),
 			kind: 'system',
@@ -435,7 +439,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 			id: recipe?.id ?? '',
 			type,
 			name: name || 'Untitled recipe',
-			env: parseEnv(),
+			env: type === 'service' ? {} : parseEnv(),
 			modes: buildModes(),
 			typeConfig: buildTypeConfig(),
 			sourceUrl: sourceUrl || recipe?.sourceUrl,
@@ -549,7 +553,8 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						}
 					/>
 				)}
-				{field.help && <small>{t(field.help)}</small>}
+				{type === 'service' && field.key === 'members' && <ServiceMemberPicker value={value} onChange={next => setTypeValues(prev => ({ ...prev, members: next }))} />}
+                {field.help && <small>{t(field.help)}</small>}
 			</div>
 		);
 	};
@@ -672,6 +677,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 						</>
 					)}
 
+					{type !== 'service' && <>
 					<h4 className='recipe-form-section'>{t('Runtime')}</h4>
 					<div className='form-group ui-field'>
 						<label htmlFor='recipe-run-command'>{t('Run command')}</label>
@@ -748,6 +754,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 							)}
 						</small>
 					</div>
+                    </>}
 				</>
 			)}
 

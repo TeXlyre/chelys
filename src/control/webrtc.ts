@@ -16,7 +16,7 @@ import { acquireRendezvous, type RendezvousLease } from '@chelys/peer/Rendezvous
 import { resolveSignalingServers } from '../peer/BridgeResolution';
 import { controlKey, dedicatedRoom, DEDICATED_LABEL, CONTROL_HELLO, newChallenge, seal, unseal, validApiKey, MAX_RESPONSE } from './dedicated';
 import { chelysControl } from './commands';
-import { CONTROL_LABEL_PREFIX, handleRpc, getInstanceId } from './protocol';
+import { CONTROL_LABEL_PREFIX, handleRpc, getInstanceId, commandTimeout } from './protocol';
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -140,7 +140,7 @@ class RemoteControlHost {
 	private attachDedicated(channel: HostTransport, id: string, hash: string, key: CryptoKey): void {
 		const challenge = newChallenge();
 		let state: 'hello' | 'request' | 'finished' = 'hello';
-		const timer = setTimeout(() => channel.close(), 30_000);
+		let timer = setTimeout(() => channel.close(), 30_000);
 		channel.onClose(() => clearTimeout(timer));
 		channel.onMessage(payload => {
 			const raw = typeof payload === 'string' ? payload : decoder.decode(payload);
@@ -157,7 +157,9 @@ class RemoteControlHost {
 					if (!validApiKey(request.apiKey) || await keyHash(request.apiKey) !== hash ||
 						!accessPolicy.dedicatedKeys().some(record => record.id === id && record.hash === hash))
 						throw new Error('Invalid or revoked dedicated API key');
-					return chelysControl.execute(request, { transport: 'webrtc', dedicated: true, apiKey: request.apiKey });
+					clearTimeout(timer);
+                    timer = setTimeout(() => channel.close(), commandTimeout(request.method) + 5_000);
+                    return chelysControl.execute(request, { transport: 'webrtc', dedicated: true, apiKey: request.apiKey });
 				});
 				let text = JSON.stringify(response);
 				if (text.length > MAX_RESPONSE) text = JSON.stringify({ v: 1, id: response.id, ok: false, error: 'Response too large' });

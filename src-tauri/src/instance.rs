@@ -63,7 +63,7 @@ impl RpcFailure {
     }
 }
 
-async fn request(socket: &str, message: String) -> Result<Value, RpcFailure> {
+async fn request(socket: &str, message: String, timeout: Duration) -> Result<Value, RpcFailure> {
     if message.len() > MAX_MESSAGE {
         return Err(RpcFailure::Other("RPC request too large".into()));
     }
@@ -86,7 +86,7 @@ async fn request(socket: &str, message: String) -> Result<Value, RpcFailure> {
         .map_err(|error| RpcFailure::Other(error.to_string()))?;
     let mut reader = BufReader::new(read);
     let mut line = String::new();
-    let count = tokio::time::timeout(Duration::from_secs(45), reader.read_line(&mut line))
+    let count = tokio::time::timeout(timeout, reader.read_line(&mut line))
         .await
         .map_err(|_| RpcFailure::Other("RPC request timed out".into()))?
         .map_err(|error| RpcFailure::Other(error.to_string()))?;
@@ -100,7 +100,9 @@ async fn request(socket: &str, message: String) -> Result<Value, RpcFailure> {
 
 async fn command(socket: &str, method: &str, params: Value) -> Result<Value, RpcFailure> {
     let message = json!({ "v": 1, "id": uuid::Uuid::new_v4().to_string(), "method": method, "params": params });
-    let response = request(socket, message.to_string()).await?;
+    let effective_method = if method == "peers.call" { message["params"]["method"].as_str().unwrap_or("") } else { method };
+    let timeout = if matches!(effective_method, "recipes.install" | "recipes.uninstall" | "recipes.run" | "recipes.restart" | "recipes.stop" | "recipes.remove") { Duration::from_secs(1860) } else { Duration::from_secs(45) };
+    let response = request(socket, message.to_string(), timeout).await?;
     if response.get("ok").and_then(Value::as_bool) == Some(true) {
         Ok(response.get("result").cloned().unwrap_or(Value::Null))
     } else {

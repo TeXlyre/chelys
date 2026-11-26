@@ -17,6 +17,7 @@ interface Recipe {
 	mode: string | null;
 	modes: string[];
 	inspectable?: boolean;
+    groupActive?: boolean;
 	inspectionFields?: Array<{ id: string; label: string; sensitivity: string }>;
 }
 interface Inventory {
@@ -554,7 +555,7 @@ export default function PeerControlSection() {
 														</small>
 													</div>
 													<div className='control-peer-recipe-actions'>
-														{recipe.state === 'running' ? (
+														{recipe.state === 'running' || recipe.groupActive ? (
 															<button
 																type='button'
 																className='button secondary'

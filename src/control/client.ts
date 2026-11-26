@@ -13,6 +13,7 @@ import { FrameReassembler, encodeFrames } from '@chelys/peer/TransportFraming';
 import { readSignalingServers } from '@chelys/peer/TransportResolution';
 import {
 	CONTROL_LABEL_PREFIX,
+    commandTimeout,
 	type RpcRequest,
 	type RpcResponse,
 } from './protocol';
@@ -210,7 +211,7 @@ async function viaWebSocket(
 		const socket = new WebSocket(url);
 		const timeout = setTimeout(
 			() => finish(new Error('WebSocket request timed out')),
-			TIMEOUT,
+			commandTimeout(request.method),
 		);
 		let done = false;
 		function finish(error?: Error, response?: unknown) {
@@ -288,7 +289,7 @@ async function viaWebRtc(
 			const reassembler = new FrameReassembler();
 			const timer = setTimeout(
 				() => finish(new Error('WebRTC response timed out')),
-				TIMEOUT,
+				commandTimeout(request.method),
 			);
 			let challenge: string | null = null;
 			let sent = false;
