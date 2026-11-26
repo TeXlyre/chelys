@@ -20,9 +20,9 @@ import {
 } from './credentials.mjs';
 import { stopAllProcesses } from './adapters/core.mjs';
 import { ownerPreference, withStartupClaim } from './ownership.mjs';
+import { createLocalServer, encodeResponse, handleSocketError } from './rpc-socket.mjs';
 
 const MAX_REQUEST = 2_097_152;
-const MAX_RESPONSE = 8_388_608;
 const MAX_REMOTE_REQUEST = 65_536;
 
 async function reserveSocket() {
@@ -40,20 +40,6 @@ async function reserveSocket() {
 	if (error?.code === 'ECONNREFUSED' || error?.code === 'ENOENT') {
 		if (process.platform !== 'win32') fs.unlinkSync(socketPath);
 	} else throw error;
-}
-function writeResponse(socket, response, suffix = '\n') {
-	const data = JSON.stringify(response);
-	if (data.length > MAX_RESPONSE) {
-		const small = JSON.stringify({
-			v: 1,
-			id: response.id,
-			ok: false,
-			error: 'Response exceeds limit',
-		});
-		if (typeof socket.write === 'function') socket.write(small + suffix);
-		else socket.send(small);
-	} else if (typeof socket.write === 'function') socket.write(data + suffix);
-	else socket.send(data);
 }
 
 export async function runServer({ wsPort = 0 } = {}) {
@@ -77,25 +63,7 @@ export async function runServer({ wsPort = 0 } = {}) {
 		ok: false,
 		error: 'Chelys is starting',
 	});
-	const local = net.createServer((socket) => {
-		let buffer = '';
-		socket.setEncoding('utf8');
-		socket.on('data', (chunk) => {
-			buffer += chunk;
-			if (buffer.length > MAX_REQUEST) {
-				socket.destroy();
-				return;
-			}
-			const newline = buffer.indexOf('\n');
-			if (newline < 0) return;
-			const message = buffer.slice(0, newline);
-			buffer = '';
-			void execute(message, { transport: 'local' }).then((response) => {
-				writeResponse(socket, response);
-				socket.end();
-			});
-		});
-	});
+	const local = createLocalServer((message) => execute(message, { transport: 'local' }));
 	await withStartupClaim(async () => {
 		const preferred = ownerPreference();
 		if (preferred === 'desktop' && !desktopManaged)
@@ -310,6 +278,7 @@ export async function runServer({ wsPort = 0 } = {}) {
 				maxPayload: MAX_REQUEST,
 			});
 			websocket.on('connection', (socket) => {
+				socket.on('error', (error) => handleSocketError(socket, error));
 				socket.on('message', (payload) => {
 					if (payload.length > MAX_REMOTE_REQUEST) {
 						socket.close(1009);
@@ -317,7 +286,9 @@ export async function runServer({ wsPort = 0 } = {}) {
 					}
 					void execute(payload.toString('utf8'), {
 						transport: 'websocket',
-					}).then((response) => writeResponse(socket, response, ''));
+					}).then((response) => {
+						if (socket.readyState === 1) socket.send(encodeResponse(response));
+					});
 				});
 			});
 			await new Promise((resolve, reject) => {

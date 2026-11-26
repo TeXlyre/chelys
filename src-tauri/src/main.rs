@@ -42,6 +42,11 @@ fn run_cli(mut arguments: Vec<std::ffi::OsString>) -> ExitCode {
 
 fn main() -> ExitCode {
     let args: Vec<_> = env::args_os().skip(1).collect();
+    if args.first().and_then(|arg| arg.to_str()) == Some("--autostart")
+        && chelys_app_lib::autostart_headless()
+    {
+        return run_cli(vec!["--headless".into()]);
+    }
     if cli_command(&args) { return run_cli(args); }
     chelys_app_lib::run();
     ExitCode::SUCCESS
