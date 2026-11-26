@@ -1,0 +1,8 @@
+.git
+node_modules
+server/node_modules
+server/dist
+dist
+src-tauri/target
+.DS_Store
+*.zip

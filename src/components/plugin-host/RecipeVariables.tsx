@@ -1,6 +1,6 @@
 // src/components/plugin-host/RecipeVariables.tsx
 import type React from 'react';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 
 import { t } from '@/i18n';
 import { usePluginHost } from '../../hooks/usePluginHost';
@@ -37,6 +37,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 	const [containerEngine, setContainerEngine] = useState<ContainerEngine | ''>(
 		() => getContainerEngineOverride(recipe.id) ?? '',
 	);
+	const fieldPrefix = useId();
 	const hasContainerMode = !!findMode(recipe, 'docker');
 
 	if (
@@ -68,7 +69,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 
 	const handleSave = async () => {
 		if (recipe.variables?.length) await setVariables(recipe.id, values);
-		setContainerEngineOverride(recipe.id, containerEngine || null);
+		await setContainerEngineOverride(recipe.id, containerEngine || null);
 		onDone();
 	};
 
@@ -76,8 +77,11 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 		<div className='recipe-variables'>
 			{hasContainerMode && (
 				<div className='form-group ui-field'>
-					<label>{t('Container engine')}</label>
+					<label htmlFor={`${fieldPrefix}-engine`}>
+						{t('Container engine')}
+					</label>
 					<select
+						id={`${fieldPrefix}-engine`}
 						value={containerEngine}
 						onChange={(e) =>
 							setContainerEngine(e.target.value as ContainerEngine | '')
@@ -102,9 +106,12 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 				const portLocked = traefikEnabled && isPortVariable(variable.key);
 				return (
 					<div key={variable.key} className='form-group ui-field'>
-						<label>{t(variable.label)}</label>
+						<label htmlFor={`${fieldPrefix}-${variable.key}`}>
+							{t(variable.label)}
+						</label>
 						{variable.kind === 'select' ? (
 							<select
+								id={`${fieldPrefix}-${variable.key}`}
 								value={values[variable.key] ?? ''}
 								onChange={(e) => update(variable.key, e.target.value)}
 							>
@@ -116,6 +123,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 							</select>
 						) : variable.kind === 'boolean' ? (
 							<input
+								id={`${fieldPrefix}-${variable.key}`}
 								type='checkbox'
 								checked={values[variable.key] === 'true'}
 								onChange={(e) =>
@@ -125,6 +133,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 						) : variable.kind === 'secret' ? (
 							<div className='recipe-secret-field'>
 								<input
+									id={`${fieldPrefix}-${variable.key}`}
 									type={revealed.has(variable.key) ? 'text' : 'password'}
 									value={values[variable.key] ?? ''}
 									onChange={(e) => update(variable.key, e.target.value)}
@@ -148,6 +157,7 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 							</div>
 						) : (
 							<input
+								id={`${fieldPrefix}-${variable.key}`}
 								type={variable.kind === 'number' ? 'number' : 'text'}
 								value={values[variable.key] ?? ''}
 								onChange={(e) => update(variable.key, e.target.value)}
@@ -165,8 +175,15 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 
 			{traefikEnabled && traefikUrl && (
 				<div className='form-group ui-field'>
-					<label>{t('Traefik endpoint')}</label>
-					<input type='text' value={traefikUrl} readOnly />
+					<label htmlFor={`${fieldPrefix}-traefik`}>
+						{t('Traefik endpoint')}
+					</label>
+					<input
+						id={`${fieldPrefix}-traefik`}
+						type='text'
+						value={traefikUrl}
+						readOnly
+					/>
 					<small>
 						{t(
 							'Traefik routing is on. The service port is managed by Traefik and ignored here.',
@@ -180,10 +197,10 @@ const RecipeVariables: React.FC<RecipeVariablesProps> = ({
 				data-variant='form'
 				data-align='end'
 			>
-				<button className='button' onClick={onDone}>
+				<button type='button' className='button' onClick={onDone}>
 					{t('Cancel')}
 				</button>
-				<button className='button primary' onClick={handleSave}>
+				<button type='button' className='button primary' onClick={handleSave}>
 					{t('Save settings')}
 				</button>
 			</div>

@@ -204,6 +204,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 			<div className='recipe-list-header'>
 				<div className='recipe-list-actions'>
 					<button
+						type='button'
 						className='button action-button primary'
 						onClick={() => setBrowsing(true)}
 					>
@@ -211,6 +212,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 						{t('Browse recipes')}
 					</button>
 					<button
+						type='button'
 						className='button action-button'
 						onClick={() => openEditor('new', 'guided')}
 					>
@@ -218,6 +220,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 						{t('Add recipe')}
 					</button>
 					<button
+						type='button'
 						className='button action-button'
 						onClick={() => setImporting(true)}
 					>
@@ -228,6 +231,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 
 				{!selectionMode ? (
 					<button
+						type='button'
 						className='button secondary smaller'
 						onClick={() => setSelectionMode(true)}
 						disabled={visibleRecipes.length === 0}
@@ -236,12 +240,17 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 					</button>
 				) : (
 					<div className='recipe-selection-controls'>
-						<button className='button secondary smaller' onClick={selectAll}>
+						<button
+							type='button'
+							className='button secondary smaller'
+							onClick={selectAll}
+						>
 							{selected.size === visibleRecipes.length
 								? t('Deselect All')
 								: t('Select All')}
 						</button>
 						<button
+							type='button'
 							className='button primary smaller'
 							onClick={runSelected}
 							disabled={runnable.length === 0}
@@ -249,6 +258,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 							{t('Run')} ({runnable.length})
 						</button>
 						<button
+							type='button'
 							className='button smaller'
 							onClick={installSelected}
 							disabled={installable.length === 0}
@@ -256,6 +266,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 							{t('Install')} ({installable.length})
 						</button>
 						<button
+							type='button'
 							className='button danger smaller'
 							onClick={stopSelected}
 							disabled={stoppable.length === 0}
@@ -263,6 +274,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 							{t('Stop')} ({stoppable.length})
 						</button>
 						<button
+							type='button'
 							className='button secondary smaller'
 							onClick={exitSelection}
 						>
@@ -377,12 +389,14 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 										>
 											<div className='open-button-group'>
 												<button
+													type='button'
 													className='button open-button'
 													onClick={() => beginInstall('docker')}
 												>
 													{t(modeLabel('docker'))}
 												</button>
 												<button
+													type='button'
 													className='button dropdown-toggle'
 													title={t('Container install options')}
 													onClick={() =>
@@ -397,6 +411,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 											{installMenu === recipe.id && (
 												<div className='open-dropdown'>
 													<button
+														type='button'
 														className='open-dropdown-item'
 														onClick={() => beginInstall('docker')}
 													>
@@ -404,6 +419,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 														<span>{t('Build image locally')}</span>
 													</button>
 													<button
+														type='button'
 														className='open-dropdown-item'
 														onClick={() => beginInstall('docker', 'registry')}
 													>
@@ -417,6 +433,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 										</div>
 									) : (
 										<button
+											type='button'
 											key={kind}
 											className='button'
 											onClick={() => beginInstall(kind)}
@@ -426,6 +443,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 									),
 								)}
 								<button
+									type='button'
 									className='button'
 									onClick={() => {
 										setChoosingMode(null);
@@ -440,6 +458,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 						<div className='recipe-actions'>
 							{!running && !starting && !stopping && (
 								<button
+									type='button'
 									className='button'
 									disabled={busy}
 									onClick={() =>
@@ -455,6 +474,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 							)}
 							{busy ? (
 								<button
+									type='button'
 									className='button danger'
 									onClick={() => cancelInstall(recipe.id)}
 								>
@@ -462,6 +482,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 								</button>
 							) : running || stopping ? (
 								<button
+									type='button'
 									className='button danger'
 									disabled={stopping}
 									onClick={() => stop(recipe.id)}
@@ -477,6 +498,7 @@ const RecipeList: React.FC<RecipeListProps> = ({ category, onBusyChange }) => {
 								</button>
 							) : (
 								<button
+									type='button'
 									className='button primary'
 									disabled={busy || starting || stopping || !installed}
 									onClick={() => run(recipe.id)}

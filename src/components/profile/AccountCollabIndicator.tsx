@@ -1,26 +1,33 @@
+// src/components/profile/AccountCollabIndicator.tsx
 import type React from 'react';
 import { useEffect, useState } from 'react';
-import type { Awareness } from 'y-protocols/awareness';
-
-import { chelysAccountSyncService } from '@texlyre/services/ChelysAccountSyncService';
-import CollaboratorAvatars from '../common/CollaboratorAvatars';
+import { localCommand } from '../../control/localClient';
+import CollaboratorAvatars, {
+	type CollaboratorState,
+} from '../common/CollaboratorAvatars';
 
 const AccountCollabIndicator: React.FC = () => {
-	const [awareness, setAwareness] = useState<Awareness | null>(
-		() => chelysAccountSyncService.getConnection()?.awareness ?? null,
-	);
-
-	useEffect(
-		() =>
-			chelysAccountSyncService.subscribe((connection) => {
-				setAwareness(connection?.awareness ?? null);
-			}),
-		[],
-	);
-
-	return awareness ? (
-		<CollaboratorAvatars awareness={awareness} maxVisible={4} />
+	const [collaborators, setCollaborators] = useState<CollaboratorState[]>([]);
+	useEffect(() => {
+		let active = true;
+		const refresh = () => {
+			void localCommand<CollaboratorState[]>('account.collaborators')
+				.then((users) => {
+					if (active) setCollaborators(users);
+				})
+				.catch(() => {
+					if (active) setCollaborators([]);
+				});
+		};
+		refresh();
+		const timer = setInterval(refresh, 3000);
+		return () => {
+			active = false;
+			clearInterval(timer);
+		};
+	}, []);
+	return collaborators.length ? (
+		<CollaboratorAvatars snapshot={collaborators} maxVisible={4} />
 	) : null;
 };
-
 export default AccountCollabIndicator;

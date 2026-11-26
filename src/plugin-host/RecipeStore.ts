@@ -1,6 +1,5 @@
 // src/plugin-host/RecipeStore.ts
 import { invoke } from '@tauri-apps/api/core';
-import { appDataDir } from '@tauri-apps/api/path';
 
 import type { Recipe } from './types';
 
@@ -12,7 +11,7 @@ class RecipeStore {
 	private async filePath(): Promise<string> {
 		if (!this.pathPromise) {
 			this.pathPromise = (async () => {
-				const dir = await appDataDir();
+				const dir = await invoke<string>('instance_data_dir');
 				return invoke<string>('path_join', { parts: [dir, FILE_NAME] });
 			})();
 		}

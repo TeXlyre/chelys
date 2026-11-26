@@ -167,7 +167,8 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 					/>
 				</label>
 
-				<label
+				<button
+					type='button'
 					className='import-option-button'
 					onClick={() => void handleDirectoryImport()}
 				>
@@ -176,9 +177,10 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 						<strong>{t('From directory')}</strong>
 						<p>{t('Load a recipe.json with its Dockerfile and extra files')}</p>
 					</div>
-				</label>
+				</button>
 
-				<label
+				<button
+					type='button'
 					className='import-option-button'
 					onClick={() => setSource(source === 'url' ? null : 'url')}
 				>
@@ -187,9 +189,10 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 						<strong>{t('From URL')}</strong>
 						<p>{t('Fetch a recipe published as JSON')}</p>
 					</div>
-				</label>
+				</button>
 
-				<label
+				<button
+					type='button'
 					className='import-option-button'
 					onClick={() => setSource(source === 'json' ? null : 'json')}
 				>
@@ -198,7 +201,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 						<strong>{t('Enter JSON')}</strong>
 						<p>{t('Paste a TeXlyre configuration block or a recipe')}</p>
 					</div>
-				</label>
+				</button>
 			</div>
 
 			{error && <div className='error-message'>{error}</div>}
@@ -215,6 +218,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 						onChange={(e) => setUrl(e.target.value)}
 					/>
 					<button
+						type='button'
 						className='button primary'
 						disabled={!url.trim() || isFetching}
 						onClick={() => void handleUrlImport()}
@@ -236,6 +240,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 						onChange={(e) => setDraft(e.target.value)}
 					/>
 					<button
+						type='button'
 						className='button primary'
 						disabled={!draft.trim()}
 						onClick={() => applyText(draft)}
@@ -250,7 +255,7 @@ const RecipeImport: React.FC<RecipeImportProps> = ({
 				data-variant='form'
 				data-align='end'
 			>
-				<button className='button secondary' onClick={onCancel}>
+				<button type='button' className='button secondary' onClick={onCancel}>
 					{t('Cancel')}
 				</button>
 			</div>

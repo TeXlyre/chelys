@@ -101,6 +101,7 @@ const RecipeShareActions: React.FC<RecipeShareActionsProps> = ({
 					<span className='recipe-share-menu-title'>{t('Transport')}</span>
 					{(Object.keys(MODE_LABELS) as ShareMode[]).map((option) => (
 						<button
+							type='button'
 							key={option}
 							className={`recipe-share-option${mode === option ? ' active' : ''}`}
 							disabled={transportLocked}
@@ -124,6 +125,7 @@ const RecipeShareActions: React.FC<RecipeShareActionsProps> = ({
 						{t('TeXlyre configuration')}
 					</span>
 					<button
+						type='button'
 						className='recipe-share-action'
 						disabled={blocked}
 						onClick={() => void handleCopy()}
@@ -131,6 +133,7 @@ const RecipeShareActions: React.FC<RecipeShareActionsProps> = ({
 						{copied ? t('Copied!') : t('Copy to clipboard')}
 					</button>
 					<button
+						type='button'
 						className='recipe-share-action'
 						disabled={blocked}
 						onClick={() =>

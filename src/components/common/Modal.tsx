@@ -92,6 +92,7 @@ const Modal: React.FC<ModalProps> = ({
 						{headerActions}
 						{showCloseButton && (
 							<button
+								type='button'
 								aria-label={t('Close modal')}
 								className='modal-close-button'
 								onClick={onClose}

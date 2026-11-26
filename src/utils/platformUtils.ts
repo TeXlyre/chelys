@@ -1,5 +1,6 @@
 // src/utils/platformUtils.ts
 import { invoke } from '@tauri-apps/api/core';
+import { save } from '@tauri-apps/plugin-dialog';
 
 const isTauri = (): boolean =>
 	typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -37,7 +38,6 @@ async function tauriSaveTextFile(
 	contents: string,
 ): Promise<boolean | null> {
 	try {
-		const { save } = await import('@tauri-apps/plugin-dialog');
 		const path = await save({
 			defaultPath: suggestedName,
 			filters: [{ name: 'JSON', extensions: ['json'] }],

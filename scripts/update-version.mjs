@@ -4,6 +4,10 @@ import fs from 'node:fs';
 
 const pkgPath = 'package.json';
 const cargoTomlPath = 'src-tauri/Cargo.toml';
+const credentialsCargoTomlPath = 'native/credentials/Cargo.toml';
+const launcherCargoTomlPath = 'native/launcher/Cargo.toml';
+const cargoLockPath = 'src-tauri/Cargo.lock';
+const packageLockPath = 'package-lock.json';
 const tauriConfPath = 'src-tauri/tauri.conf.json';
 const flatpakManifestPath = 'packaging/flatpak/io.github.texlyre.chelys.yml';
 const flatpakMetainfoPath =
@@ -24,22 +28,56 @@ if (!semverLike.test(version)) {
 	process.exit(1);
 }
 
-// Update tauri.conf.json
 const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf8'));
 tauriConf.version = version;
-fs.writeFileSync(tauriConfPath, JSON.stringify(tauriConf, null, 2) + '\n');
+fs.writeFileSync(tauriConfPath, `${JSON.stringify(tauriConf, null, 2)}\n`);
 
-// Update Cargo.toml package version only
-let cargoToml = fs.readFileSync(cargoTomlPath, 'utf8');
+for (const manifestPath of [
+	cargoTomlPath,
+	credentialsCargoTomlPath,
+	launcherCargoTomlPath,
+]) {
+	const content = fs.readFileSync(manifestPath, 'utf8');
+	const updated = content.replace(
+		/(\[package\][\s\S]*?^version\s*=\s*)"[^"]+"/m,
+		`$1"${version}"`,
+	);
+	if (!updated.includes(`version = "${version}"`)) {
+		throw new Error(`Unable to synchronize ${manifestPath}`);
+	}
+	if (updated !== content) fs.writeFileSync(manifestPath, updated);
+}
 
-cargoToml = cargoToml.replace(
-	/(\[package\][\s\S]*?^version\s*=\s*)"[^"]+"/m,
-	`$1"${version}"`,
+const cargoLock = fs.readFileSync(cargoLockPath, 'utf8');
+const updatedCargoLock = cargoLock.replace(
+	/(\[\[package\]\]\s*\nname = "chelys-app"\s*\nversion = ")[^"]+"/,
+	`$1${version}"`,
 );
+if (!updatedCargoLock.includes(`name = "chelys-app"\nversion = "${version}"`)) {
+	throw new Error(`Unable to synchronize ${cargoLockPath}`);
+}
+if (updatedCargoLock !== cargoLock)
+	fs.writeFileSync(cargoLockPath, updatedCargoLock);
 
-fs.writeFileSync(cargoTomlPath, cargoToml);
+const packageLock = JSON.parse(fs.readFileSync(packageLockPath, 'utf8'));
+if (
+	packageLock.name !== pkg.name ||
+	packageLock.packages?.['']?.name !== pkg.name
+) {
+	throw new Error(`Unexpected root package in ${packageLockPath}`);
+}
+if (
+	packageLock.version !== version ||
+	packageLock.packages[''].version !== version
+) {
+	packageLock.version = version;
+	packageLock.packages[''].version = version;
+	fs.writeFileSync(
+		packageLockPath,
+		`${JSON.stringify(packageLock, null, '\t')}\n`,
+	);
+}
 
-// Update Flatpak release URL and AppStream release version
 let flatpakManifest = fs.readFileSync(flatpakManifestPath, 'utf8');
 flatpakManifest = flatpakManifest.replace(
 	/url:\s*https:\/\/github\.com\/TeXlyre\/chelys\/releases\/download\/v[^/\s]+\/[Cc]helys_[^\s]+_amd64\.deb/,
@@ -52,7 +90,6 @@ flatpakMetainfo = flatpakMetainfo.replace(
 	`$1${version}$2`,
 );
 
-// If a Debian bundle is available, keep the Flatpak checksum in sync too.
 const debPath =
 	process.argv[2] ??
 	`src-tauri/target/release/bundle/deb/Chelys_${version}_amd64.deb`;

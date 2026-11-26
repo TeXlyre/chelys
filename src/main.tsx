@@ -1,35 +1,38 @@
 // src/main.tsx
-import './webrtc-polyfill/install';
+import '@picocss/pico/css/pico.min.css';
+import '@texlyre/styles/global.css';
+import './styles/components/auth.css';
+import './styles/components/project.css';
+import './styles/components/settings.css';
+import './styles/components/profile.css';
+import './styles/components/plugin-host.css';
+import './styles/themes/texlyre_wide/base.css';
+import './styles/themes/texlyre_wide/layout.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-
-import { installWebRtcPolyfill } from './webrtc-polyfill';
+import { invoke } from '@tauri-apps/api/core';
 import { applyThemeVariant, getInitialVariant } from './theme/themeVariant';
-import { App } from './App';
 
-const keepBackgroundRuntimeAlive = (): void => {
-	if (!('locks' in navigator)) return;
-
-	void navigator.locks
-		.request('chelys-background-runtime', async () => {
-			await new Promise<void>(() => {
-				// Keep the lock for the lifetime of this webview.
-			});
-		})
-		.catch((error: unknown) => {
-			console.warn('[Chelys] Failed to acquire background runtime lock', error);
-		});
-};
-
-await installWebRtcPolyfill();
-keepBackgroundRuntimeAlive();
-
+const target = document.getElementById('root');
+if (!target) throw new Error('Chelys root element not found');
 document.documentElement.setAttribute('data-layout', 'texlyre-wide');
 document.documentElement.setAttribute('data-theme-plugin', 'texlyre');
 applyThemeVariant(getInitialVariant());
-
-createRoot(document.getElementById('root')!).render(
-	<StrictMode>
-		<App />
-	</StrictMode>,
-);
+const root = createRoot(target);
+const showRecovery = async (reason?: string) => {
+	const { default: BackendRecovery } = await import('./components/profile/BackendRecovery');
+	root.render(<StrictMode><BackendRecovery reason={reason} /></StrictMode>);
+};
+try {
+	const mode = await invoke<'attached' | 'unavailable'>('instance_mode');
+	if (mode === 'unavailable') {
+		await showRecovery();
+	} else {
+		const { initializeSharedStorage } = await import('./runtime/storageMirror');
+		await initializeSharedStorage();
+		const { App } = await import('./App');
+		root.render(<StrictMode><App /></StrictMode>);
+	}
+} catch (error) {
+	await showRecovery(String(error));
+}

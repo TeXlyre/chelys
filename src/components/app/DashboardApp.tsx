@@ -1,4 +1,4 @@
-// src/components/app/SettingsDataApp.tsx
+// src/components/app/DashboardApp.tsx
 import type React from 'react';
 import { useEffect, useState } from 'react';
 
@@ -18,6 +18,7 @@ import {
 } from '../../plugin-host/platformResolution';
 import { openExternalUrl } from '../../utils/platformUtils';
 import AccountCollabIndicator from '../profile/AccountCollabIndicator';
+import CredentialStorageWarning from '../common/CredentialStorageWarning';
 
 function handleExternalLink(event: React.MouseEvent<HTMLAnchorElement>) {
 	event.preventDefault();
@@ -66,6 +67,7 @@ const DashboardApp: React.FC = () => {
 				{exclusiveCategories.length > 0 && (
 					<div className='plugin-category-nav'>
 						<button
+							type='button'
 							className={`category-item ${activeCategory === null ? 'active' : ''}`}
 							disabled={panelBusy && activeCategory !== null}
 							onClick={() => {
@@ -77,6 +79,7 @@ const DashboardApp: React.FC = () => {
 						</button>
 						{exclusiveCategories.map((definition) => (
 							<button
+								type='button'
 								key={definition.type}
 								className={`category-item ${activeCategory === definition.type ? 'active' : ''}`}
 								disabled={panelBusy && activeCategory !== definition.type}
@@ -102,6 +105,7 @@ const DashboardApp: React.FC = () => {
 				</div>
 			</header>
 
+			<CredentialStorageWarning />
 			<div className='main-content'>
 				<div className='editor-container'>
 					<div className='project-list-container'>

@@ -1,7 +1,7 @@
 {
 	"name": "chelys",
 	"private": true,
-	"version": "1.4.2",
+	"version": "2.0.0",
 	"description": "A local desktop companion app for TeXlyre",
 	"author": "Fares Abawi <fares@abawi.me> (https://abawi.me)",
 	"license": "AGPL-3.0-or-later",
@@ -12,16 +12,24 @@
 	"type": "module",
 	"scripts": {
 		"dev": "node scripts/update-version.mjs && vite",
+		"server": "node server/cli.mjs serve",
+		"chelys": "node server/cli.mjs",
+		"preview": "vite preview",
+		"build": "node scripts/update-version.mjs && npm run init:submodules && vite build",
+		"build:server": "npm run build:server:runtime && npm run build:credentials",
+		"build:server:runtime": "npm run init:submodules && node scripts/build-server.mjs",
+		"build:credentials": "node scripts/build-credentials.mjs",
+		"tauri": "node scripts/update-version.mjs && tauri",
+		"tauri:windows:build": "tauri-windows-bundle build",
+		"init:submodules": "node scripts/init-submodules.mjs",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
-		"test:watch": "vitest",
 		"lint:biome": "biome check .",
 		"lint:biome:fix": "biome check . --max-diagnostics=2000 --reporter=summary --write",
-		"build": "node scripts/update-version.mjs && npm run init:submodules && vite build",
-		"preview": "vite preview",
-		"tauri": "node scripts/update-version.mjs && tauri",
-		"init:submodules": "node scripts/init-submodules.mjs",
-		"tauri:windows:build": "tauri-windows-bundle build"
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:server": "node --test tests/server/*.test.mjs",
+		"build:desktop": "npm run build && npm run build:server && node scripts/package-runtime.mjs --desktop",
+		"package:server": "npm run build:server && node scripts/package-runtime.mjs --server"
 	},
 	"dependencies": {
 		"@codemirror/lang-javascript": "^6.2.5",
@@ -68,5 +76,8 @@
 		"typescript": "^7.0.2",
 		"vite": "^8.2.2",
 		"vitest": "^5.0.0"
+	},
+	"bin": {
+		"chelys": "server/cli.mjs"
 	}
 }

@@ -493,6 +493,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 
 	const modeTab = (id: typeof mode, label: string) => (
 		<button
+			type='button'
 			className={`tab-button ui-tab ${mode === id ? 'active' : ''}`}
 			onClick={() => setMode(id)}
 		>
@@ -570,6 +571,7 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 					>
 						{parts.map((part) => (
 							<button
+								type='button'
 								key={part.name}
 								title={part.name}
 								className={`tab-button ui-tab ${!part.editable ? 'part-readonly ' : ''}${
@@ -591,53 +593,51 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 			{recipe?.notes && <div className='info-message'>{recipe.notes}</div>}
 
 			{mode === 'files' ? (
-				<>
-					{selected?.image ? (
-						<div className='form-group ui-field'>
-							{selected.note && (
-								<div className='warning-message'>
-									<p>{selected.note}</p>
-								</div>
-							)}
-							<div
-								className='recipe-icon-preview'
-								dangerouslySetInnerHTML={{ __html: selected.content ?? '' }}
-							/>
-						</div>
-					) : selected?.loading ? (
-						<div className='form-group ui-field'>
-							<div className='info-message'>{t('Loading file…')}</div>
-						</div>
-					) : selected?.binary ? (
-						<div className='form-group ui-field'>
-							<div className='info-message'>{selected.note}</div>
-						</div>
-					) : selected?.kind === 'reference' && selected.content === null ? (
-						<div className='form-group ui-field'>
+				selected?.image ? (
+					<div className='form-group ui-field'>
+						{selected.note && (
 							<div className='warning-message'>
 								<p>{selected.note}</p>
 							</div>
+						)}
+						<div
+							className='recipe-icon-preview'
+							dangerouslySetInnerHTML={{ __html: selected.content ?? '' }}
+						/>
+					</div>
+				) : selected?.loading ? (
+					<div className='form-group ui-field'>
+						<div className='info-message'>{t('Loading file…')}</div>
+					</div>
+				) : selected?.binary ? (
+					<div className='form-group ui-field'>
+						<div className='info-message'>{selected.note}</div>
+					</div>
+				) : selected?.kind === 'reference' && selected.content === null ? (
+					<div className='form-group ui-field'>
+						<div className='warning-message'>
+							<p>{selected.note}</p>
 						</div>
-					) : selected ? (
-						<div className='form-group ui-field'>
-							{selected.note &&
-								(selected.editable ? (
-									<small>{selected.note}</small>
-								) : (
-									<div className='warning-message'>
-										<p>{selected.note}</p>
-									</div>
-								))}
-							<RecipeCodeMirror
-								key={selected.name}
-								value={selected.content ?? ''}
-								language={recipeEditorLanguage(selected.name, selected.kind)}
-								readOnly={!selected.editable}
-								onChange={updateSelectedPart}
-							/>
-						</div>
-					) : null}
-				</>
+					</div>
+				) : selected ? (
+					<div className='form-group ui-field'>
+						{selected.note &&
+							(selected.editable ? (
+								<small>{selected.note}</small>
+							) : (
+								<div className='warning-message'>
+									<p>{selected.note}</p>
+								</div>
+							))}
+						<RecipeCodeMirror
+							key={selected.name}
+							value={selected.content ?? ''}
+							language={recipeEditorLanguage(selected.name, selected.kind)}
+							readOnly={!selected.editable}
+							onChange={updateSelectedPart}
+						/>
+					</div>
+				) : null
 			) : (
 				<>
 					<div className='form-group ui-field'>
@@ -756,13 +756,13 @@ const RecipeForm: React.FC<RecipeFormProps> = ({
 				data-variant='form'
 				data-align='end'
 			>
-				<button className='button' onClick={handleSaveToDisk}>
+				<button type='button' className='button' onClick={handleSaveToDisk}>
 					{t('Save to directory')}
 				</button>
-				<button className='button secondary' onClick={onDone}>
+				<button type='button' className='button secondary' onClick={onDone}>
 					{t('Cancel')}
 				</button>
-				<button className='button primary' onClick={handleSave}>
+				<button type='button' className='button primary' onClick={handleSave}>
 					{t('Save recipe')}
 				</button>
 			</div>

@@ -23,6 +23,10 @@ import { getStoredSetting } from '../config';
 import { appDataDir } from '@tauri-apps/api/path';
 import { routeEndpoint } from './traefikRoutes';
 import { dockerVolumeArgs, dockerVolumeName } from './dockerVolumes';
+import {
+	containerStateFromInspect,
+	type ExistingContainerState,
+} from './containerState';
 import { materializeRecipeFiles } from './recipeWorkdir';
 import {
 	findMode,
@@ -66,6 +70,7 @@ class RecipeManager {
 	private arch: ArchId | null = null;
 	private reattached = new Set<string>();
 	private cancelling = new Set<string>();
+	private starting = new Map<string, Promise<void>>();
 	private ports = new Map<string, Record<string, string>>();
 
 	async reinjectRunning(): Promise<void> {
@@ -297,7 +302,7 @@ class RecipeManager {
 	}
 
 	async remove(recipeId: string): Promise<void> {
-		await this.stop(recipeId).catch(() => undefined);
+		await this.stop(recipeId);
 
 		this.recipes.delete(recipeId);
 		this.statuses.delete(recipeId);
@@ -317,6 +322,7 @@ class RecipeManager {
 		recipe: Recipe,
 		engine: ContainerEngine,
 		initialize: boolean,
+		initializeVolumes = false,
 	): Promise<void> {
 		if (recipe.type !== 'storage') return;
 		const volumes = findMode(recipe, 'docker')?.volumes ?? [];
@@ -337,8 +343,13 @@ class RecipeManager {
 				);
 			}
 			if (
-				!window.confirm(
-					`Storage volume "${name}" does not exist in ${engine}. Create a NEW empty volume? If this is a reinstall, cancel and restore the original Garage volume instead.`,
+				!initializeVolumes &&
+				!(
+					typeof window !== 'undefined' &&
+					typeof window.confirm === 'function' &&
+					window.confirm(
+						`Storage volume "${name}" does not exist in ${engine}. Create a NEW empty volume? If this is a reinstall, cancel and restore the original Garage volume instead.`,
+					)
 				)
 			) {
 				throw new Error('Storage volume initialization cancelled');
@@ -347,7 +358,8 @@ class RecipeManager {
 				`${recipe.id}-volume-create`,
 				{ command: engine, args: ['volume', 'create', name], env: {} },
 			);
-			if (code !== 0) throw new Error(`Could not create storage volume "${name}"`);
+			if (code !== 0)
+				throw new Error(`Could not create storage volume "${name}"`);
 		}
 	}
 
@@ -355,6 +367,7 @@ class RecipeManager {
 		recipeId: string,
 		mode: InstallModeKind,
 		source: DockerInstallSource = 'build',
+		options: { initializeVolumes?: boolean } = {},
 	): Promise<void> {
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
@@ -381,10 +394,12 @@ class RecipeManager {
 			} else if (mode === 'docker') {
 				const docker = findMode(recipe, 'docker');
 				if (!docker) throw new Error('Container mode not supported');
+				if (!containerEngine) throw new Error('Container engine unavailable');
 				await this.verifyStorageVolumes(
 					recipe,
-					containerEngine!,
+					containerEngine,
 					this.readInstalled().get(recipeId)?.mode !== 'docker',
+					options.initializeVolumes ?? false,
 				);
 
 				await this.runSteps(
@@ -396,7 +411,6 @@ class RecipeManager {
 					containerEngine,
 				);
 			} else if (mode === 'connect') {
-				// Nothing to install for connect mode.
 			}
 
 			this.setInstalled(recipeId, {
@@ -416,13 +430,23 @@ class RecipeManager {
 	}
 
 	async run(recipeId: string): Promise<void> {
-		this.reattached.delete(recipeId);
+		const pending = this.starting.get(recipeId);
+		if (pending) return pending;
+		const operation = this.runOnce(recipeId);
+		this.starting.set(recipeId, operation);
+		try {
+			await operation;
+		} finally {
+			this.starting.delete(recipeId);
+		}
+	}
 
+	private async runOnce(recipeId: string): Promise<void> {
 		const base = this.recipes.get(recipeId);
 		if (!base) return;
 
-		const mode = this.statuses.get(recipeId)?.mode;
-
+		const status = this.statuses.get(recipeId);
+		const mode = status?.mode;
 		if (!mode) {
 			this.patch(recipeId, {
 				state: 'error',
@@ -431,13 +455,37 @@ class RecipeManager {
 			return;
 		}
 
-		if (mode !== 'connect') await this.allocatePorts(base);
-
-		const recipe = await this.resolveForCurrentPlatform(base);
-
-		this.patch(recipeId, { state: 'starting', lastError: null });
+		if (
+			status?.state === 'running' &&
+			(mode === 'connect' ||
+				(await processSupervisorService.isRunning(recipeId)))
+		)
+			return;
 
 		try {
+			let existingContainer: ExistingContainerState = 'absent';
+			if (mode === 'docker') {
+				existingContainer = await this.inspectContainer(recipeId);
+				if (existingContainer === 'running') {
+					// The daemon was restarted, but its container survived. Reuse it.
+					this.reattached.add(recipeId);
+					if (status?.state !== 'running') {
+						await this.adoptContainerPort(base);
+						this.patch(recipeId, { state: 'running', lastError: null });
+						this.runStartHook(await this.resolveForCurrentPlatform(base));
+					}
+					return;
+				}
+			}
+
+			this.reattached.delete(recipeId);
+			this.patch(recipeId, { state: 'starting', lastError: null });
+			if (existingContainer === 'stopped') {
+				await this.adoptContainerPort(base);
+			} else if (mode !== 'connect') {
+				await this.allocatePorts(base);
+			}
+			const recipe = await this.resolveForCurrentPlatform(base);
 			const workdir = (await materializeRecipeFiles(recipe)) ?? undefined;
 
 			if (mode === 'connect') {
@@ -449,7 +497,6 @@ class RecipeManager {
 			if (mode === 'system') {
 				const system = findMode(recipe, 'system');
 				if (!system) throw new Error('System mode not supported');
-
 				await processSupervisorService.spawn(recipeId, {
 					command: system.runCommand.command,
 					args: system.runCommand.args,
@@ -459,21 +506,23 @@ class RecipeManager {
 			} else if (mode === 'docker') {
 				const docker = findMode(recipe, 'docker');
 				if (!docker) throw new Error('Container mode not supported');
-
 				const containerEngine = this.containerEngineForRuntime(recipeId);
 				await this.verifyStorageVolumes(recipe, containerEngine, false);
 				await processSupervisorService.spawn(recipeId, {
 					command: containerEngine,
-					args: [
-						'run',
-						'--rm',
-						'--name',
-						containerName(recipeId),
-						...dockerVolumeArgs(recipeId, docker.volumes),
-						...docker.runArgs,
-						docker.image,
-						...(docker.command ?? []),
-					],
+					args:
+						existingContainer === 'stopped'
+							? ['start', '--attach', containerName(recipeId)]
+							: [
+								'run',
+								'--rm',
+								'--name',
+								containerName(recipeId),
+								...dockerVolumeArgs(recipeId, docker.volumes),
+								...docker.runArgs,
+								docker.image,
+								...(docker.command ?? []),
+							],
 					env:
 						containerEngine === 'podman'
 							? await this.podmanRegistryEnv(recipe.env)
@@ -491,30 +540,39 @@ class RecipeManager {
 	}
 
 	async stop(recipeId: string): Promise<void> {
+		// A stop racing with a pending start must win, not leave a late container behind.
+		await this.starting.get(recipeId);
 		this.reattached.delete(recipeId);
 
 		const recipe = this.recipes.get(recipeId);
 		const mode = this.statuses.get(recipeId)?.mode;
-
 		this.patch(recipeId, { state: 'stopping' });
 
-		if (mode === 'docker') {
-			await processSupervisorService
-				.runCommand(`${recipeId}-stop`, {
+		try {
+			if (mode === 'docker') {
+				await processSupervisorService.runCommand(`${recipeId}-stop`, {
 					command: this.containerEngineForRuntime(recipeId),
 					args: ['stop', containerName(recipeId)],
 					env: {},
-				})
-				.catch(() => undefined);
+				});
+			}
+			await processSupervisorService.stop(recipeId);
+			if (
+				mode === 'docker' &&
+				(await this.inspectContainer(recipeId)) === 'running'
+			) {
+				throw new Error(
+					`Container "${containerName(recipeId)}" is still running; recipe was not stopped`,
+				);
+			}
+			this.patch(recipeId, { state: 'stopped', lastError: null });
+			if (recipe) this.runStopHook(recipe);
+			this.ports.delete(recipeId);
+		} catch (error) {
+			const message = errorMessage(error, 'failed to stop');
+			this.patch(recipeId, { state: 'error', lastError: message });
+			throw error;
 		}
-
-		await processSupervisorService.stop(recipeId);
-
-		this.patch(recipeId, { state: 'stopped' });
-
-		if (recipe) this.runStopHook(recipe);
-
-		this.ports.delete(recipeId);
 	}
 
 	async setVariables(
@@ -552,6 +610,19 @@ class RecipeManager {
 		version?: string,
 	): Promise<Recipe> {
 		const recipe = await recipeRegistry.fetchRecipe(entry, version);
+		if (
+			recipe.id !== entry.id ||
+			recipe.type !== entry.type ||
+			!pluginTypeRegistry.get(recipe.type) ||
+			!Array.isArray(recipe.modes) ||
+			!recipe.env ||
+			!recipe.typeConfig ||
+			(version && recipe.version !== version)
+		) {
+			throw new Error(
+				'Registry recipe manifest is invalid or does not match the selected entry',
+			);
+		}
 		return this.save(recipe);
 	}
 
@@ -589,7 +660,7 @@ class RecipeManager {
 					})
 					.catch(() => undefined);
 
-				if (docker?.image) {
+				if (docker?.image && docker.removeImageOnUninstall) {
 					await processSupervisorService.runCommand(`${recipeId}-rmi`, {
 						command: containerEngine,
 						args: ['rmi', '-f', docker.image],
@@ -662,36 +733,34 @@ class RecipeManager {
 
 	private async isContainerRunning(recipeId: string): Promise<boolean> {
 		try {
-			const out: string[] = [];
-
-			const unsubscribe = processSupervisorService.onOutput(
-				({ handleId, line }) => {
-					if (handleId === `${recipeId}-probe`) out.push(line);
-				},
+			return (await this.inspectContainer(recipeId)) === 'running';
+		} catch (error) {
+			this.appendLog(
+				recipeId,
+				`Container inspection failed: ${errorMessage(error, 'unknown error')}`,
 			);
-
-			const code = await processSupervisorService.runCommand(
-				`${recipeId}-probe`,
-				{
-					command: this.containerEngineForRuntime(recipeId),
-					args: [
-						'ps',
-						'--filter',
-						`name=${containerName(recipeId)}`,
-						'--format',
-						'{{.Names}}',
-					],
-					env: {},
-				},
-			);
-
-			unsubscribe();
-
-			return (
-				code === 0 && out.some((l) => l.trim() === containerName(recipeId))
-			);
-		} catch {
 			return false;
+		}
+	}
+
+	private async inspectContainer(
+		recipeId: string,
+	): Promise<ExistingContainerState> {
+		const name = containerName(recipeId);
+		const handleId = `${recipeId}-inspect-${nanoid(6)}`;
+		const lines: string[] = [];
+		const unsubscribe = processSupervisorService.onOutput((event) => {
+			if (event.handleId === handleId) lines.push(event.line);
+		});
+		try {
+			const code = await processSupervisorService.runCommand(handleId, {
+				command: this.containerEngineForRuntime(recipeId),
+				args: ['container', 'inspect', '--format', '{{.State.Status}}', name],
+				env: {},
+			});
+			return containerStateFromInspect(code, lines, name);
+		} finally {
+			unsubscribe();
 		}
 	}
 

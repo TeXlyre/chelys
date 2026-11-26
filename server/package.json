@@ -1,0 +1,10 @@
+{
+  "name": "chelys-headless-dependencies",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "@roamhq/wrtc": "0.10.0",
+    "ws": "8.18.3"
+  }
+}

@@ -68,10 +68,12 @@ class RecipeRegistry {
 	}
 
 	async fetchRecipe(entry: RegistryEntry, version?: string): Promise<Recipe> {
-		const manifestUrl = version
-			? (entry.versions?.find((v) => v.version === version)?.manifestUrl ??
-				entry.manifestUrl)
-			: entry.manifestUrl;
+		const selected = version
+			? normalizeVersions(entry).find((item) => item.version === version)
+			: null;
+		if (version && !selected)
+			throw new Error(`Recipe version not found: ${entry.id}@${version}`);
+		const manifestUrl = selected?.manifestUrl ?? entry.manifestUrl;
 		const response = await fetch(manifestUrl, { cache: 'no-cache' });
 		if (!response.ok) {
 			throw new Error(`Could not fetch "${entry.name}" (${response.status})`);
@@ -82,7 +84,7 @@ class RecipeRegistry {
 			id: manifest.id || entry.id || nanoid(),
 			icon: manifest.icon ?? entry.icon,
 			iconUrl: manifest.iconUrl ?? entry.iconUrl,
-			version: manifest.version ?? entry.version,
+			version: manifest.version ?? version ?? entry.version,
 			source: 'registry',
 		};
 		recipe.sourceUrl = manifestUrl.replace(/[^/]*$/, '');
@@ -94,7 +96,7 @@ class RecipeRegistry {
 	private resolveSource(recipe: Recipe, value: string): string {
 		if (/^https?:\/\//i.test(value)) return value;
 		const base = (recipe.sourceUrl ?? '').replace(/\/?$/, '/');
-		return base + value.replace(/^\.\//, '');
+		return `${base}${value.replace(/^\.\//, '')}`;
 	}
 
 	private async inlineIcon(recipe: Recipe): Promise<void> {

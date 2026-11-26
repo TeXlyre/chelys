@@ -16,6 +16,7 @@ const SettingsButton: React.FC<SettingsButtonProps> = ({ className = '' }) => {
 	return (
 		<>
 			<button
+				type='button'
 				className={`settings-button ${className}`}
 				onClick={() => setIsSettingsOpen(true)}
 				title={t('Settings')}

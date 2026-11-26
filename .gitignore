@@ -48,3 +48,10 @@ src-tauri/icons/source.png
 # OS
 .DS_Store
 Thumbs.db
+
+/native/credentials/target/
+/server/bin/
+
+/native/launcher/target/
+/src-tauri/binaries/
+/release/

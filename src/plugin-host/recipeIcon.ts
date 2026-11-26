@@ -69,6 +69,7 @@ export function sanitizeIconMarkup(markup: string): string {
 }
 
 export function withSanitizedIcon(recipe: Recipe): Recipe {
+	if (typeof document === 'undefined') return recipe;
 	return recipe.icon
 		? { ...recipe, icon: sanitizeIconMarkup(recipe.icon) }
 		: recipe;

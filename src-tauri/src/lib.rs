@@ -1,31 +1,16 @@
-use keyring::Entry;
-use serde::{Deserialize, Serialize};
+// src-tauri/src/lib.rs
+use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::Manager;
-use uuid::Uuid;
-mod webrtc_bridge;
-use webrtc_bridge::WebRtcRegistry;
-mod process_supervisor;
-use process_supervisor::ProcessSupervisor;
+mod instance;
+mod ownership;
 mod tray;
-mod route_server;
-use route_server::RouteServerState;
-
-const SERVICE: &str = "app.chelys.poc";
-const USER: &str = "default";
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct StoredCredentials {
-    username: String,
-    password: String,
-    prf_output_hex: String,
-}
 
 #[derive(Debug, thiserror::Error)]
 enum AppError {
-    #[error("keyring error: {0}")]
-    Keyring(#[from] keyring::Error),
+    #[error("credential store: {0}")]
+    Credential(String),
     #[error("serialization error: {0}")]
     Serde(#[from] serde_json::Error),
     #[error("io error: {0}")]
@@ -47,42 +32,28 @@ enum CloseBehavior {
 #[derive(Default)]
 struct CloseBehaviorState(Mutex<Option<CloseBehavior>>);
 
-fn entry() -> Result<Entry, keyring::Error> {
-    Entry::new(SERVICE, USER)
-}
+fn credential_directory(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
+    if let Some(value) = std::env::var_os("CHELYS_DATA_DIR").filter(|value| !value.is_empty()) {
+        let directory = PathBuf::from(value);
+        if !directory.is_absolute() {
+            return Err(AppError::Credential("CHELYS_DATA_DIR must be an absolute path".into()));
+        }
+        return Ok(directory);
+    }
 
-#[tauri::command]
-fn save_credentials(
-    username: String,
-    password: String,
-    prf_output_hex: String,
-) -> Result<(), AppError> {
-    let creds = StoredCredentials {
-        username,
-        password,
-        prf_output_hex,
+    let base = if let Some(xdg) = std::env::var_os("XDG_DATA_HOME").filter(|value| !value.is_empty()) {
+        PathBuf::from(xdg)
+    } else {
+        app.path()
+            .home_dir()
+            .map_err(|error| AppError::Credential(error.to_string()))?
+            .join(".local")
+            .join("share")
     };
-    let json = serde_json::to_string(&creds)?;
-    entry()?.set_password(&json)?;
-    Ok(())
-}
-
-#[tauri::command]
-fn load_credentials() -> Result<Option<StoredCredentials>, AppError> {
-    match entry()?.get_password() {
-        Ok(json) => Ok(Some(serde_json::from_str(&json)?)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(e.into()),
+    if !base.is_absolute() {
+        return Err(AppError::Credential("Credential data directory must be absolute".into()));
     }
-}
-
-#[tauri::command]
-fn clear_credentials() -> Result<(), AppError> {
-    match entry()?.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.into()),
-    }
+    Ok(base.join("chelys"))
 }
 
 #[tauri::command]
@@ -92,11 +63,6 @@ fn set_close_behavior(state: tauri::State<'_, CloseBehaviorState>, exit_on_close
     } else {
         CloseBehavior::Tray
     });
-}
-
-#[tauri::command]
-fn generate_peer_id() -> String {
-    format!("peer-{}", Uuid::new_v4().simple())
 }
 
 #[tauri::command]
@@ -173,14 +139,8 @@ fn path_join(parts: Vec<String>) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let supervisor = ProcessSupervisor::default();
-    let shutdown = supervisor.clone();
-
     tauri::Builder::default()
-        .manage(WebRtcRegistry::default())
-        .manage(supervisor)
         .manage(CloseBehaviorState::default())
-        .manage(RouteServerState::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
@@ -189,13 +149,17 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["--hidden"]),
+            Some(vec!["--headless"]),
         ))
         .setup(|app| {
+            let directory = credential_directory(app.handle()).map_err(|error| Box::<dyn std::error::Error>::from(error.to_string()))?;
+            let instance = instance::initialize(app.handle(), directory)
+                .map_err(|error| Box::<dyn std::error::Error>::from(error))?;
+            app.manage(instance);
             tray::build(app.handle())?;
-            if std::env::args().any(|arg| arg == "--hidden") {
+            if std::env::args().any(|arg| arg == "--hidden") && app.tray_by_id("main").is_some() {
                 if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.minimize();
+                    let _ = window.hide();
                 }
             }
             Ok(())
@@ -204,18 +168,22 @@ pub fn run() {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let state = window.state::<CloseBehaviorState>();
                 let behavior = state.0.lock().unwrap().unwrap_or(CloseBehavior::Tray);
-                if behavior == CloseBehavior::Tray {
-                    let _ = window.minimize();
-                    api.prevent_close();
+                if behavior == CloseBehavior::Tray && window.app_handle().tray_by_id("main").is_some() {
+                    if window.hide().is_ok() {
+                        api.prevent_close();
+                    }
                 }
             }
         })
         .invoke_handler(tauri::generate_handler![
-            save_credentials,
-            load_credentials,
-            clear_credentials,
+            instance::instance_mode,
+            instance::instance_retry,
+            instance::instance_restart,
+            instance::instance_owner_get,
+            instance::instance_owner_set,
+            instance::instance_rpc,
+            instance::instance_install_cli,
             set_close_behavior,
-            generate_peer_id,
             fs_exists,
             fs_read,
             fs_write,
@@ -224,35 +192,12 @@ pub fn run() {
             fs_rename,
             fs_stat,
             path_join,
-            webrtc_bridge::rtc_create_peer,
-            webrtc_bridge::rtc_create_data_channel,
-            webrtc_bridge::rtc_create_offer,
-            webrtc_bridge::rtc_create_answer,
-            webrtc_bridge::rtc_set_local_description,
-            webrtc_bridge::rtc_set_remote_description,
-            webrtc_bridge::rtc_add_ice_candidate,
-            webrtc_bridge::rtc_close_peer,
-            webrtc_bridge::rtc_reset_peer_scope,
-            webrtc_bridge::rtc_set_message_sink,
-            webrtc_bridge::rtc_channel_send,
-            webrtc_bridge::rtc_channel_close,
-            process_supervisor::process_run_command,
-            process_supervisor::process_spawn,
-            process_supervisor::process_stop,
-            process_supervisor::process_is_running,
-            process_supervisor::process_list_running,
-            process_supervisor::find_free_port,
-            route_server::traefik_start_route_server,
-            route_server::traefik_set_routes,
         ])
         .build(tauri::generate_context!())
         .expect("...")
         .run(move |_app, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
-                let shutdown = shutdown.clone();
-                tauri::async_runtime::block_on(async move {
-                    shutdown.shutdown_all().await;
-                });
+                instance::cleanup(&_app.state::<instance::InstanceState>());
             }
         });
 }

@@ -8,6 +8,7 @@ import { useRoom } from '../../hooks/useRoom';
 import CopyField from '../common/CopyField';
 import PasteField from '../common/PasteField';
 import ThemeToggle from '../settings/ThemeToggle';
+import CredentialStorageWarning from '../common/CredentialStorageWarning';
 import { openExternalUrl } from '../../utils/platformUtils';
 import { getStoredSetting } from '../../config';
 
@@ -70,6 +71,7 @@ const ChelysLogin: React.FC = () => {
 				<div className='auth-form-container'>
 					<h2>{t('Log in to Chelys')}</h2>
 					{error && <div className='auth-error'>{error}</div>}
+					<CredentialStorageWarning />
 					<form
 						onSubmit={handleSubmit}
 						className='auth-form ui-stack'

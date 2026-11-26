@@ -163,6 +163,33 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({
 	}, [loadFromStorage]);
 
 	useEffect(() => {
+		const onBackendSettings = (event: Event) => {
+			const { key, value } = (
+				event as CustomEvent<{ key: string; value: string | null }>
+			).detail;
+			if (key !== getStorageKey()) return;
+			try {
+				const parsed = value
+					? (JSON.parse(value) as Record<string, unknown>)
+					: {};
+				localStorageSettingsRef.current = parsed;
+				setSettings((current) =>
+					current.map((setting) =>
+						Object.hasOwn(parsed, setting.id)
+							? { ...setting, value: parsed[setting.id] }
+							: setting,
+					),
+				);
+			} catch (error) {
+				console.error('[Chelys] Invalid backend settings', error);
+			}
+		};
+		window.addEventListener('chelys-storage-updated', onBackendSettings);
+		return () =>
+			window.removeEventListener('chelys-storage-updated', onBackendSettings);
+	}, [getStorageKey]);
+
+	useEffect(() => {
 		const handleAccountChanged = () => loadFromStorage();
 		window.addEventListener('chelys-account-changed', handleAccountChanged);
 		return () =>
@@ -171,6 +198,36 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({
 				handleAccountChanged,
 			);
 	}, [loadFromStorage]);
+
+	useEffect(() => {
+		const changed = (event: Event) => {
+			const detail = (event as CustomEvent<{ id: string; value: unknown }>)
+				.detail;
+			if (!detail || typeof detail.id !== 'string') return;
+			localStorageSettingsRef.current = {
+				...(localStorageSettingsRef.current ?? {}),
+				[detail.id]: detail.value,
+			};
+			const definition = getChelysSettings().find(
+				(setting) => setting.id === detail.id,
+			);
+			if (!definition) return;
+			const live =
+				definition.liveUpdate ??
+				!DEFERRED_UPDATE_TYPES.includes(definition.type);
+			if (live) definition.onChange?.(detail.value);
+			else setNeedsRefresh(true);
+			setSettings((current) =>
+				current.map((setting) =>
+					setting.id === detail.id
+						? { ...setting, value: detail.value }
+						: setting,
+				),
+			);
+		};
+		window.addEventListener('chelys-settings-changed', changed);
+		return () => window.removeEventListener('chelys-settings-changed', changed);
+	}, []);
 
 	useEffect(() => {
 		if (settings.length === 0 || !isLocalStorageLoaded.current) return;

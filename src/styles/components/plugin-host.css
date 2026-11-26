@@ -1,3 +1,4 @@
+/* src/styles/components/plugin-host.css */
 .recipe-list,
 .recipe-form,
 .recipe-browser,
@@ -480,6 +481,9 @@
 }
 
 .recipe-import-options .import-option-button {
+	width: 100%;
+	font: inherit;
+	color: inherit;
 	display: flex;
 	flex-direction: row;
 	align-items: center;

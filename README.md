@@ -27,7 +27,7 @@ Your TeXlyre settings, properties, secrets, and records synchronize directly bet
 
 ### Secure Pairing
 
-Chelys pairs with your existing TeXlyre identity using your username, password, and a **WebAuthn/PRF** passkey or a generated temporary pseudo-PRF key to derive an encrypted account room. Credentials are stored in your operating system's native keychain.
+Chelys pairs with your existing TeXlyre identity using your username, password, and a **WebAuthn/PRF** passkey or a generated temporary pseudo-PRF key to derive an encrypted account room. Credentials use the operating system's native keychain when available, with a warned local fallback if it is inaccessible.
 
 ## Quick Start
 
@@ -69,3 +69,7 @@ See [LICENSE](https://github.com/TeXlyre/chelys/blob/main/LICENSE) for the compl
 ## Funding
 
 [Chelys is funded by NLnet](https://nlnet.nl/project/Texlyre/) through the NGI0 Commons Fund, which is supported by the European Commission's Next Generation Internet programme.
+
+## Headless servers and remote control
+
+Chelys also supports an optional Node-based server runtime and a shared CLI/GUI remote-control API. See [HEADLESS.md](HEADLESS.md) for deployment, account and recipe commands, access policies, and WebRTC/WebSocket peer management.
