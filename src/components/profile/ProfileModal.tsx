@@ -4,13 +4,12 @@ import { useState } from 'react';
 
 import { t } from '@/i18n';
 import { useRoom } from '../../hooks/useRoom';
-import Modal from '../common/Modal';
+import Modal from '@texlyre/components/common/Modal';
 import { UserIcon } from '../common/Icons';
 import AccountIdentitySection from './AccountIdentitySection';
 import LocalStorageDataSection from './LocalStorageDataSection';
 import ControlAccessSection from './ControlAccessSection';
 import CredentialStorageWarning from '../common/CredentialStorageWarning';
-import BackgroundServerSection from './BackgroundServerSection';
 
 interface ProfileModalProps {
 	isOpen: boolean;
@@ -30,7 +29,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
 			onClose={onClose}
 			title={t('Account Settings')}
 			icon={UserIcon}
-			size={tab === 'access' ? 'wide' : 'large'}
+			size='large'
 		>
 			<div className='view-tabs ui-tab-list' data-variant='switcher'>
 				<button
@@ -68,7 +67,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
 						onError={setError}
 						onSuccess={setSuccess}
 					/>
-					<BackgroundServerSection />
 				</>
 			) : tab === 'access' ? (
 				identity && <ControlAccessSection />
