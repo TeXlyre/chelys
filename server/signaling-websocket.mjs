@@ -31,6 +31,20 @@ function isSignalingUrl(address, storage) {
 	if (!target) return false;
 	if (/^(?:ywebrtc|yweb|filepizza)\./i.test(target.hostname)) return true;
 
+	// Saved dedicated invitations may specify signaling servers different from
+	// this account's defaults. Do not apply the Origin to direct control URLs.
+	try {
+		const peers = JSON.parse(storage.getItem('chelys-peer-endpoints') || '{}');
+		for (const value of Object.values(peers)) {
+			if (typeof value !== 'string' || !value.startsWith('chelys-webrtc:') || value.length > 65_536) continue;
+			try {
+				const invitation = JSON.parse(Buffer.from(value.slice('chelys-webrtc:'.length), 'base64').toString('utf8'));
+				if (Array.isArray(invitation.signaling) && invitation.signaling.some(server => typeof server === 'string' && matchesEndpoint(target, server, false))) return true;
+			} catch { /* Ignore malformed saved invitations. */ }
+		}
+	} catch { /* Ignore malformed saved endpoints. */ }
+
+
 	for (let index = 0; index < storage.length; index++) {
 		const key = storage.key(index);
 		if (

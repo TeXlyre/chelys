@@ -17,6 +17,9 @@ import {
 	type RpcResponse,
 } from './protocol';
 
+import { keyHash } from './policy';
+import { INVITATION_PREFIX, DEDICATED_LABEL, CONTROL_HELLO, parseInvitation, dedicatedRoom, controlKey, validApiKey, validChallenge, seal, unseal, MAX_REQUEST, type ControlInvitation } from './dedicated';
+
 const PEER_ENDPOINTS = 'chelys-peer-endpoints';
 const TIMEOUT = 30_000;
 const sleep = (ms: number) =>
@@ -28,18 +31,27 @@ export function peerEndpoints(): Record<string, string> {
 	try {
 		const result = JSON.parse(localStorage.getItem(PEER_ENDPOINTS) || '{}');
 		return result && typeof result === 'object' && !Array.isArray(result)
-			? result
+			? Object.fromEntries(Object.entries(result).filter(
+				(entry): entry is [string, string] => typeof entry[1] === 'string',
+			))
 			: {};
 	} catch {
 		return {};
 	}
 }
-export function addPeerEndpoint(name: string, url: string): void {
+export async function addPeerEndpoint(name: string, url: string, apiKey?: string): Promise<void> {
 	if (
 		!/^[a-zA-Z0-9_-]{1,64}$/.test(name) ||
 		['__proto__', 'prototype', 'constructor'].includes(name)
 	)
 		throw new Error('Peer alias must be letters, numbers, _ or -');
+	if (url.startsWith(INVITATION_PREFIX)) {
+		const invitation = parseInvitation(url);
+		if (apiKey !== undefined && (!validApiKey(apiKey) || await dedicatedRoom(await keyHash(apiKey)) !== invitation.room))
+			throw new Error('API key does not match this invitation');
+		localStorage.setItem(PEER_ENDPOINTS, JSON.stringify({ ...peerEndpoints(), [name]: url }));
+		return;
+	}
 	const parsed = new URL(url);
 	if (
 		!['ws:', 'wss:'].includes(parsed.protocol) ||
@@ -68,7 +80,7 @@ export function listAvailablePeers(): Array<Record<string, unknown>> {
 	const configured = Object.entries(peerEndpoints()).map(([alias, url]) => ({
 		alias,
 		url,
-		transport: 'websocket',
+		transport: url.startsWith(INVITATION_PREFIX) ? 'webrtc' : 'websocket',
 		controlAvailable: true,
 	}));
 	const connection = chelysAccountSyncService.getConnection();
@@ -228,14 +240,30 @@ async function viaWebSocket(
 async function viaWebRtc(
 	target: string,
 	request: RpcRequest,
+	invitation?: ControlInvitation,
 ): Promise<unknown> {
+	let key: CryptoKey | undefined;
+	if (invitation) {
+		if (!validApiKey(request.apiKey)) throw new Error('A Chelys API key is required for this connection');
+		const hash = await keyHash(request.apiKey);
+		if (await dedicatedRoom(hash) !== invitation.room) throw new Error('API key does not match this invitation');
+		key = await controlKey(hash);
+	}
 	const account = chelysAccountSyncService.getConnection();
-	if (!account) throw new Error('Login required to connect over WebRTC');
-	const lease = await openSession({
-		baseRoomId: account.roomId,
-		controlRoomId: account.roomId,
+	if (!account && !invitation) throw new Error('Login required to connect over WebRTC');
+	const lease = await openSession(invitation ? {
+		baseRoomId: invitation.room,
+		controlRoomId: invitation.room,
+		controlMode: 'dedicated',
+		signaling: invitation.signaling,
+		label: DEDICATED_LABEL,
+		anonymous: true,
+		recoverPeerless: false,
+	} : {
+		baseRoomId: account!.roomId,
+		controlRoomId: account!.roomId,
 		controlMode: 'account',
-		signaling: readSignalingServers(account.userId),
+		signaling: readSignalingServers(account!.userId),
 		label: CONTROL_LABEL_PREFIX + target,
 	});
 	try {
@@ -254,6 +282,7 @@ async function viaWebRtc(
 		const acquired = acquireChannel(peer, lease.channelLabel);
 		if (!acquired) throw new Error('Unable to create control data channel');
 		const channel = acquired.channel;
+		channel.binaryType = 'arraybuffer';
 		return await new Promise<unknown>((resolve, reject) => {
 			let done = false;
 			const reassembler = new FrameReassembler();
@@ -261,11 +290,14 @@ async function viaWebRtc(
 				() => finish(new Error('WebRTC response timed out')),
 				TIMEOUT,
 			);
+			let challenge: string | null = null;
+			let sent = false;
 			const unsubscribe = lease.onInvalid((error) => finish(error));
 			function finish(error?: Error, result?: unknown) {
 				if (done) return;
 				done = true;
 				clearTimeout(timer);
+				reassembler.reset();
 				unsubscribe();
 				channel.close();
 				if (error) reject(error);
@@ -273,8 +305,11 @@ async function viaWebRtc(
 			}
 			const send = () => {
 				try {
-					for (const frame of encodeFrames(JSON.stringify(request)))
-						channel.send(frame);
+					if (sent) return;
+					sent = true;
+					const text = JSON.stringify(request);
+					if (text.length > MAX_REQUEST) throw new Error('Request too large');
+					for (const frame of encodeFrames(key ? CONTROL_HELLO : text)) channel.send(frame);
 				} catch (error) {
 					finish(error instanceof Error ? error : new Error(String(error)));
 				}
@@ -283,16 +318,20 @@ async function viaWebRtc(
 			channel.onclose = () => finish(new Error('WebRTC channel closed'));
 			channel.onerror = () => finish(new Error('WebRTC channel failed'));
 			channel.onmessage = (event) => {
-				try {
+				void (async () => {
 					const frame = reassembler.push(event.data as ArrayBuffer);
-					if (frame !== null)
-						finish(
-							undefined,
-							checkResponse(JSON.parse(toText(frame)), request),
-						);
-				} catch (error) {
-					finish(error instanceof Error ? error : new Error(String(error)));
-				}
+					if (frame === null) return;
+					const text = toText(frame);
+					if (key && challenge === null) {
+						if (!validChallenge(text)) throw new Error('Invalid remote challenge');
+						challenge = text;
+						const encrypted = await seal(key, challenge, 'request', JSON.stringify(request));
+						if (!done) for (const part of encodeFrames(encrypted)) channel.send(part);
+						return;
+					}
+					const response = key ? await unseal(key, challenge!, 'response', text) : text;
+					finish(undefined, checkResponse(JSON.parse(response), request));
+				})().catch(error => finish(error instanceof Error ? error : new Error(String(error))));
 			};
 			if (channel.readyState === 'open') send();
 		});
@@ -306,9 +345,10 @@ export async function callRemotePeer(
 	params: Record<string, unknown> = {},
 	apiKey?: string,
 ): Promise<unknown> {
-	const endpoint = peerEndpoints()[target];
+	const entries = peerEndpoints();
+	const endpoint = Object.hasOwn(entries, target) ? entries[target] : undefined;
 	const request = requestMessage(method, params, apiKey);
-	return endpoint
-		? viaWebSocket(endpoint, request)
-		: viaWebRtc(target, request);
+	if (endpoint?.startsWith(INVITATION_PREFIX))
+		return viaWebRtc(target, request, parseInvitation(endpoint));
+	return endpoint ? viaWebSocket(endpoint, request) : viaWebRtc(target, request);
 }
