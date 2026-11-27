@@ -93,6 +93,8 @@ export default function PeerControlSection() {
 	const [apiKey, setApiKey] = useState('');
 	const [alias, setAlias] = useState('');
 	const [url, setUrl] = useState('');
+	const [connectionTransport, setConnectionTransport] = useState<'webrtc' | 'websocket'>('webrtc');
+	const [connectionKey, setConnectionKey] = useState('');
 	const [adding, setAdding] = useState(false);
 	const [inventory, setInventory] = useState<Inventory | null>(null);
 	const [tab, setTab] = useState<'overview' | 'metrics' | 'recipes'>(
@@ -167,7 +169,7 @@ export default function PeerControlSection() {
 				<div>
 					<h3>Remote instances</h3>
 					<p className='field-hint'>
-						Discover peers in your account room or add a WebSocket endpoint.
+						Discover account peers or connect to another instance using an invitation or WebSocket endpoint.
 					</p>
 				</div>
 				<div className='control-toolbar'>
@@ -183,7 +185,10 @@ export default function PeerControlSection() {
 						type='button'
 						className='button primary'
 						aria-expanded={adding}
-						onClick={() => setAdding((previous) => !previous)}
+						onClick={() => {
+							setAdding((previous) => !previous);
+							setConnectionKey('');
+						}}
 					>
 						{adding ? 'Cancel' : 'Add connection'}
 					</button>
@@ -195,7 +200,10 @@ export default function PeerControlSection() {
 					onSubmit={(event) => {
 						event.preventDefault();
 						void perform(async () => {
-							await localCommand('peers.connect', { alias, url });
+							await localCommand('peers.connect', { alias, url: url.trim(), apiKey: connectionKey || undefined });
+							selectPeer(alias);
+							setApiKey(connectionKey);
+							setConnectionKey('');
 							setAlias('');
 							setUrl('');
 							setAdding(false);
@@ -210,14 +218,22 @@ export default function PeerControlSection() {
 						required
 						onChange={(e) => setAlias(e.target.value)}
 					/>
+					<select aria-label='Connection transport' value={connectionTransport} onChange={event => {
+						setConnectionTransport(event.target.value as 'webrtc' | 'websocket');
+						setUrl('');
+					}}>
+						<option value='webrtc'>WebRTC invitation</option>
+						<option value='websocket'>WebSocket endpoint</option>
+					</select>
 					<input
-						aria-label='WebSocket endpoint'
-						placeholder='wss://host/control'
+						aria-label={connectionTransport === 'webrtc' ? 'Connection invitation' : 'WebSocket endpoint'}
+						placeholder={connectionTransport === 'webrtc' ? 'Paste Chelys invitation' : 'wss://host/control'}
 						value={url}
 						required
 						onChange={(e) => setUrl(e.target.value)}
 					/>
-					<button type='submit' className='button primary' disabled={pending}>
+					<input type='password' autoComplete='off' aria-label='Remote API key' placeholder='API key (not saved)' value={connectionKey} onChange={event => setConnectionKey(event.target.value)} required={connectionTransport === 'webrtc'} />
+					<button type='submit' className='button primary' disabled={pending || (connectionTransport === 'webrtc' ? !url.startsWith('chelys-webrtc:') : !/^wss?:\/\//.test(url))}>
 						Save
 					</button>
 				</form>
@@ -247,7 +263,7 @@ export default function PeerControlSection() {
 								<small>
 									{peer.transport === 'websocket'
 										? 'Saved endpoint'
-										: peer.controlAvailable === false
+										: peer.alias ? 'Saved WebRTC invitation' : peer.controlAvailable === false
 											? 'Present · control disabled'
 											: 'Discovered via WebRTC'}
 								</small>
@@ -283,7 +299,7 @@ export default function PeerControlSection() {
 										type='button'
 										className='button secondary'
 										disabled={
-											pending || selectedPeer?.controlAvailable === false
+											pending || selectedPeer?.controlAvailable === false || (!!selectedPeer?.alias && !apiKey.trim())
 										}
 										onClick={() => void perform(inspect)}
 									>
@@ -304,7 +320,7 @@ export default function PeerControlSection() {
 							{selectedPeer?.alias && confirmRemoval === selectedPeer.alias && (
 								<div className='warning-message' role='alert'>
 									<p>
-										Remove the saved WebSocket endpoint “{selectedPeer.alias}”?
+										Remove the saved connection “{selectedPeer.alias}”?
 										This does not revoke its API keys on the remote machine.
 									</p>
 									<div className='control-toolbar'>
@@ -336,7 +352,7 @@ export default function PeerControlSection() {
 							)}
 							<div className='form-group ui-field'>
 								<label htmlFor='chelys-peer-key'>
-									API key for this peer (optional)
+									API key for this peer {selectedPeer?.alias ? '(required)' : '(if required)'}
 								</label>
 								<input
 									id='chelys-peer-key'

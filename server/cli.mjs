@@ -41,8 +41,8 @@ const usage = `Chelys CLI — one command grammar for local and remote peers
   chelys recipes set ID FIELD JSON          Fields: name, notes, cwd, typeConfig.KEY, variableValues.KEY
   chelys recipes env {list ID|get ID KEY|set ID KEY VALUE|delete ID KEY}
   chelys access {show|mode disabled|mode peers|mode keys}
-  chelys access keys {list|create NAME PERMISSION[,PERMISSION...] [--fields cpu,memory]|revoke ID}
-  chelys peers {list|connect ALIAS wss://HOST/control|disconnect ALIAS|inspect TARGET}
+  chelys access keys {list|create NAME PERMISSION[,PERMISSION...] [--fields cpu,memory]|invitation ID|revoke ID}
+  chelys peers {list|connect ALIAS INVITATION_OR_WS_URL|disconnect ALIAS|inspect TARGET}
   chelys peers use TARGET                   Select default remote target ("local" clears)
 
   PRF: chelys --show-prf                  Display the saved local login PRF
@@ -371,6 +371,8 @@ function decode(positional, options) {
 							? { fields: String(options.fields).split(',').filter(Boolean) }
 							: {}),
 					});
+				if (third === 'invitation')
+					return rpc('access.keys.invitation', { id: fourth });
 				if (third === 'revoke')
 					return rpc('access.keys.revoke', { id: fourth });
 			}

@@ -134,7 +134,7 @@
 }
 
 .control-access-mode span,
-.control-access-key div {
+.control-access-key > div:first-child {
 	display: flex;
 	flex-direction: column;
 	gap: 0.2rem;
@@ -150,6 +150,7 @@
 
 .control-access-key {
 	display: flex;
+	flex-wrap: wrap;
 	gap: 0.75rem;
 	align-items: center;
 	justify-content: space-between;

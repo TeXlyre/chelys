@@ -146,8 +146,8 @@ The local control socket is the default target. `--peer TARGET` selects a remote
 | Recipe attributes | `recipes set ID FIELD JSON`, `recipes env list|get|set|delete ID [KEY] [VALUE]` |
 | Inspection | `recipes metrics ID [--fields FIELDS]`, `recipes share ID show|set MODE [--fields FIELDS]` |
 | Access policy | `access show`, `access mode disabled|peers|keys` |
-| API keys | `access keys list`, `access keys create NAME PERMISSION[,PERMISSION...] [--fields FIELDS]`, `access keys revoke ID` |
-| Peers | `peers list`, `peers inspect TARGET`, `peers connect ALIAS wss://HOST/control`, `peers disconnect ALIAS`, `peers use TARGET|local` |
+| API keys | `access keys list`, `access keys create NAME PERMISSION[,PERMISSION...] [--fields FIELDS]`, `access keys invitation ID`, `access keys revoke ID` |
+| Peers | `peers list`, `peers inspect TARGET`, `peers connect ALIAS INVITATION_OR_WS_URL`, `peers disconnect ALIAS`, `peers use TARGET|local` |
 | Machine | `machine show` |
 
 `MODE` is `system`, `docker`, or `connect` for installations. `recipes add` resolves a recipe ID and optional version from the configured registry using the same manager as the desktop. `recipes install` automatically registers missing recipes from that registry. For `docker` mode, `--source registry` pulls the published image; `--source build` uses the recipe Dockerfile/build steps. `--engine` sets a per-recipe container-engine override. `--initialize-volumes` explicitly authorizes creation of new storage volumes. Recipe attribute fields are `name`, `notes`, `cwd`, `backend`, or `typeConfig.KEY`, `env.KEY`, `variableValues.KEY`. Attribute/environment changes may require a recipe restart.
@@ -203,7 +203,7 @@ Local RPC is newline-delimited JSON over the private Unix socket or Windows name
 | `peers` | Verified account-room WebRTC peers may control ordinary recipes; account stores and privileged infrastructure operations are excluded |
 | `keys` | API key required; each operation checks its explicit permission and optional telemetry-field restrictions |
 
-`peers` mode does not grant access to Chelys/TeXlyre settings, properties, records, secrets, or instance-profile edits. WebSocket callers must use key mode. Login/logout, credential updates, API-key administration, sharing-policy changes, and endpoint configuration are always local-only. Keys are displayed only on creation, stored as SHA-256 hashes, and revocable.
+`peers` mode does not grant access to Chelys/TeXlyre settings, properties, records, secrets, or instance-profile edits. WebSocket and dedicated WebRTC callers must use key mode. Login/logout, credential updates, API-key administration, sharing-policy changes, and endpoint configuration are always local-only. Keys are displayed only on creation, stored as SHA-256 hashes, and revocable.
 
 | Permission family | Operations |
 | --- | --- |
@@ -228,7 +228,34 @@ chelys --local recipes list
 chelys peers use local
 ```
 
-Discovered WebRTC peers and configured WebSocket endpoints are distinct. Presence or a saved endpoint is not proof of current reachability; explicit inspection tests the connection. Account Settings → Remote Control provides the same policy, key, connection and inspection operations as the CLI.
+Discovered account WebRTC peers, saved dedicated WebRTC invitations and saved WebSocket endpoints use the same command dispatcher. Presence or a saved connection is not proof of current reachability; explicit inspection tests the connection. Account Settings → Remote Control provides the same policy, key, connection and inspection operations as the CLI.
+
+### Dedicated WebRTC connections across accounts
+
+On the **target** instance, enable API-key access and create a least-privilege key (or reuse a key already created in API-key mode):
+
+```sh
+chelys --local access mode keys
+chelys --local access keys create observer inventory.read,recipes.read
+chelys --local access keys invitation KEY_ID
+```
+
+Copy the returned `chelys-webrtc:…` invitation and share the matching API key separately. In the desktop, use **Account Settings → Remote Control → Access & keys → Copy invitation** beside the key. Existing keys can be used without regenerating them, provided their original secret is still available.
+
+On the **controlling** instance, use **Add connection → WebRTC invitation**, enter an alias, paste the invitation and enter the matching key. The invitation is saved; the key is retained only in the current peer selection, not persisted. Select **Inspect** to verify reachability and permissions. The CLI uses the same saved connections:
+
+```sh
+chelys peers connect workstation 'chelys-webrtc:…'
+# Supply CHELYS_REMOTE_KEY via your secret manager or shell environment.
+chelys --peer workstation --api-key-env CHELYS_REMOTE_KEY recipes list
+chelys --api-key-env CHELYS_REMOTE_KEY peers inspect workstation
+```
+
+Dedicated rooms are derived from the key verifier with a distinct domain separator; the invitation contains the room identifier and target signaling URLs, not the API key or its verification hash. The existing TeXlyre service-session negotiation and framing are reused. The new dedicated RPC handshake encrypts requests and responses with AES-GCM using a separately derived key and a fresh server challenge per channel. The API key remains subject to the normal command, permission and field checks. A captured request cannot be reused in a later session. No account data or identity is published into the dedicated rendezvous/session rooms. Key revocation closes its listening room and denies subsequent commands; disabling key mode or logging out removes dedicated advertisements. Already authorized operations may finish.
+
+No inbound Chelys control port is needed for WebRTC. Both instances need working signaling and ICE connectivity; restrictive NAT/firewalls may require TURN support in the shared WebRTC transport. The target's backend must be running with its account active. Signaling URLs in invitations require `wss://` (or local loopback `ws://`). Generate/copy a fresh invitation if the target changes its signaling server list. The existing direct WebSocket option remains available for explicitly exposed TLS endpoints.
+
+Build prerequisite: the TeXlyre submodule must include the accompanying shared transport changes (`SessionClient`, `SessionHostRegistry`, `RendezvousRoom`); do not retain a separate Chelys copy of these components.
 
 ## Infrastructure inspection
 
